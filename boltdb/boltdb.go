@@ -1,31 +1,200 @@
 package boltdb
 
 import (
+	"bytes"
+	"fmt"
+	"github.com/boltdb/bolt"
 	as "github.com/go-ap/activitystreams"
 	"github.com/go-ap/errors"
+	"github.com/go-ap/jsonld"
 	s "github.com/go-ap/storage"
 )
 
-type boltDB struct{}
+type boltDB struct {
+	d     *bolt.DB
+	root  []byte
+	logFn loggerFn
+	errFn loggerFn
+}
 
+type loggerFn func(string, ...interface{})
+
+const (
+	bucketActors      = "actors"
+	bucketActivities  = "activities"
+	bucketObjects     = "objects"
+	bucketCollections = "collections"
+)
+
+// Config
+type Config struct {
+	Path       string
+	BucketName string
+	LogFn      loggerFn
+	ErrFn      loggerFn
+}
+
+// New returns a new boltDB repository
+func New(c Config) (*boltDB, error) {
+	db, err := bolt.Open(c.Path, 0600, nil)
+	if err != nil {
+		return nil, errors.Annotatef(err, "could not open db")
+	}
+	rootBucket := []byte(c.BucketName)
+	err = db.Update(func(tx *bolt.Tx) error {
+		root, err := tx.CreateBucketIfNotExists(rootBucket)
+		if err != nil {
+			return errors.Annotatef(err, "could not create root bucket")
+		}
+		_, err = root.CreateBucketIfNotExists([]byte(bucketActivities))
+		if err != nil {
+			return errors.Annotatef(err, "could not create %s bucket", bucketActivities)
+		}
+		_, err = root.CreateBucketIfNotExists([]byte(bucketActors))
+		if err != nil {
+			return errors.Annotatef(err, "could not create %s bucket", bucketActors)
+		}
+		_, err = root.CreateBucketIfNotExists([]byte(bucketObjects))
+		if err != nil {
+			return errors.Annotatef(err, "could not create %s bucket", bucketObjects)
+		}
+		_, err = root.CreateBucketIfNotExists([]byte(bucketCollections))
+		if err != nil {
+			return errors.Annotatef(err, "could not create %s bucket", bucketCollections)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, errors.Annotatef(err, "could not set up buckets")
+	}
+
+	b := boltDB{
+		d:     db,
+		root:  rootBucket,
+		logFn: func(string, ...interface{}) {},
+		errFn: func(string, ...interface{}) {},
+	}
+	if c.ErrFn != nil {
+		b.errFn = c.ErrFn
+	}
+	if c.LogFn != nil {
+		b.logFn = c.LogFn
+	}
+	return &b, nil
+}
+
+func loadFromDb(db *bolt.DB, bucket []byte, f s.Filterable) (as.ItemCollection, int, error) {
+	col := make(as.ItemCollection, 0)
+
+	err := db.View(func(tx *bolt.Tx) error {
+		// Assume bucket exists and has keys
+		b := tx.Bucket(bucket)
+
+		c := b.Cursor()
+
+		for _, iri := range f.IRIs() {
+			prefix := []byte(iri.GetLink())
+			for k, v := c.Seek(prefix); k != nil && bytes.HasPrefix(k, prefix); k, v = c.Next() {
+				if it, err := as.UnmarshalJSON(v); err == nil {
+					col = append(col, it)
+				}
+			}
+		}
+
+		return nil
+	})
+	
+	return col, len(col), err
+}
+
+// Load
 func (b *boltDB) Load(f s.Filterable) (as.ItemCollection, int, error) {
 	return nil, 0, errors.NotImplementedf("BoltDB Load not implemented")
 }
+
+// LoadActivities
 func (b *boltDB) LoadActivities(f s.Filterable) (as.ItemCollection, int, error) {
-	return nil, 0, errors.NotImplementedf("BoltDB LoadActivities not implemented")
+	return loadFromDb(b.d, []byte(bucketActivities), f) //nil, 0, errors.NotImplementedf("BoltDB LoadActivities not implemented")
 }
+
+// LoadObjects
 func (b *boltDB) LoadObjects(f s.Filterable) (as.ItemCollection, int, error) {
-	return nil, 0, errors.NotImplementedf("BoltDB LoadObjects not implemented")
+	return loadFromDb(b.d, []byte(bucketObjects), f)
 }
-func (b *boltDB) LoadCollection(f s.Filterable) (as.CollectionInterface, int, error) {
-	return nil, 0, errors.NotImplementedf("BoltDB LoadCollection not implemented")
+
+// LoadCollection
+func (b *boltDB) LoadCollection(f s.Filterable) (as.CollectionInterface, error) {
+	var ret as.CollectionInterface
+
+	err := b.d.View(func(tx *bolt.Tx) error {
+		// Assume bucket exists and has keys
+		b := tx.Bucket([]byte(bucketCollections))
+
+		for _, iri := range f.IRIs() {
+			v := b.Get([]byte(iri.GetLink()))
+			if it, err := as.UnmarshalJSON(v); err == nil {
+				typ := it.GetType()
+				if as.ActivityVocabularyType(typ) == as.CollectionType {
+					col := &as.Collection{}
+					col.ID = as.ObjectID(iri)
+					col.Type = as.CollectionType
+					ret = col
+				}
+				if as.ActivityVocabularyType(typ) == as.OrderedCollectionType {
+					col := &as.OrderedCollection{}
+					col.ID = as.ObjectID(iri)
+					col.Type = as.OrderedCollectionType
+					ret = col
+				}
+			}
+		}
+
+		return nil
+	})
+
+	return ret, err
 }
-func (b *boltDB) SaveActivity(as.Item) (as.Item, error) {
-	return nil, errors.NotImplementedf("BoltDB SaveActivity not implemented")
+
+func save(db *bolt.DB, bucket []byte, it as.Item) (as.Item, error) {
+	entryBytes, err := jsonld.Marshal(it)
+	if err != nil {
+		return it, errors.Annotatef(err, "could not marshal activity")
+	}
+	err = db.Update(func(tx *bolt.Tx) error {
+		err := tx.Bucket([]byte("DB")).Bucket(bucket).Put([]byte(it.GetLink()), entryBytes)
+		if err != nil {
+			return fmt.Errorf("could not insert entry: %v", err)
+		}
+
+		return nil
+	})
+
+	return it, err
 }
-func (b *boltDB) SaveActor(as.Item) (as.Item, error) {
-	return nil, errors.NotImplementedf("BoltDB SaveActor not implemented")
+
+// SaveActivity
+func (b *boltDB) SaveActivity(it as.Item) (as.Item, error) {
+	var err error
+	if it, err = save(b.d, []byte(bucketActivities), it); err == nil {
+		b.logFn("Added new activity: %s", it.GetLink())
+	}
+	return it, err
 }
-func (b *boltDB) SaveObject(as.Item) (as.Item, error) {
-	return nil, errors.NotImplementedf("BoltDB SaveObject not implemented")
+
+// SaveActor
+func (b *boltDB) SaveActor(it as.Item) (as.Item, error) {
+	var err error
+	if it, err = save(b.d, []byte(bucketActors), it); err == nil {
+		b.logFn("Added new activity: %s", it.GetLink())
+	}
+	return it, err
+}
+
+// SaveObject
+func (b *boltDB) SaveObject(it as.Item) (as.Item, error) {
+	var err error
+	if it, err = save(b.d, []byte(bucketObjects), it); err == nil {
+		b.logFn("Added new activity: %s", it.GetLink())
+	}
+	return it, err
 }
