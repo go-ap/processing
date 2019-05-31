@@ -83,15 +83,24 @@ func New(c Config) (*boltDB, error) {
 	return &b, nil
 }
 
-func loadFromDb(db *bolt.DB, bucket []byte, f s.Filterable) (as.ItemCollection, int, error) {
+func loadFromBucket(db *bolt.DB, root, bucket []byte, f s.Filterable) (as.ItemCollection, int, error) {
 	col := make(as.ItemCollection, 0)
 
 	err := db.View(func(tx *bolt.Tx) error {
+		root := tx.Bucket(root)
+		if root == nil {
+			return errors.Errorf("Invalid bucket %s", root)
+		}
 		// Assume bucket exists and has keys
-		b := tx.Bucket(bucket)
+		b := root.Bucket(bucket)
+		if b == nil {
+			return errors.Errorf("Invalid bucket %s.%s", root, bucket)
+		}
 
 		c := b.Cursor()
-
+		if c == nil {
+			return errors.Errorf("Invalid bucket cursor %s.%s", root, bucket)
+		}
 		for _, iri := range f.IRIs() {
 			prefix := []byte(iri.GetLink())
 			for k, v := c.Seek(prefix); k != nil && bytes.HasPrefix(k, prefix); k, v = c.Next() {
@@ -114,12 +123,12 @@ func (b *boltDB) Load(f s.Filterable) (as.ItemCollection, int, error) {
 
 // LoadActivities
 func (b *boltDB) LoadActivities(f s.Filterable) (as.ItemCollection, int, error) {
-	return loadFromDb(b.d, []byte(bucketActivities), f) //nil, 0, errors.NotImplementedf("BoltDB LoadActivities not implemented")
+	return loadFromBucket(b.d, b.root, []byte(bucketActivities), f) //nil, 0, errors.NotImplementedf("BoltDB LoadActivities not implemented")
 }
 
 // LoadObjects
 func (b *boltDB) LoadObjects(f s.Filterable) (as.ItemCollection, int, error) {
-	return loadFromDb(b.d, []byte(bucketObjects), f)
+	return loadFromBucket(b.d, b.root, []byte(bucketObjects), f)
 }
 
 // LoadCollection
@@ -127,9 +136,21 @@ func (b *boltDB) LoadCollection(f s.Filterable) (as.CollectionInterface, error) 
 	var ret as.CollectionInterface
 
 	err := b.d.View(func(tx *bolt.Tx) error {
+		root := tx.Bucket(b.root)
+		if root == nil {
+			return errors.Errorf("Invalid bucket %s", root)
+		}
+		bucket := []byte(bucketCollections)
 		// Assume bucket exists and has keys
-		b := tx.Bucket([]byte(bucketCollections))
+		b := root.Bucket(bucket)
+		if b == nil {
+			return errors.Errorf("Invalid bucket %s.%s", root, bucket)
+		}
 
+		c := b.Cursor()
+		if c == nil {
+			return errors.Errorf("Invalid bucket cursor %s.%s", root, bucket)
+		}
 		for _, iri := range f.IRIs() {
 			v := b.Get([]byte(iri.GetLink()))
 			if it, err := as.UnmarshalJSON(v); err == nil {
@@ -155,13 +176,22 @@ func (b *boltDB) LoadCollection(f s.Filterable) (as.CollectionInterface, error) 
 	return ret, err
 }
 
-func save(db *bolt.DB, bucket []byte, it as.Item) (as.Item, error) {
+func save(db *bolt.DB, root, bucket []byte, it as.Item) (as.Item, error) {
 	entryBytes, err := jsonld.Marshal(it)
 	if err != nil {
 		return it, errors.Annotatef(err, "could not marshal activity")
 	}
 	err = db.Update(func(tx *bolt.Tx) error {
-		err := tx.Bucket([]byte("DB")).Bucket(bucket).Put([]byte(it.GetLink()), entryBytes)
+		root := tx.Bucket(root)
+		if root == nil {
+			return errors.Errorf("Invalid bucket %s", root)
+		}
+		// Assume bucket exists and has keys
+		b := root.Bucket(bucket)
+		if b == nil {
+			return errors.Errorf("Invalid bucket %s.%s", root, bucket)
+		}
+		err := b.Put([]byte(it.GetLink()), entryBytes)
 		if err != nil {
 			return fmt.Errorf("could not insert entry: %v", err)
 		}
@@ -175,7 +205,7 @@ func save(db *bolt.DB, bucket []byte, it as.Item) (as.Item, error) {
 // SaveActivity
 func (b *boltDB) SaveActivity(it as.Item) (as.Item, error) {
 	var err error
-	if it, err = save(b.d, []byte(bucketActivities), it); err == nil {
+	if it, err = save(b.d, b.root, []byte(bucketActivities), it); err == nil {
 		b.logFn("Added new activity: %s", it.GetLink())
 	}
 	return it, err
@@ -184,7 +214,7 @@ func (b *boltDB) SaveActivity(it as.Item) (as.Item, error) {
 // SaveActor
 func (b *boltDB) SaveActor(it as.Item) (as.Item, error) {
 	var err error
-	if it, err = save(b.d, []byte(bucketActors), it); err == nil {
+	if it, err = save(b.d, b.root, []byte(bucketActors), it); err == nil {
 		b.logFn("Added new activity: %s", it.GetLink())
 	}
 	return it, err
@@ -193,7 +223,7 @@ func (b *boltDB) SaveActor(it as.Item) (as.Item, error) {
 // SaveObject
 func (b *boltDB) SaveObject(it as.Item) (as.Item, error) {
 	var err error
-	if it, err = save(b.d, []byte(bucketObjects), it); err == nil {
+	if it, err = save(b.d, b.root, []byte(bucketObjects), it); err == nil {
 		b.logFn("Added new activity: %s", it.GetLink())
 	}
 	return it, err
