@@ -123,7 +123,7 @@ func (b *boltDB) Load(f s.Filterable) (as.ItemCollection, int, error) {
 
 // LoadActivities
 func (b *boltDB) LoadActivities(f s.Filterable) (as.ItemCollection, int, error) {
-	return loadFromBucket(b.d, b.root, []byte(bucketActivities), f) //nil, 0, errors.NotImplementedf("BoltDB LoadActivities not implemented")
+	return loadFromBucket(b.d, b.root, []byte(bucketActivities), f)
 }
 
 // LoadObjects
