@@ -1,0 +1,13 @@
+image: archlinux
+packages:
+  - go
+sources:
+  - https://github.com/go-ap/storage
+environment:
+  GO111MODULE: 'on'
+tasks:
+  - setup: |
+      cd storage && go mod download
+  - tests: |
+      cd storage
+      go test -v ./...
