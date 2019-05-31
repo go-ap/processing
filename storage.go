@@ -21,7 +21,7 @@ type ObjectLoader interface {
 
 // CollectionLoader
 type CollectionLoader interface {
-	LoadCollection(f Filterable) (as.CollectionInterface, int, error)
+	LoadCollection(f Filterable) (as.CollectionInterface, error)
 }
 
 // ActivitySaver
