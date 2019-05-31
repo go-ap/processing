@@ -1,4 +1,4 @@
-module storage
+module github.com/go-ap/storage
 
 go 1.12
 
