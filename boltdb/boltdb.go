@@ -42,25 +42,9 @@ func New(c Config) (*boltDB, error) {
 	}
 	rootBucket := []byte(c.BucketName)
 	err = db.Update(func(tx *bolt.Tx) error {
-		root, err := tx.CreateBucketIfNotExists(rootBucket)
-		if err != nil {
-			return errors.Annotatef(err, "could not create root bucket")
-		}
-		_, err = root.CreateBucketIfNotExists([]byte(bucketActivities))
-		if err != nil {
-			return errors.Annotatef(err, "could not create %s bucket", bucketActivities)
-		}
-		_, err = root.CreateBucketIfNotExists([]byte(bucketActors))
-		if err != nil {
-			return errors.Annotatef(err, "could not create %s bucket", bucketActors)
-		}
-		_, err = root.CreateBucketIfNotExists([]byte(bucketObjects))
-		if err != nil {
-			return errors.Annotatef(err, "could not create %s bucket", bucketObjects)
-		}
-		_, err = root.CreateBucketIfNotExists([]byte(bucketCollections))
-		if err != nil {
-			return errors.Annotatef(err, "could not create %s bucket", bucketCollections)
+		root := tx.Bucket(rootBucket)
+		if !root.Writable() {
+			return errors.NotFoundf("root bucket not found or is not writeable")
 		}
 		return nil
 	})
