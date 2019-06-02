@@ -44,7 +44,7 @@ func New(c Config) (*boltDB, error) {
 	rootBucket := []byte(c.BucketName)
 	err = db.Update(func(tx *bolt.Tx) error {
 		root := tx.Bucket(rootBucket)
-		if !root.Writable() {
+		if root == nil || !root.Writable() {
 			return errors.NotFoundf("root bucket not found or is not writeable")
 		}
 		return nil
@@ -184,20 +184,26 @@ func (b *boltDB) LoadCollection(f s.Filterable) (as.CollectionInterface, error) 
 	return ret, err
 }
 
-func save(db *bolt.DB, root, bucket []byte, it as.Item) (as.Item, error) {
+func save(db *bolt.DB, rootBkt, bucket []byte, it as.Item) (as.Item, error) {
 	entryBytes, err := jsonld.Marshal(it)
 	if err != nil {
 		return it, errors.Annotatef(err, "could not marshal activity")
 	}
 	err = db.Update(func(tx *bolt.Tx) error {
-		root := tx.Bucket(root)
+		root := tx.Bucket(rootBkt)
 		if root == nil {
-			return errors.Errorf("Invalid bucket %s", root)
+			return errors.Errorf("Invalid bucket %s", rootBkt)
+		}
+		if !root.Writable() {
+			return errors.Errorf("Non writeable bucket %s", rootBkt)
 		}
 		// Assume bucket exists and has keys
 		b := root.Bucket(bucket)
 		if b == nil {
-			return errors.Errorf("Invalid bucket %s.%s", root, bucket)
+			return errors.Errorf("Invalid bucket %s.%s", rootBkt, bucket)
+		}
+		if !b.Writable() {
+			return errors.Errorf("Non writeable bucket %s %s", rootBkt, bucket)
 		}
 		err := b.Put([]byte(it.GetLink()), entryBytes)
 		if err != nil {
