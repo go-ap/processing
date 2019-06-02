@@ -45,4 +45,3 @@ type FilterableObject interface {
 	// It should include all relevant fields: To, CC, BTo, BCC, and Audience
 	Audience() []as.IRI
 }
-
