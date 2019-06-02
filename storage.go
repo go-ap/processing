@@ -4,9 +4,17 @@ import (
 	as "github.com/go-ap/activitystreams"
 )
 
+// Repository
+type Repository interface {
+	Loader
+	Saver
+}
+
 // Loader
 type Loader interface {
-	Load(f Filterable) (as.ItemCollection, uint, error)
+	ActivityLoader
+	ActorLoader
+	ObjectLoader
 }
 
 // ActivityLoader
@@ -37,6 +45,7 @@ type Saver interface {
 }
 
 // ActivitySaver
+// This interface doesn't have Update and Delete actions as we want to keep activities immutable
 type ActivitySaver interface {
 	SaveActivity(as.Item) (as.Item, error)
 }
