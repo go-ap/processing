@@ -234,6 +234,16 @@ func (b *boltDB) SaveActor(it as.Item) (as.Item, error) {
 	return it, err
 }
 
+// UpdateActor
+func (b *boltDB) UpdateActor(it as.Item) (as.Item, error) {
+	return it, errors.NotImplementedf("not implemented")
+}
+
+// DeleteActor
+func (b *boltDB) DeleteActor(it as.Item) (as.Item, error) {
+	return it, errors.NotImplementedf("not implemented")
+}
+
 // SaveObject
 func (b *boltDB) SaveObject(it as.Item) (as.Item, error) {
 	var err error
@@ -241,4 +251,14 @@ func (b *boltDB) SaveObject(it as.Item) (as.Item, error) {
 		b.logFn("Added new activity: %s", it.GetLink())
 	}
 	return it, err
+}
+
+// UpdateObject
+func (b *boltDB) UpdateObject(it as.Item) (as.Item, error) {
+	return it, errors.NotImplementedf("not implemented")
+}
+
+// DeleteObject
+func (b *boltDB) DeleteObject(it as.Item) (as.Item, error) {
+	return it, errors.NotImplementedf("not implemented")
 }

@@ -53,9 +53,13 @@ type ActivitySaver interface {
 // ActorSaver
 type ActorSaver interface {
 	SaveActor(as.Item) (as.Item, error)
+	UpdateActor(as.Item) (as.Item, error)
+	DeleteActor(as.Item) (as.Item, error)
 }
 
 // ObjectSaver
 type ObjectSaver interface {
 	SaveObject(as.Item) (as.Item, error)
+	UpdateObject(as.Item) (as.Item, error)
+	DeleteObject(as.Item) (as.Item, error)
 }
