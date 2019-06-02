@@ -83,7 +83,7 @@ func New(c Config) (*boltDB, error) {
 	return &b, nil
 }
 
-func loadFromBucket(db *bolt.DB, root, bucket []byte, f s.Filterable) (as.ItemCollection, int, error) {
+func loadFromBucket(db *bolt.DB, root, bucket []byte, f s.Filterable) (as.ItemCollection, uint, error) {
 	col := make(as.ItemCollection, 0)
 
 	err := db.View(func(tx *bolt.Tx) error {
@@ -113,22 +113,27 @@ func loadFromBucket(db *bolt.DB, root, bucket []byte, f s.Filterable) (as.ItemCo
 		return nil
 	})
 	
-	return col, len(col), err
+	return col, uint(len(col)), err
 }
 
 // Load
-func (b *boltDB) Load(f s.Filterable) (as.ItemCollection, int, error) {
+func (b *boltDB) Load(f s.Filterable) (as.ItemCollection, uint, error) {
 	return nil, 0, errors.NotImplementedf("BoltDB Load not implemented")
 }
 
 // LoadActivities
-func (b *boltDB) LoadActivities(f s.Filterable) (as.ItemCollection, int, error) {
+func (b *boltDB) LoadActivities(f s.Filterable) (as.ItemCollection, uint, error) {
 	return loadFromBucket(b.d, b.root, []byte(bucketActivities), f)
 }
 
 // LoadObjects
-func (b *boltDB) LoadObjects(f s.Filterable) (as.ItemCollection, int, error) {
+func (b *boltDB) LoadObjects(f s.Filterable) (as.ItemCollection, uint, error) {
 	return loadFromBucket(b.d, b.root, []byte(bucketObjects), f)
+}
+
+// LoadActors
+func (b *boltDB) LoadActors(f s.Filterable) (as.ItemCollection, uint, error) {
+	return loadFromBucket(b.d, b.root, []byte(bucketActors), f)
 }
 
 // LoadCollection

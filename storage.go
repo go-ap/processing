@@ -6,17 +6,22 @@ import (
 
 // Loader
 type Loader interface {
-	Load(f Filterable) (as.ItemCollection, int, error)
+	Load(f Filterable) (as.ItemCollection, uint, error)
 }
 
 // ActivityLoader
 type ActivityLoader interface {
-	LoadActivities(f Filterable) (as.ItemCollection, int, error)
+	LoadActivities(f Filterable) (as.ItemCollection, uint, error)
 }
 
 // ObjectLoader
 type ObjectLoader interface {
-	LoadObjects(f Filterable) (as.ItemCollection, int, error)
+	LoadObjects(f Filterable) (as.ItemCollection, uint, error)
+}
+
+// ActorLoader
+type ActorLoader interface {
+	LoadActors(f Filterable) (as.ItemCollection, uint, error)
 }
 
 // CollectionLoader
