@@ -29,6 +29,13 @@ type CollectionLoader interface {
 	LoadCollection(f Filterable) (as.CollectionInterface, error)
 }
 
+// Saver
+type Saver interface {
+	ActivitySaver
+	ActorSaver
+	ObjectSaver
+}
+
 // ActivitySaver
 type ActivitySaver interface {
 	SaveActivity(as.Item) (as.Item, error)
