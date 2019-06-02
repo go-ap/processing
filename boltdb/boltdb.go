@@ -8,6 +8,7 @@ import (
 	"github.com/go-ap/errors"
 	"github.com/go-ap/jsonld"
 	s "github.com/go-ap/storage"
+	"strings"
 )
 
 type boltDB struct {
@@ -131,31 +132,49 @@ func (b *boltDB) LoadCollection(f s.Filterable) (as.CollectionInterface, error) 
 		}
 		bucket := []byte(bucketCollections)
 		// Assume bucket exists and has keys
-		b := root.Bucket(bucket)
-		if b == nil {
+		colBkt := root.Bucket(bucket)
+		if colBkt == nil {
 			return errors.Errorf("Invalid bucket %s.%s", root, bucket)
 		}
 
-		c := b.Cursor()
+		c := colBkt.Cursor()
 		if c == nil {
 			return errors.Errorf("Invalid bucket cursor %s.%s", root, bucket)
 		}
 		for _, iri := range f.IRIs() {
-			v := b.Get([]byte(iri.GetLink()))
-			if it, err := as.UnmarshalJSON(v); err == nil {
-				typ := it.GetType()
-				if as.ActivityVocabularyType(typ) == as.CollectionType {
-					col := &as.Collection{}
-					col.ID = as.ObjectID(iri)
-					col.Type = as.CollectionType
-					ret = col
+			blob := colBkt.Get([]byte(iri.GetLink()))
+			var IRIs []as.IRI
+			if err := jsonld.Unmarshal(blob, &IRIs); err == nil {
+				col := &as.OrderedCollection{}
+				col.ID = as.ObjectID(iri)
+				col.Type = as.OrderedCollectionType
+				ret = col
+				f := boltFilters{
+					iris: IRIs,
 				}
-				if as.ActivityVocabularyType(typ) == as.OrderedCollectionType {
-					col := &as.OrderedCollection{}
-					col.ID = as.ObjectID(iri)
-					col.Type = as.OrderedCollectionType
-					ret = col
+				var searchActors, searchObjects, searchActivities bool
+				for _, it := range IRIs {
+					if strings.Contains(it.String(), bucketActivities) {
+						searchActivities = true
+					}
+					if strings.Contains(it.String(), bucketActors) {
+						searchActors = true
+					}
+					if strings.Contains(it.String(), bucketObjects) {
+						searchObjects = true
+					}
+					break
 				}
+				if searchActivities {
+					col.OrderedItems, col.TotalItems, err = b.LoadActivities(f)
+				}
+				if searchActors {
+					col.OrderedItems, col.TotalItems, err = b.LoadActors(f)
+				}
+				if searchObjects {
+					col.OrderedItems, col.TotalItems, err = b.LoadObjects(f)
+				}
+				ret = col
 			}
 		}
 
