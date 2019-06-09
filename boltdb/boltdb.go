@@ -72,12 +72,12 @@ func loadFromBucket(db *bolt.DB, root, bucket []byte, f s.Filterable) (as.ItemCo
 	col := make(as.ItemCollection, 0)
 
 	err := db.View(func(tx *bolt.Tx) error {
-		root := tx.Bucket(root)
-		if root == nil {
+		rb := tx.Bucket(root)
+		if rb == nil {
 			return errors.Errorf("Invalid bucket %s", root)
 		}
 		// Assume bucket exists and has keys
-		b := root.Bucket(bucket)
+		b := rb.Bucket(bucket)
 		if b == nil {
 			return errors.Errorf("Invalid bucket %s.%s", root, bucket)
 		}
@@ -126,23 +126,23 @@ func (b *boltDB) LoadCollection(f s.Filterable) (as.CollectionInterface, error) 
 	var ret as.CollectionInterface
 
 	err := b.d.View(func(tx *bolt.Tx) error {
-		root := tx.Bucket(b.root)
-		if root == nil {
-			return errors.Errorf("Invalid bucket %s", root)
+		rb := tx.Bucket(b.root)
+		if rb == nil {
+			return errors.Errorf("Invalid bucket %s", b.root)
 		}
 		bucket := []byte(bucketCollections)
 		// Assume bucket exists and has keys
-		colBkt := root.Bucket(bucket)
-		if colBkt == nil {
-			return errors.Errorf("Invalid bucket %s.%s", root, bucket)
+		cb := rb.Bucket(bucket)
+		if cb == nil {
+			return errors.Errorf("Invalid bucket %s.%s", b.root, bucket)
 		}
 
-		c := colBkt.Cursor()
+		c := cb.Cursor()
 		if c == nil {
-			return errors.Errorf("Invalid bucket cursor %s.%s", root, bucket)
+			return errors.Errorf("Invalid bucket cursor %s.%s", b.root, bucket)
 		}
 		for _, iri := range f.IRIs() {
-			blob := colBkt.Get([]byte(iri.GetLink()))
+			blob := cb.Get([]byte(iri.GetLink()))
 			var IRIs []as.IRI
 			if err := jsonld.Unmarshal(blob, &IRIs); err == nil {
 				col := &as.OrderedCollection{}
