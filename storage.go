@@ -15,6 +15,7 @@ type Loader interface {
 	ActivityLoader
 	ActorLoader
 	ObjectLoader
+	CollectionLoader
 }
 
 // ActivityLoader
