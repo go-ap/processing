@@ -8,6 +8,7 @@ import (
 	"github.com/go-ap/errors"
 	"github.com/go-ap/jsonld"
 	s "github.com/go-ap/storage"
+	"github.com/pborman/uuid"
 	"strings"
 )
 
@@ -265,5 +266,55 @@ func (b *boltDB) DeleteObject(it as.Item) (as.Item, error) {
 
 // GenerateID
 func (b *boltDB) GenerateID(it as.Item, partOf as.IRI, by as.Item) (as.ObjectID, error) {
-	return "", errors.NotImplementedf("GenerateID not implemented in boltdb package")
+	uuid := uuid.New()
+	id := as.ObjectID(fmt.Sprintf("%s/%s", strings.ToLower(string(partOf)), uuid))
+
+	if as.ActivityTypes.Contains(it.GetType()) {
+		a, err := as.ToActivity(it)
+		if err == nil {
+			return *it.GetID(), err
+		}
+		a.ID = id
+		it = a
+	}
+	if as.ActorTypes.Contains(it.GetType()) || as.ObjectTypes.Contains(it.GetType()) {
+		switch it.GetType() {
+		case as.PlaceType:
+			p, err := as.ToPlace(it)
+			if err != nil {
+				return *it.GetID(), err
+			}
+			p.ID = id
+			it = p
+		case as.ProfileType:
+			p, err := as.ToProfile(it)
+			if err != nil {
+				return *it.GetID(), err
+			}
+			p.ID = id
+			it = p
+		case as.RelationshipType:
+			p, err := as.ToRelationship(it)
+			if err != nil {
+				return *it.GetID(), err
+			}
+			p.ID = id
+			it = p
+		case as.TombstoneType:
+			p, err := as.ToTombstone(it)
+			if err != nil {
+				return *it.GetID(), err
+			}
+			p.ID = id
+			it = p
+		default:
+			p, err := as.ToObject(it)
+			if err != nil {
+				return *it.GetID(), err
+			}
+			p.ID = id
+			it = p
+		}
+	}
+	return *it.GetID(), nil
 }
