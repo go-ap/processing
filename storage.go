@@ -37,29 +37,50 @@ type CollectionLoader interface {
 	LoadCollection(f Filterable) (as.CollectionInterface, error)
 }
 
-// Saver
+// Saver saves
 type Saver interface {
 	ActivitySaver
 	ActorSaver
 	ObjectSaver
 }
 
-// ActivitySaver
+// IDGenerator generates an ObjectID for an ActivityStreams object.
+type IDGenerator interface {
+	// GenerateID takes an ActivityStreams object and activity pair.
+	//  The Activity is the activity that generated the object.
+	//  The Object is the object we want to generate the ID for.
+	GenerateID(it as.Item, by as.Item) (as.ObjectID, error)
+}
+
+// ActivitySaver saves ActivityStreams activities.
 // This interface doesn't have Update and Delete actions as we want to keep activities immutable
 type ActivitySaver interface {
+	// SaveActivity saves the incoming Activity object, and returns it together with any properties
+	// populated by the method's side effects. (eg, Published property can point to the current time, etc).
 	SaveActivity(as.Item) (as.Item, error)
 }
 
-// ActorSaver
+// ActorSaver saves ActivityStreams actors.
 type ActorSaver interface {
+	// SaveActor saves the incoming Actor object, and returns it together with any properties
+	// populated by the method's side effects. (eg, Published property can point to the current time, etc).
 	SaveActor(as.Item) (as.Item, error)
+	// UpdateActor updates the incoming Actor object, and returns it together with any properties
+	// populated by the method's side effects. (eg, Updated property can point to the current time, etc).
 	UpdateActor(as.Item) (as.Item, error)
+	// DeleteActor deletes the incoming Actor object, and returns the resulting Tombstone.
 	DeleteActor(as.Item) (as.Item, error)
 }
 
-// ObjectSaver
+// ObjectSaver saves ActivityStreams objects.
 type ObjectSaver interface {
+	IDGenerator
+	// SaveObject saves the incoming ActivityStreams Object, and returns it together with any properties
+	// populated by the method's side effects. (eg, Published property can point to the current time, etc).
 	SaveObject(as.Item) (as.Item, error)
+	// UpdateObject updates the incoming ActivityStreams Object, and returns it together with any properties
+	// populated by the method's side effects. (eg, Updated property can point to the current time, etc).
 	UpdateObject(as.Item) (as.Item, error)
+	// DeleteObject deletes the incoming ActivityStreams Object, and returns the resulting Tombstone.
 	DeleteObject(as.Item) (as.Item, error)
 }
