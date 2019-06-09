@@ -236,12 +236,12 @@ func (b *boltDB) SaveActor(it as.Item) (as.Item, error) {
 
 // UpdateActor
 func (b *boltDB) UpdateActor(it as.Item) (as.Item, error) {
-	return it, errors.NotImplementedf("not implemented")
+	return it, errors.NotImplementedf("UpdateActor not implemented in boltdb package")
 }
 
 // DeleteActor
 func (b *boltDB) DeleteActor(it as.Item) (as.Item, error) {
-	return it, errors.NotImplementedf("not implemented")
+	return it, errors.NotImplementedf("DeleteActor not implemented in boltdb package")
 }
 
 // SaveObject
@@ -255,10 +255,14 @@ func (b *boltDB) SaveObject(it as.Item) (as.Item, error) {
 
 // UpdateObject
 func (b *boltDB) UpdateObject(it as.Item) (as.Item, error) {
-	return it, errors.NotImplementedf("not implemented")
+	return it, errors.NotImplementedf("UpdateObject not implemented in boltdb package")
 }
 
 // DeleteObject
 func (b *boltDB) DeleteObject(it as.Item) (as.Item, error) {
-	return it, errors.NotImplementedf("not implemented")
+	return it, errors.NotImplementedf("DeleteObject not implemented in boltdb package")
+}
+
+func (b *boltDB) GenerateID(it as.Item, by as.Item) (as.ObjectID, error) {
+	return "", errors.NotImplementedf("GenerateID not implemented in boltdb package")
 }
