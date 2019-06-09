@@ -97,7 +97,7 @@ func loadFromBucket(db *bolt.DB, root, bucket []byte, f s.Filterable) (as.ItemCo
 
 		return nil
 	})
-	
+
 	return col, uint(len(col)), err
 }
 
@@ -263,6 +263,7 @@ func (b *boltDB) DeleteObject(it as.Item) (as.Item, error) {
 	return it, errors.NotImplementedf("DeleteObject not implemented in boltdb package")
 }
 
-func (b *boltDB) GenerateID(it as.Item, by as.Item) (as.ObjectID, error) {
+// GenerateID
+func (b *boltDB) GenerateID(it as.Item, partOf as.IRI, by as.Item) (as.ObjectID, error) {
 	return "", errors.NotImplementedf("GenerateID not implemented in boltdb package")
 }
