@@ -9,6 +9,7 @@ import (
 // This should be the minimal interface a filter object should implement for the storage layer
 // to work.
 type Filterable interface {
+	ID() as.IRI
 	Types() []as.ActivityVocabularyType
 	IRIs() []as.IRI
 }

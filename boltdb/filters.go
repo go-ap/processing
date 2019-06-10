@@ -4,8 +4,14 @@ import as "github.com/go-ap/activitystreams"
 
 // boltFilters
 type boltFilters struct {
+	id as.IRI
 	types []as.ActivityVocabularyType
 	iris []as.IRI
+}
+
+// ID
+func (f boltFilters) ID() as.IRI {
+	return f.id
 }
 
 // Types
