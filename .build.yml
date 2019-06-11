@@ -11,15 +11,13 @@ tasks:
   - setup: |
       cd storage && go mod download
   - tests: |
-      cd storage
-      go test -v ./...
+      cd storage && make test
   - coverage: |
       set -a +x
-      source ~/.code-cov.sh
-      cd storage
-      go test -cover -coverprofile storage.coverprofile ./...
+      cd storage && make coverage
       GIT_SHA=$(git rev-parse --verify HEAD)
       GIT_BRANCH=$(git name-rev --name-only HEAD)
+      source ~/.code-cov.sh
       curl -X POST \
           --data-binary @storage.coverprofile \
            -H 'Accept: application/json' \
