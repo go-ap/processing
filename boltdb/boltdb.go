@@ -318,3 +318,8 @@ func (b *boltDB) GenerateID(it as.Item, partOf as.IRI, by as.Item) (as.ObjectID,
 	}
 	return *it.GetID(), nil
 }
+
+// Close closes the boltdb database if possible.
+func (b *boltDB) Close() error {
+	return b.d.Close()
+}
