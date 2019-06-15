@@ -13,11 +13,12 @@ import (
 )
 
 type boltDB struct {
-	d     *bolt.DB
-	root  []byte
-	path  string
-	logFn loggerFn
-	errFn loggerFn
+	d       *bolt.DB
+	baseURL string
+	root    []byte
+	path    string
+	logFn   loggerFn
+	errFn   loggerFn
 }
 
 type loggerFn func(string, ...interface{})
@@ -37,10 +38,11 @@ type Config struct {
 }
 
 // New returns a new boltDB repository
-func New(c Config) (*boltDB, error) {
+func New(c Config, baseURL string) (*boltDB, error) {
 	b := boltDB{
 		root:  []byte(c.BucketName),
 		path:  c.Path,
+		baseURL: baseURL,
 		logFn: func(string, ...interface{}) {},
 		errFn: func(string, ...interface{}) {},
 	}
@@ -225,6 +227,13 @@ func save(db *bolt.DB, rootBkt, bucket []byte, it as.Item) (as.Item, error) {
 // SaveActivity
 func (b *boltDB) SaveActivity(it as.Item) (as.Item, error) {
 	var err error
+	iri := it.GetLink()
+	if len(iri) == 0 {
+		pc := as.IRI(fmt.Sprintf("%s/%s", b.baseURL, bucketActivities))
+		if _, err = b.GenerateID(it, pc, nil); err != nil {
+			return it, err
+		}
+	}
 	if it, err = save(b.d, b.root, []byte(bucketActivities), it); err == nil {
 		b.logFn("Added new activity: %s", it.GetLink())
 	}
@@ -234,6 +243,13 @@ func (b *boltDB) SaveActivity(it as.Item) (as.Item, error) {
 // SaveActor
 func (b *boltDB) SaveActor(it as.Item) (as.Item, error) {
 	var err error
+	iri := it.GetLink()
+	if len(iri) == 0 {
+		pc := as.IRI(fmt.Sprintf("%s/%s", b.baseURL, bucketActors))
+		if _, err = b.GenerateID(it, pc, nil); err != nil {
+			return it, err
+		}
+	}
 	if it, err = save(b.d, b.root, []byte(bucketActors), it); err == nil {
 		b.logFn("Added new activity: %s", it.GetLink())
 	}
@@ -253,6 +269,13 @@ func (b *boltDB) DeleteActor(it as.Item) (as.Item, error) {
 // SaveObject
 func (b *boltDB) SaveObject(it as.Item) (as.Item, error) {
 	var err error
+	iri := it.GetLink()
+	if len(iri) == 0 {
+		pc := as.IRI(fmt.Sprintf("%s/%s", b.baseURL, bucketObjects))
+		if _, err = b.GenerateID(it, pc, nil); err != nil {
+			return it, err
+		}
+	}
 	if it, err = save(b.d, b.root, []byte(bucketObjects), it); err == nil {
 		b.logFn("Added new activity: %s", it.GetLink())
 	}
@@ -276,8 +299,8 @@ func (b *boltDB) GenerateID(it as.Item, partOf as.IRI, by as.Item) (as.ObjectID,
 
 	if as.ActivityTypes.Contains(it.GetType()) {
 		a, err := as.ToActivity(it)
-		if err == nil {
-			return *it.GetID(), err
+		if err != nil {
+			return id, err
 		}
 		a.ID = id
 		it = a
@@ -287,41 +310,41 @@ func (b *boltDB) GenerateID(it as.Item, partOf as.IRI, by as.Item) (as.ObjectID,
 		case as.PlaceType:
 			p, err := as.ToPlace(it)
 			if err != nil {
-				return *it.GetID(), err
+				return id, err
 			}
 			p.ID = id
 			it = p
 		case as.ProfileType:
 			p, err := as.ToProfile(it)
 			if err != nil {
-				return *it.GetID(), err
+				return id, err
 			}
 			p.ID = id
 			it = p
 		case as.RelationshipType:
 			p, err := as.ToRelationship(it)
 			if err != nil {
-				return *it.GetID(), err
+				return id, err
 			}
 			p.ID = id
 			it = p
 		case as.TombstoneType:
 			p, err := as.ToTombstone(it)
 			if err != nil {
-				return *it.GetID(), err
+				return id, err
 			}
 			p.ID = id
 			it = p
 		default:
 			p, err := as.ToObject(it)
 			if err != nil {
-				return *it.GetID(), err
+				return id, err
 			}
 			p.ID = id
 			it = p
 		}
 	}
-	return *it.GetID(), nil
+	return id, nil
 }
 
 func (b *boltDB) Open() error {
