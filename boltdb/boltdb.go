@@ -319,6 +319,28 @@ func (b *boltDB) GenerateID(it as.Item, partOf as.IRI, by as.Item) (as.ObjectID,
 	return *it.GetID(), nil
 }
 
+func (b *boltDB) Open() error {
+	var err error
+	b.d, err = bolt.Open(b.path, 0600, nil)
+	if err != nil {
+		return errors.Annotatef(err, "could not open db")
+	}
+	err = b.d.Update(func(tx *bolt.Tx) error {
+		root := tx.Bucket(b.root)
+		if root == nil {
+			return errors.NotFoundf("root bucket %s not found", b.root)
+		}
+		if !root.Writable() {
+			return errors.NotFoundf("root bucket %s is not writeable", b.root)
+		}
+		return nil
+	})
+	if err != nil {
+		return errors.Annotatef(err, "db doesn't contain the correct bucket structure")
+	}
+	return nil
+}
+
 // Close closes the boltdb database if possible.
 func (b *boltDB) Close() error {
 	return b.d.Close()
