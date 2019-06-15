@@ -171,8 +171,6 @@ func (b *boltDB) LoadCollection(f s.Filterable) (as.CollectionInterface, error) 
 		bb, path, err := descendInBucket(rb, url.Path)
 		if err != nil {
 			b.errFn("unable to find %s in root bucket", path, b.root)
-		} else {
-			b.logFn("found %s in root bucket", path, b.root)
 		}
 		if len(path) == 0 {
 			cb := bb.Cursor()
