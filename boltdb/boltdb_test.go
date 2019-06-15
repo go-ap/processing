@@ -62,3 +62,6 @@ func TestBoltDB_UpdateObject(t *testing.T) {
 	t.Skipf("TODO")
 }
 
+func TestBoltDB_Open(t *testing.T) {
+	t.Skipf("TODO")
+}
