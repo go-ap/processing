@@ -13,7 +13,6 @@ type Repository interface {
 // Loader
 type Loader interface {
 	ActivityLoader
-	ActorLoader
 	ObjectLoader
 	CollectionLoader
 }
@@ -41,7 +40,6 @@ type CollectionLoader interface {
 // Saver saves
 type Saver interface {
 	ActivitySaver
-	ActorSaver
 	ObjectSaver
 }
 
