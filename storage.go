@@ -84,3 +84,11 @@ type ObjectSaver interface {
 	// DeleteObject deletes the incoming ActivityStreams Object, and returns the resulting Tombstone.
 	DeleteObject(as.Item) (as.Item, error)
 }
+
+// CollectionSaver manages collections for ActivityStreams objects.
+type CollectionSaver interface {
+	// CreateCollection creates the "col" collection.
+	CreateCollection(col as.CollectionInterface) (as.CollectionInterface, error)
+	// AddToCollection adds "it" element to the "col" collection.
+	AddToCollection(col as.IRI, it as.Item) error
+}
