@@ -22,10 +22,6 @@ func TestContentManagementActivity(t *testing.T) {
 	t.Skipf("TODO")
 }
 
-func TestErrDuplicateKey_Is(t *testing.T) {
-	t.Skipf("TODO")
-}
-
 func TestReactionsActivity(t *testing.T) {
 	t.Skipf("TODO")
 }

@@ -1,8 +1,8 @@
 package processing
 
 import (
-	as "github.com/go-ap/activitystreams"
 	ap "github.com/go-ap/activitypub"
+	as "github.com/go-ap/activitystreams"
 )
 
 // FlattenActivityProperties flattens the Activity's properties from Object type to IRI
