@@ -73,7 +73,7 @@ func AddNewObjectCollections(r s.CollectionSaver, it as.Item) (as.Item, error) {
 }
 
 // ProcessActivity
-func ProcessActivity(r s.Saver, it as.Item) (as.Item, error) {
+func ProcessActivity(r s.Saver, act *as.Activity) (as.Item, error) {
 	var err error
 
 	// TODO(marius): Since we're not failing on the first error, so we can try to process the same type of
@@ -81,87 +81,86 @@ func ProcessActivity(r s.Saver, it as.Item) (as.Item, error) {
 	// errors.Annotatef...
 
 	// First we process the activity to effect whatever changes we need to on the activity properties.
-	act, err := as.ToActivity(it)
-	if as.ContentManagementActivityTypes.Contains(it.GetType()) && act.Object.GetType() != as.RelationshipType {
+	if as.ContentManagementActivityTypes.Contains(act.GetType()) && act.Object.GetType() != as.RelationshipType {
 		act, err = ContentManagementActivity(r, act)
 		if err != nil {
-			return it, err
+			return act, err
 		}
 	}
-	if as.CollectionManagementActivityTypes.Contains(it.GetType()) {
+	if as.CollectionManagementActivityTypes.Contains(act.GetType()) {
 		act, err = CollectionManagementActivity(r, act)
 		if err != nil {
-			return it, err
+			return act, err
 		}
 	}
-	if as.ReactionsActivityTypes.Contains(it.GetType()) {
+	if as.ReactionsActivityTypes.Contains(act.GetType()) {
 		act, err = ReactionsActivity(r, act)
 		if err != nil {
-			return it, err
+			return act, err
 		}
 	}
-	if as.EventRSVPActivityTypes.Contains(it.GetType()) {
+	if as.EventRSVPActivityTypes.Contains(act.GetType()) {
 		act, err = EventRSVPActivity(r, act)
 		if err != nil {
-			return it, err
+			return act, err
 		}
 	}
-	if as.GroupManagementActivityTypes.Contains(it.GetType()) {
+	if as.GroupManagementActivityTypes.Contains(act.GetType()) {
 		act, err = GroupManagementActivity(r, act)
 		if err != nil {
-			return it, err
+			return act, err
 		}
 	}
-	if as.ContentExperienceActivityTypes.Contains(it.GetType()) {
+	if as.ContentExperienceActivityTypes.Contains(act.GetType()) {
 		act, err = ContentExperienceActivity(r, act)
 		if err != nil {
-			return it, err
+			return act, err
 		}
 	}
-	if as.GeoSocialEventsActivityTypes.Contains(it.GetType()) {
+	if as.GeoSocialEventsActivityTypes.Contains(act.GetType()) {
 		act, err = GeoSocialEventsActivity(r, act)
 		if err != nil {
-			return it, err
+			return act, err
 		}
 	}
-	if as.NotificationActivityTypes.Contains(it.GetType()) {
+	if as.NotificationActivityTypes.Contains(act.GetType()) {
 		act, err = NotificationActivity(r, act)
 		if err != nil {
-			return it, err
+			return act, err
 		}
 	}
-	if as.QuestionActivityTypes.Contains(it.GetType()) {
+	if as.QuestionActivityTypes.Contains(act.GetType()) {
 		act, err = QuestionActivity(r, act)
 		if err != nil {
-			return it, err
+			return act, err
 		}
 	}
-	if as.RelationshipManagementActivityTypes.Contains(it.GetType()) && act.Object.GetType() == as.RelationshipType {
+	if as.RelationshipManagementActivityTypes.Contains(act.GetType()) && act.Object.GetType() == as.RelationshipType {
 		act, err = RelationshipManagementActivity(r, act)
 		if err == nil {
 			return act, errors.Annotatef(err, "%s activity processing failed", act.Type)
 		}
 	}
-	if as.NegatingActivityTypes.Contains(it.GetType()) {
+	if as.NegatingActivityTypes.Contains(act.GetType()) {
 		act, err = NegatingActivity(r, act)
 		if err != nil {
-			return it, err
+			return act, err
 		}
 	}
-	if as.OffersActivityTypes.Contains(it.GetType()) {
+	if as.OffersActivityTypes.Contains(act.GetType()) {
 		act, err = OffersActivity(r, act)
 		if err != nil {
-			return it, err
+			return act, err
 		}
 	}
 
-	iri := it.GetLink()
+	iri := act.GetLink()
 	if len(iri) == 0 {
-		r.GenerateID(it, nil)
+		r.GenerateID(act, nil)
 	}
 
-	it = FlattenProperties(it)
-	return r.SaveActivity(it)
+	act = FlattenActivityProperties(act)
+	return r.SaveActivity(act)
 }
 
 // ContentManagementActivity processes matching activities
