@@ -1,0 +1,24 @@
+image: archlinux
+secrets:
+- 36f65f02-9e26-497e-94d7-f1cd8ba3ef7a
+packages:
+  - go
+sources:
+  - https://github.com/go-ap/processing
+environment:
+  GO111MODULE: 'on'
+tasks:
+  - setup: |
+      cd processing && go mod download
+  - tests: |
+      cd processing && make test
+  - coverage: |
+      set -a +x
+      cd processing && make coverage
+      GIT_SHA=$(git rev-parse --verify HEAD)
+      GIT_BRANCH=$(git name-rev --name-only HEAD)
+      source ~/.code-cov.sh
+      curl -X POST \
+          --data-binary @processing.coverprofile \
+           -H 'Accept: application/json' \
+          "https://codecov.io/upload/v2?commit=${GIT_SHA}&token=${PROCESSING_TOKEN}&branch=${GIT_BRANCH}&service=custom"
