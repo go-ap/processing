@@ -1,4 +1,4 @@
-module processing
+module github.com/go-ap/processing
 
 go 1.12
 
