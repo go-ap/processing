@@ -8,8 +8,13 @@ import (
 // Filterable can filter objects by Type and ObjectID
 // This should be the minimal interface a filter object should implement for the storage layer
 // to work.
+// It also allows for an activitystreams.IRI to be used as a filter.
 type Filterable interface {
-	ID() as.IRI
+	GetLink() as.IRI
+}
+
+type FilterableItems interface {
+	Filterable
 	Types() []as.ActivityVocabularyType
 	IRIs() []as.IRI
 }
@@ -35,7 +40,7 @@ type FilterableActivity interface {
 
 // FilterableObject can filter objects
 type FilterableObject interface {
-	Filterable
+	FilterableItems
 	AttributedTo() []as.IRI
 	InReplyTo() []as.IRI
 	MediaTypes() []as.MimeType
