@@ -17,3 +17,15 @@ func TestFlattenProperties(t *testing.T) {
 func TestAddNewObjectCollections(t *testing.T) {
 	t.Skipf("TODO")
 }
+
+func TestFlattenItemCollection(t *testing.T) {
+	t.Skipf("TODO")
+}
+
+func TestFlattenCollection(t *testing.T) {
+	t.Skipf("TODO")
+}
+
+func TestFlattenOrderedCollection(t *testing.T) {
+	t.Skipf("TODO")
+}

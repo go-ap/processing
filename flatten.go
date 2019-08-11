@@ -46,3 +46,39 @@ func FlattenProperties(it as.Item) as.Item {
 	}
 	return as.FlattenProperties(it)
 }
+
+// FlattenItemCollection flattens an Item Collection to their respective IRIs
+func FlattenItemCollection(col as.ItemCollection) as.ItemCollection {
+	if col == nil {
+		return col
+	}
+	for k, it := range col {
+		col[k] = it.GetLink()
+	}
+
+	return col
+}
+
+// FlattenCollection flattens a Collection's objects to their respective IRIs
+func FlattenCollection(col *as.Collection) *as.Collection {
+	if col == nil {
+		return col
+	}
+	for k, it := range col.Items {
+		col.Items[k] = it.GetLink()
+	}
+
+	return col
+}
+
+// FlattenOrderedCollection flattens an OrderedCollection's objects to their respective IRIs
+func FlattenOrderedCollection(col *as.OrderedCollection) *as.OrderedCollection {
+	if col == nil {
+		return col
+	}
+	for k, it := range col.OrderedItems {
+		col.OrderedItems[k] = it.GetLink()
+	}
+
+	return col
+}
