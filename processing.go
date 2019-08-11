@@ -188,11 +188,11 @@ func ContentManagementActivity(l s.Saver, act *as.Activity) (*as.Activity, error
 			// Copying the actor's IRI to the object's AttributedTo
 			a.AttributedTo = act.Actor.GetLink()
 
-			aRec := act.Recipients()
 			// Copying the activity's recipients to the object's
-			a.Audience = aRec
+			a.Audience = FlattenItemCollection(act.Recipients())
+
 			// Copying the object's recipients to the activity's audience
-			act.Audience = a.Recipients()
+			act.Audience = FlattenItemCollection(a.Recipients())
 
 			// TODO(marius): Move these to a ProcessObject function
 			// Set the published date
@@ -204,12 +204,11 @@ func ContentManagementActivity(l s.Saver, act *as.Activity) (*as.Activity, error
 			// Copying the actor's IRI to the object's AttributedTo
 			p.AttributedTo = act.Actor.GetLink()
 
-
-			aRec := act.Recipients()
 			// Copying the activity's recipients to the object's
-			p.Audience = aRec
+			p.Audience = FlattenItemCollection(act.Recipients())
+
 			// Copying the object's recipients to the activity's audience
-			act.Audience = p.Recipients()
+			act.Audience = FlattenItemCollection(p.Recipients())
 
 			// TODO(marius): Move these to a ProcessObject function
 			// Set the published date
@@ -221,11 +220,11 @@ func ContentManagementActivity(l s.Saver, act *as.Activity) (*as.Activity, error
 			// Copying the actor's IRI to the object's AttributedTo
 			o.AttributedTo = act.Actor.GetLink()
 
-			aRec := act.Recipients()
 			// Copying the activity's recipients to the object's
-			o.Audience = aRec
+			o.Audience = FlattenItemCollection(act.Recipients())
+
 			// Copying the object's recipients to the activity's audience
-			act.Audience = o.Recipients()
+			act.Audience = FlattenItemCollection(o.Recipients())
 
 			// TODO(marius): Move these to a ProcessObject function
 			// Set the published date
@@ -401,7 +400,6 @@ func OffersActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 	// TODO(marius):
 	return nil, errors.Errorf("Not implemented")
 }
-
 
 // UpdateObjectProperties updates the "old" object properties with "new's"
 func UpdateObjectProperties(old, new *as.Object) (*as.Object, error) {
