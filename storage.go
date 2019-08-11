@@ -41,6 +41,7 @@ type CollectionLoader interface {
 // Saver saves
 type Saver interface {
 	ActivitySaver
+	ActorSaver
 	ObjectSaver
 }
 
