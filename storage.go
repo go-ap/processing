@@ -13,6 +13,7 @@ type Repository interface {
 // Loader
 type Loader interface {
 	ActivityLoader
+	ActorLoader
 	ObjectLoader
 	CollectionLoader
 }
