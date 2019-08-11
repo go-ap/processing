@@ -2,8 +2,8 @@ package processing
 
 import (
 	"fmt"
-	ap "github.com/go-ap/activitypub"
 	as "github.com/go-ap/activitystreams"
+	"github.com/go-ap/auth"
 	"github.com/go-ap/errors"
 	"github.com/go-ap/handlers"
 	s "github.com/go-ap/storage"
@@ -21,7 +21,7 @@ func getCollection(it as.Item, c handlers.CollectionType) as.CollectionInterface
 
 func AddNewObjectCollections(r s.CollectionSaver, it as.Item) (as.Item, error) {
 	if as.ActorTypes.Contains(it.GetType()) {
-		if p, err := ap.ToPerson(it); err == nil {
+		if p, err := auth.ToPerson(it); err == nil {
 			if in, err := r.CreateCollection(getCollection(p, handlers.Inbox)); err != nil {
 				return it, errors.Errorf("could not create bucket for collection %s", err)
 			} else {
@@ -73,7 +73,7 @@ func AddNewObjectCollections(r s.CollectionSaver, it as.Item) (as.Item, error) {
 }
 
 // ProcessActivity
-func ProcessActivity(r s.Saver, act *as.Activity) (as.Item, error) {
+func ProcessActivity(r s.Saver, act *as.Activity) (*as.Activity, error) {
 	var err error
 
 	// TODO(marius): Since we're not failing on the first error, so we can try to process the same type of
@@ -160,7 +160,9 @@ func ProcessActivity(r s.Saver, act *as.Activity) (as.Item, error) {
 	}
 
 	act = FlattenActivityProperties(act)
-	return r.SaveActivity(act)
+	it, err := r.SaveActivity(act)
+	act, _ = it.(*as.Activity)
+	return act, err
 }
 
 // ContentManagementActivity processes matching activities
@@ -186,11 +188,6 @@ func ContentManagementActivity(l s.Saver, act *as.Activity) (*as.Activity, error
 			// Copying the actor's IRI to the object's AttributedTo
 			a.AttributedTo = act.Actor.GetLink()
 
-			// Setting the Generator to the current service if not specified explicitly
-			//if a.Generator == nil && len(ServiceIRI) > 0 {
-			//	a.Generator = ServiceIRI
-			//}
-
 			aRec := act.Recipients()
 			// Copying the activity's recipients to the object's
 			a.Audience = aRec
@@ -202,15 +199,11 @@ func ContentManagementActivity(l s.Saver, act *as.Activity) (*as.Activity, error
 			a.Published = now
 
 			act.Object = a
-		} else if p, err := ap.ToPerson(act.Object); err == nil {
+		} else if p, err := auth.ToPerson(act.Object); err == nil {
 			// See https://www.w3.org/TR/ActivityPub/#create-activity-outbox
 			// Copying the actor's IRI to the object's AttributedTo
 			p.AttributedTo = act.Actor.GetLink()
 
-			// Setting the Generator to the current service if not specified explicitly
-			//if p.Generator == nil && len(ServiceIRI) > 0 {
-			//	p.Generator = ServiceIRI
-			//}
 
 			aRec := act.Recipients()
 			// Copying the activity's recipients to the object's
@@ -223,15 +216,10 @@ func ContentManagementActivity(l s.Saver, act *as.Activity) (*as.Activity, error
 			p.Published = now
 
 			act.Object = p
-		} else if o, err := as.ToObject(act.Object); err == nil {
+		} else if o, err := auth.ToObject(act.Object); err == nil {
 			// See https://www.w3.org/TR/ActivityPub/#create-activity-outbox
 			// Copying the actor's IRI to the object's AttributedTo
 			o.AttributedTo = act.Actor.GetLink()
-
-			// Setting the Generator to the current service if not specified explicitly
-			//if o.Generator == nil && len(ServiceIRI) > 0 {
-			//	o.Generator = ServiceIRI
-			//}
 
 			aRec := act.Recipients()
 			// Copying the activity's recipients to the object's
@@ -259,7 +247,34 @@ func ContentManagementActivity(l s.Saver, act *as.Activity) (*as.Activity, error
 		if len(act.Object.GetLink()) == 0 {
 			return act, errors.Newf("unable to update object without a valid object id")
 		}
-		act.Object, err = l.UpdateObject(act.Object)
+
+		ob := act.Object
+		var cnt uint
+		if as.ActivityTypes.Contains(ob.GetType()) {
+			return act, errors.Newf("unable to update activity")
+		}
+
+		var found as.ItemCollection
+		typ := ob.GetType()
+		if loader, ok := l.(s.ActorLoader); ok && as.ActorTypes.Contains(typ) {
+			found, cnt, _ = loader.LoadActors(ob)
+		}
+		if loader, ok := l.(s.ObjectLoader); ok && as.ObjectTypes.Contains(typ) {
+			found, cnt, _ = loader.LoadObjects(ob)
+		}
+		if len(ob.GetLink()) == 0 {
+			return act, err
+		}
+
+		if cnt == 0 {
+			return act, errors.NotFoundf("Unable to find %s %s", ob.GetType(), ob.GetLink())
+		}
+		ob, err = UpdateItemProperties(found.First(), ob)
+		if err != nil {
+			return act, err
+		}
+
+		act.Object, err = l.UpdateObject(ob)
 	case as.DeleteType:
 		// TODO(marius): Move this piece of logic to the validation mechanism
 		if len(act.Object.GetLink()) == 0 {
@@ -385,4 +400,124 @@ func NegatingActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 func OffersActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 	// TODO(marius):
 	return nil, errors.Errorf("Not implemented")
+}
+
+
+// UpdateObjectProperties updates the "old" object properties with "new's"
+func UpdateObjectProperties(old, new *as.Object) (*as.Object, error) {
+	old.Name = replaceIfNaturalLanguageValues(old.Name, new.Name)
+	old.Attachment = replaceIfItem(old.Attachment, new.Attachment)
+	old.AttributedTo = replaceIfItem(old.AttributedTo, new.AttributedTo)
+	old.Audience = replaceIfItemCollection(old.Audience, new.Audience)
+	old.Content = replaceIfNaturalLanguageValues(old.Content, new.Content)
+	old.Context = replaceIfItem(old.Context, new.Context)
+	if len(new.MediaType) > 0 {
+		old.MediaType = new.MediaType
+	}
+	if !new.EndTime.IsZero() {
+		old.EndTime = new.EndTime
+	}
+	old.Generator = replaceIfItem(old.Generator, new.Generator)
+	old.Icon = replaceIfItem(old.Icon, new.Icon)
+	old.Image = replaceIfItem(old.Image, new.Image)
+	old.InReplyTo = replaceIfItem(old.InReplyTo, new.InReplyTo)
+	old.Location = replaceIfItem(old.Location, new.Location)
+	old.Preview = replaceIfItem(old.Preview, new.Preview)
+	if !new.Published.IsZero() {
+		old.Published = new.Published
+	}
+	old.Replies = replaceIfItem(old.Replies, new.Replies)
+	if !new.StartTime.IsZero() {
+		old.StartTime = new.StartTime
+	}
+	old.Summary = replaceIfNaturalLanguageValues(old.Summary, new.Summary)
+	old.Tag = replaceIfItemCollection(old.Tag, new.Tag)
+	if !new.Updated.IsZero() {
+		old.Updated = new.Updated
+	}
+	if new.URL != nil {
+		old.URL = new.URL
+	}
+	old.To = replaceIfItemCollection(old.To, new.To)
+	old.Bto = replaceIfItemCollection(old.Bto, new.Bto)
+	old.CC = replaceIfItemCollection(old.CC, new.CC)
+	old.BCC = replaceIfItemCollection(old.BCC, new.BCC)
+	if new.Duration == 0 {
+		old.Duration = new.Duration
+	}
+	return old, nil
+}
+
+// UpdateItemProperties delegates to the correct per type functions for copying
+// properties between matching Activity Objects
+func UpdateItemProperties(to, from as.Item) (as.Item, error) {
+	if to == nil {
+		return to, errors.Newf("Nil object to update")
+	}
+	if from == nil {
+		return to, errors.Newf("Nil object for update")
+	}
+	if *to.GetID() != *from.GetID() {
+		return to, errors.Newf("Object IDs don't match")
+	}
+	if to.GetType() != from.GetType() {
+		return to, errors.Newf("Invalid object types for update")
+	}
+	if as.ActorTypes.Contains(to.GetType()) {
+		o, err := auth.ToPerson(to)
+		if err != nil {
+			return o, err
+		}
+		n, err := auth.ToPerson(from)
+		if err != nil {
+			return o, err
+		}
+		return UpdatePersonProperties(o, n)
+	}
+	if as.ObjectTypes.Contains(to.GetType()) {
+		o, err := as.ToObject(to)
+		if err != nil {
+			return o, err
+		}
+		n, err := as.ToObject(from)
+		if err != nil {
+			return o, err
+		}
+		return UpdateObjectProperties(o, n)
+	}
+	return to, errors.Newf("could not process objects with type %s", to.GetType())
+}
+
+// UpdatePersonProperties
+func UpdatePersonProperties(old, new *auth.Person) (*auth.Person, error) {
+	o, err := UpdateObjectProperties(&old.Parent, &new.Parent)
+	old.Parent = *o
+	old.Inbox = replaceIfItem(old.Inbox, new.Inbox)
+	old.Outbox = replaceIfItem(old.Outbox, new.Outbox)
+	old.Following = replaceIfItem(old.Following, new.Following)
+	old.Followers = replaceIfItem(old.Followers, new.Followers)
+	old.Liked = replaceIfItem(old.Liked, new.Liked)
+	old.PreferredUsername = replaceIfNaturalLanguageValues(old.PreferredUsername, new.PreferredUsername)
+	return old, err
+}
+
+func replaceIfItem(old, new as.Item) as.Item {
+	if new == nil {
+		return old
+	}
+	return new
+}
+
+func replaceIfItemCollection(old, new as.ItemCollection) as.ItemCollection {
+	if new == nil {
+		return old
+	}
+	return new
+}
+
+func replaceIfNaturalLanguageValues(old, new as.NaturalLanguageValues) as.NaturalLanguageValues {
+	if new == nil {
+		return old
+	}
+	return new
 }

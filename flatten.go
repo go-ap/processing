@@ -1,8 +1,8 @@
 package processing
 
 import (
-	ap "github.com/go-ap/activitypub"
 	as "github.com/go-ap/activitystreams"
+	"github.com/go-ap/auth"
 )
 
 // FlattenActivityProperties flattens the Activity's properties from Object type to IRI
@@ -18,7 +18,7 @@ func FlattenActivityProperties(act *as.Activity) *as.Activity {
 }
 
 // FlattenObjectProperties flattens the Object's properties from Object types to IRI
-func FlattenPersonProperties(o *ap.Person) *ap.Person {
+func FlattenPersonProperties(o *auth.Person) *auth.Person {
 	o.Parent = *as.FlattenObjectProperties(&o.Parent)
 	return o
 }
@@ -32,7 +32,7 @@ func FlattenProperties(it as.Item) as.Item {
 		}
 	}
 	if as.ActorTypes.Contains(it.GetType()) {
-		ob, err := ap.ToPerson(it)
+		ob, err := auth.ToPerson(it)
 		if err == nil {
 			return FlattenPersonProperties(ob)
 		}
