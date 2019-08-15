@@ -8,6 +8,7 @@ import (
 type Repository interface {
 	Loader
 	Saver
+	Close() error
 }
 
 // Loader
