@@ -2,7 +2,6 @@ package storage
 
 import (
 	as "github.com/go-ap/activitystreams"
-	"time"
 )
 
 // Filterable can filter objects by Type and ObjectID
@@ -44,8 +43,9 @@ type FilterableObject interface {
 	AttributedTo() as.IRIs
 	InReplyTo() as.IRIs
 	MediaTypes() []as.MimeType
-	PublishedBefore() time.Time
-	PublishedAfter() time.Time
+	Names() []string
+	//PublishedBefore() time.Time
+	//PublishedAfter() time.Time
 	URLs() as.IRIs
 	// Audience returns the list of IRIs to check against full Audience targeting for the object
 	// It should include all relevant fields: To, CC, BTo, BCC, and Audience
