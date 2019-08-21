@@ -2,6 +2,7 @@ package processing
 
 import (
 	"fmt"
+	"github.com/go-ap/activitypub"
 	as "github.com/go-ap/activitystreams"
 	"github.com/go-ap/auth"
 	"github.com/go-ap/errors"
@@ -165,25 +166,17 @@ func ProcessActivity(r s.Saver, act *as.Activity) (*as.Activity, error) {
 	return act, err
 }
 
-// ContentManagementActivity processes matching activities
-// The Content Management use case primarily deals with activities that involve the creation,
-// modification or deletion of content.
-// This includes, for instance, activities such as "John created a new note",
-// "Sally updated an article", and "Joe deleted the photo".
-func ContentManagementActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
-	var err error
-	if act.Object == nil {
-		return act, errors.NotValidf("Missing object for Activity")
+// CreateActivity
+func CreateActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
+	iri := act.Object.GetLink()
+	if len(iri) == 0 {
+		l.GenerateID(act.Object, act)
 	}
 	now := time.Now().UTC()
-	switch act.Type {
-	case as.CreateType:
-		iri := act.Object.GetLink()
-		if len(iri) == 0 {
-			l.GenerateID(act.Object, act)
-		}
-		// TODO(marius) Add function as.AttributedTo(it as.Item, auth as.Item)
-		if a, err := as.ToActivity(act.Object); err == nil {
+	obType := act.Object.GetType()
+	// TODO(marius) Add function as.AttributedTo(it as.Item, auth as.Item)
+	if as.ActivityTypes.Contains(obType) {
+		activitypub.OnActivity(act.Object, func(a *as.Activity) error{
 			// See https://www.w3.org/TR/ActivityPub/#create-activity-outbox
 			// Copying the actor's IRI to the object's AttributedTo
 			a.AttributedTo = act.Actor.GetLink()
@@ -199,7 +192,10 @@ func ContentManagementActivity(l s.Saver, act *as.Activity) (*as.Activity, error
 			a.Published = now
 
 			act.Object = a
-		} else if p, err := auth.ToPerson(act.Object); err == nil {
+			return nil
+		})
+	} else if as.ActorTypes.Contains(obType) {
+		activitypub.OnPerson(act.Object, func(p *activitypub.Person) error {
 			// See https://www.w3.org/TR/ActivityPub/#create-activity-outbox
 			// Copying the actor's IRI to the object's AttributedTo
 			p.AttributedTo = act.Actor.GetLink()
@@ -215,7 +211,10 @@ func ContentManagementActivity(l s.Saver, act *as.Activity) (*as.Activity, error
 			p.Published = now
 
 			act.Object = p
-		} else if o, err := auth.ToObject(act.Object); err == nil {
+			return nil
+		})
+	} else {
+		activitypub.OnObject(act.Object, func(o *as.Object) error{
 			// See https://www.w3.org/TR/ActivityPub/#create-activity-outbox
 			// Copying the actor's IRI to the object's AttributedTo
 			o.AttributedTo = act.Actor.GetLink()
@@ -231,16 +230,36 @@ func ContentManagementActivity(l s.Saver, act *as.Activity) (*as.Activity, error
 			o.Published = now
 
 			act.Object = o
-		}
+			return nil
+		})
+	}
 
-		if colSaver, ok := l.(s.CollectionSaver); ok {
-			act.Object, err = AddNewObjectCollections(colSaver, act.Object)
-			if err != nil {
-				return act, errors.Annotatef(err, "unable to add object collections to object %s", act.Object.GetLink())
-			}
+	var err error
+	if colSaver, ok := l.(s.CollectionSaver); ok {
+		act.Object, err = AddNewObjectCollections(colSaver, act.Object)
+		if err != nil {
+			return act, errors.Annotatef(err, "unable to add object collections to object %s", act.Object.GetLink())
 		}
+	}
 
-		act.Object, err = l.SaveObject(act.Object)
+	act.Object, err = l.SaveObject(act.Object)
+	return act, nil
+}
+
+// ContentManagementActivity processes matching activities
+// The Content Management use case primarily deals with activities that involve the creation,
+// modification or deletion of content.
+// This includes, for instance, activities such as "John created a new note",
+// "Sally updated an article", and "Joe deleted the photo".
+func ContentManagementActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
+	var err error
+	if act.Object == nil {
+		return act, errors.NotValidf("Missing object for Activity")
+	}
+	now := time.Now().UTC()
+	switch act.Type {
+	case as.CreateType:
+		CreateActivity(l, act)
 	case as.UpdateType:
 		// TODO(marius): Move this piece of logic to the validation mechanism
 		if len(act.Object.GetLink()) == 0 {
