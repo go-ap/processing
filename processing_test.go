@@ -2,6 +2,18 @@ package processing
 
 import "testing"
 
+func TestUpdateItemProperties(t *testing.T) {
+	t.Skipf("TODO")
+}
+
+func TestUpdateObjectProperties(t *testing.T) {
+	t.Skipf("TODO")
+}
+
+func TestUpdatePersonProperties(t *testing.T) {
+	t.Skipf("TODO")
+}
+
 func TestCollectionManagementActivity(t *testing.T) {
 	t.Skipf("TODO")
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/go-ap/errors"
 	"github.com/go-ap/handlers"
 	s "github.com/go-ap/storage"
+	"path"
 	"time"
 )
 
@@ -74,7 +75,7 @@ func AddNewObjectCollections(r s.CollectionSaver, it as.Item) (as.Item, error) {
 }
 
 // ProcessActivity
-func ProcessActivity(r s.Saver, act *as.Activity) (*as.Activity, error) {
+func ProcessActivity(r s.Saver, act *as.Activity, col handlers.CollectionType) (*as.Activity, error) {
 	var err error
 
 	// TODO(marius): Since we're not failing on the first error, so we can try to process the same type of
@@ -83,7 +84,7 @@ func ProcessActivity(r s.Saver, act *as.Activity) (*as.Activity, error) {
 
 	// First we process the activity to effect whatever changes we need to on the activity properties.
 	if as.ContentManagementActivityTypes.Contains(act.GetType()) && act.Object.GetType() != as.RelationshipType {
-		act, err = ContentManagementActivity(r, act)
+		act, err = ContentManagementActivity(r, act, col)
 		if err != nil {
 			return act, err
 		}
@@ -166,8 +167,24 @@ func ProcessActivity(r s.Saver, act *as.Activity) (*as.Activity, error) {
 	return act, err
 }
 
+func updateActivityObject(o *as.Object, act *as.Activity, now time.Time) {
+	// See https://www.w3.org/TR/ActivityPub/#create-activity-outbox
+	// Copying the actor's IRI to the object's AttributedTo
+	o.AttributedTo = act.Actor.GetLink()
+
+	// Copying the activity's recipients to the object's
+	o.Audience = FlattenItemCollection(act.Recipients())
+
+	// Copying the object's recipients to the activity's audience
+	act.Audience = FlattenItemCollection(o.Recipients())
+
+	// TODO(marius): Move these to a ProcessObject function
+	// Set the published date
+	o.Published = now
+}
+
 // CreateActivity
-func CreateActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
+func CreateActivity(l s.Saver, act *as.Activity, col handlers.CollectionType) (*as.Activity, error) {
 	iri := act.Object.GetLink()
 	if len(iri) == 0 {
 		l.GenerateID(act.Object, act)
@@ -176,59 +193,20 @@ func CreateActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 	obType := act.Object.GetType()
 	// TODO(marius) Add function as.AttributedTo(it as.Item, auth as.Item)
 	if as.ActivityTypes.Contains(obType) {
-		activitypub.OnActivity(act.Object, func(a *as.Activity) error{
-			// See https://www.w3.org/TR/ActivityPub/#create-activity-outbox
-			// Copying the actor's IRI to the object's AttributedTo
-			a.AttributedTo = act.Actor.GetLink()
-
-			// Copying the activity's recipients to the object's
-			a.Audience = FlattenItemCollection(act.Recipients())
-
-			// Copying the object's recipients to the activity's audience
-			act.Audience = FlattenItemCollection(a.Recipients())
-
-			// TODO(marius): Move these to a ProcessObject function
-			// Set the published date
-			a.Published = now
-
+		activitypub.OnActivity(act.Object, func(a *as.Activity) error {
+			updateActivityObject(&a.Parent, act, now)
 			act.Object = a
 			return nil
 		})
 	} else if as.ActorTypes.Contains(obType) {
 		activitypub.OnPerson(act.Object, func(p *activitypub.Person) error {
-			// See https://www.w3.org/TR/ActivityPub/#create-activity-outbox
-			// Copying the actor's IRI to the object's AttributedTo
-			p.AttributedTo = act.Actor.GetLink()
-
-			// Copying the activity's recipients to the object's
-			p.Audience = FlattenItemCollection(act.Recipients())
-
-			// Copying the object's recipients to the activity's audience
-			act.Audience = FlattenItemCollection(p.Recipients())
-
-			// TODO(marius): Move these to a ProcessObject function
-			// Set the published date
-			p.Published = now
-
+			updateActivityObject(&p.Parent, act, now)
 			act.Object = p
 			return nil
 		})
 	} else {
 		activitypub.OnObject(act.Object, func(o *as.Object) error{
-			// See https://www.w3.org/TR/ActivityPub/#create-activity-outbox
-			// Copying the actor's IRI to the object's AttributedTo
-			o.AttributedTo = act.Actor.GetLink()
-
-			// Copying the activity's recipients to the object's
-			o.Audience = FlattenItemCollection(act.Recipients())
-
-			// Copying the object's recipients to the activity's audience
-			act.Audience = FlattenItemCollection(o.Recipients())
-
-			// TODO(marius): Move these to a ProcessObject function
-			// Set the published date
-			o.Published = now
-
+			updateActivityObject(o, act, now)
 			act.Object = o
 			return nil
 		})
@@ -243,6 +221,19 @@ func CreateActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 	}
 
 	act.Object, err = l.SaveObject(act.Object)
+
+	if colSaver, ok := l.(s.CollectionSaver); ok {
+		// For each recipient we need to save the incoming activity to the actor's Outbox if the actor is local
+		// Or disseminate it using S2S if the actor is not local
+		// TODO(marius): the processing module needs a method to see if an IRI is local or not
+		for _, fw := range act.Recipients() {
+			colIRI := fw.GetLink()
+			if !handlers.ValidActivityCollection(path.Base(colIRI.String())) {
+				colIRI = as.IRI(fmt.Sprintf("%s/%s", colIRI, col))
+			}
+			colSaver.AddToCollection(colIRI, act.GetLink())
+		}
+	}
 	return act, nil
 }
 
@@ -251,7 +242,7 @@ func CreateActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 // modification or deletion of content.
 // This includes, for instance, activities such as "John created a new note",
 // "Sally updated an article", and "Joe deleted the photo".
-func ContentManagementActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
+func ContentManagementActivity(l s.Saver, act *as.Activity, col handlers.CollectionType) (*as.Activity, error) {
 	var err error
 	if act.Object == nil {
 		return act, errors.NotValidf("Missing object for Activity")
@@ -259,7 +250,7 @@ func ContentManagementActivity(l s.Saver, act *as.Activity) (*as.Activity, error
 	now := time.Now().UTC()
 	switch act.Type {
 	case as.CreateType:
-		CreateActivity(l, act)
+		CreateActivity(l, act, col)
 	case as.UpdateType:
 		// TODO(marius): Move this piece of logic to the validation mechanism
 		if len(act.Object.GetLink()) == 0 {
@@ -283,13 +274,14 @@ func ContentManagementActivity(l s.Saver, act *as.Activity) (*as.Activity, error
 		if len(ob.GetLink()) == 0 {
 			return act, err
 		}
-
-		if cnt == 0 {
+		if cnt == 0 || found == nil {
 			return act, errors.NotFoundf("Unable to find %s %s", ob.GetType(), ob.GetLink())
 		}
-		ob, err = UpdateItemProperties(found.First(), ob)
-		if err != nil {
-			return act, err
+		if it := found.First(); it != nil {
+			ob, err = UpdateItemProperties(it, ob)
+			if err != nil {
+				return act, err
+			}
 		}
 
 		act.Object, err = l.UpdateObject(ob)
@@ -323,9 +315,10 @@ func ReactionsActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 			// TODO(marius): either the actor or the object needs to be local for this action to be valid
 			// in the case of C2S... the actor needs to be local
 			// in the case of S2S... the object is
-		case as.DislikeType:
 		case as.FlagType:
 		case as.IgnoreType:
+		case as.DislikeType:
+			fallthrough
 		case as.LikeType:
 		case as.RejectType:
 		case as.TentativeAcceptType:
