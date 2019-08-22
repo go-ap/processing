@@ -200,11 +200,31 @@ func updateActivityObject(l s.Saver, o *as.Object, act *as.Activity, now time.Ti
 	// Copying the actor's IRI to the object's AttributedTo
 	o.AttributedTo = act.Actor.GetLink()
 
-	// Copying the activity's recipients to the object's
-	o.Audience = FlattenItemCollection(act.Recipients())
-
-	// Copying the object's recipients to the activity's audience
-	act.Audience = FlattenItemCollection(o.Recipients())
+	// Merging the activity's and the object's Audience
+	if aud, err := as.ItemCollectionDeduplication(&act.Audience, &o.Audience); err == nil {
+		o.Audience = FlattenItemCollection(aud)
+		act.Audience = FlattenItemCollection(aud)
+	}
+	// Merging the activity's and the object's To addressing
+	if to, err := as.ItemCollectionDeduplication(&act.To, &o.To); err == nil {
+		o.To = FlattenItemCollection(to)
+		act.To = FlattenItemCollection(to)
+	}
+	// Merging the activity's and the object's Bto addressing
+	if bto, err := as.ItemCollectionDeduplication(&act.Bto, &o.Bto); err == nil {
+		o.Bto = FlattenItemCollection(bto)
+		act.Bto = FlattenItemCollection(bto)
+	}
+	// Merging the activity's and the object's Cc addressing
+	if cc, err := as.ItemCollectionDeduplication(&act.CC, &o.CC); err == nil {
+		o.CC = FlattenItemCollection(cc)
+		act.CC = FlattenItemCollection(cc)
+	}
+	// Merging the activity's and the object's Bcc addressing
+	if bcc, err := as.ItemCollectionDeduplication(&act.BCC, &o.BCC); err == nil {
+		o.BCC = FlattenItemCollection(bcc)
+		act.BCC = FlattenItemCollection(bcc)
+	}
 
 	if o.InReplyTo != nil {
 		if colSaver, ok := l.(s.CollectionSaver); ok {
