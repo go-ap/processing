@@ -8,6 +8,7 @@ import (
 	"github.com/go-ap/errors"
 	"github.com/go-ap/handlers"
 	s "github.com/go-ap/storage"
+	"path"
 	"time"
 )
 
@@ -163,6 +164,34 @@ func ProcessActivity(r s.Saver, act *as.Activity, col handlers.CollectionType) (
 	act = FlattenActivityProperties(act)
 	it, err := r.SaveActivity(act)
 	act, _ = it.(*as.Activity)
+
+	if colSaver, ok := r.(s.CollectionSaver); ok {
+		recipients := act.Recipients()
+		for _, fw := range recipients {
+			colIRI := fw.GetLink()
+			if colIRI == as.PublicNS {
+				continue
+			}
+			authorOutbox :=  as.IRI(fmt.Sprintf("%s/%s", act.Actor.GetLink(), handlers.Outbox))
+			if colIRI == act.Actor.GetLink() {
+				// the recipient is just the author IRI
+				colIRI = authorOutbox
+			} else {
+				if !handlers.ValidCollection(path.Base(colIRI.String())) {
+					// TODO(marius): add check if IRI represents an actor
+					colIRI = as.IRI(fmt.Sprintf("%s/%s", colIRI, handlers.Inbox))
+				} else {
+					// TODO(marius): the recipient consists of a collection, we need to load it's elements if it's local
+					//     and save it in each of them. :(
+				}
+			}
+			// TODO(marius): the processing module needs a method to see if an IRI is local or not
+			//    For each recipient we need to save the incoming activity to the actor's Inbox if the actor is local
+			//    Or disseminate it using S2S if the actor is not local
+			colSaver.AddToCollection(colIRI, act.GetLink())
+		}
+	}
+
 	return act, err
 }
 
@@ -293,20 +322,6 @@ func CreateActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 
 	act.Object, err = l.SaveObject(act.Object)
 
-	if colSaver, ok := l.(s.CollectionSaver); ok {
-		// For each recipient we need to save the incoming activity to the actor's Inbox if the actor is local
-		// Or disseminate it using S2S if the actor is not local
-		// TODO(marius): the processing module needs a method to see if an IRI is local or not
-		for _, fw := range act.Recipients() {
-			colIRI := fw.GetLink()
-			if colIRI == act.Actor.GetLink() {
-				colIRI = as.IRI(fmt.Sprintf("%s/%s", colIRI, handlers.Outbox))
-			} else {
-				colIRI = as.IRI(fmt.Sprintf("%s/%s", colIRI, handlers.Inbox))
-			}
-			colSaver.AddToCollection(colIRI, act.GetLink())
-		}
-	}
 	return act, nil
 }
 
