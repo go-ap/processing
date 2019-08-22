@@ -183,14 +183,6 @@ func updateActivityObject(l s.Saver, o *as.Object, act *as.Activity, now time.Ti
 			colSaver.AddToCollection(replies, o.GetLink())
 		}
 	}
-	// TODO(marius): we need to decide if we add the object to the list of replies of the Generator,
-	//   which we use to point to the top object of a reply chain.
-	if o.Context != nil {
-		if colSaver, ok := l.(s.CollectionSaver); ok {
-			replies := as.IRI(fmt.Sprintf("%s/%s", o.Context.GetLink(), handlers.Replies))
-			colSaver.AddToCollection(replies, o.GetLink())
-		}
-	}
 
 	// TODO(marius): Move these to a ProcessObject function
 	// Set the published date
