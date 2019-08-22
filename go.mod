@@ -3,10 +3,10 @@ module github.com/go-ap/processing
 go 1.12
 
 require (
-	github.com/go-ap/activitypub v0.0.0-20190821203318-1b91418e7ac2
-	github.com/go-ap/activitystreams v0.0.0-20190821202132-4a1645657eaa
-	github.com/go-ap/auth v0.0.0-20190815143835-81aee2684879
-	github.com/go-ap/errors v0.0.0-20190621154420-19e59a62cbd5
-	github.com/go-ap/handlers v0.0.0-20190706101851-8517c6245835
-	github.com/go-ap/storage v0.0.0-20190706101803-4a6d87e62b95
+	github.com/go-ap/activitypub v0.0.0-20190822190331-776b00ec04df
+	github.com/go-ap/activitystreams v0.0.0-20190822191640-1ef5c83a05a0
+	github.com/go-ap/auth v0.0.0-20190822194637-4b1a74449725
+	github.com/go-ap/errors v0.0.0-20190822190434-e3f9a52fe6be
+	github.com/go-ap/handlers v0.0.0-20190822190457-af82f22cd485
+	github.com/go-ap/storage v0.0.0-20190822190626-8b12cdeca592
 )
