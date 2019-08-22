@@ -8,7 +8,6 @@ import (
 	"github.com/go-ap/errors"
 	"github.com/go-ap/handlers"
 	s "github.com/go-ap/storage"
-	"path"
 	"time"
 )
 
@@ -167,7 +166,7 @@ func ProcessActivity(r s.Saver, act *as.Activity, col handlers.CollectionType) (
 	return act, err
 }
 
-func updateActivityObject(o *as.Object, act *as.Activity, now time.Time) {
+func updateActivityObject(l s.Saver, o *as.Object, act *as.Activity, now time.Time) {
 	// See https://www.w3.org/TR/ActivityPub/#create-activity-outbox
 	// Copying the actor's IRI to the object's AttributedTo
 	o.AttributedTo = act.Actor.GetLink()
@@ -178,63 +177,24 @@ func updateActivityObject(o *as.Object, act *as.Activity, now time.Time) {
 	// Copying the object's recipients to the activity's audience
 	act.Audience = FlattenItemCollection(o.Recipients())
 
+	if o.InReplyTo != nil {
+		if colSaver, ok := l.(s.CollectionSaver); ok {
+			replies := as.IRI(fmt.Sprintf("%s/%s", o.InReplyTo.GetLink(), handlers.Replies))
+			colSaver.AddToCollection(replies, o.GetLink())
+		}
+	}
+	// TODO(marius): we need to decide if we add the object to the list of replies of the Generator,
+	//   which we use to point to the top object of a reply chain.
+	if o.Context != nil {
+		if colSaver, ok := l.(s.CollectionSaver); ok {
+			replies := as.IRI(fmt.Sprintf("%s/%s", o.Context.GetLink(), handlers.Replies))
+			colSaver.AddToCollection(replies, o.GetLink())
+		}
+	}
+
 	// TODO(marius): Move these to a ProcessObject function
 	// Set the published date
 	o.Published = now
-}
-
-// CreateActivity
-func CreateActivity(l s.Saver, act *as.Activity, col handlers.CollectionType) (*as.Activity, error) {
-	iri := act.Object.GetLink()
-	if len(iri) == 0 {
-		l.GenerateID(act.Object, act)
-	}
-	now := time.Now().UTC()
-	obType := act.Object.GetType()
-	// TODO(marius) Add function as.AttributedTo(it as.Item, auth as.Item)
-	if as.ActivityTypes.Contains(obType) {
-		activitypub.OnActivity(act.Object, func(a *as.Activity) error {
-			updateActivityObject(&a.Parent, act, now)
-			act.Object = a
-			return nil
-		})
-	} else if as.ActorTypes.Contains(obType) {
-		activitypub.OnPerson(act.Object, func(p *activitypub.Person) error {
-			updateActivityObject(&p.Parent, act, now)
-			act.Object = p
-			return nil
-		})
-	} else {
-		activitypub.OnObject(act.Object, func(o *as.Object) error{
-			updateActivityObject(o, act, now)
-			act.Object = o
-			return nil
-		})
-	}
-
-	var err error
-	if colSaver, ok := l.(s.CollectionSaver); ok {
-		act.Object, err = AddNewObjectCollections(colSaver, act.Object)
-		if err != nil {
-			return act, errors.Annotatef(err, "unable to add object collections to object %s", act.Object.GetLink())
-		}
-	}
-
-	act.Object, err = l.SaveObject(act.Object)
-
-	if colSaver, ok := l.(s.CollectionSaver); ok {
-		// For each recipient we need to save the incoming activity to the actor's Outbox if the actor is local
-		// Or disseminate it using S2S if the actor is not local
-		// TODO(marius): the processing module needs a method to see if an IRI is local or not
-		for _, fw := range act.Recipients() {
-			colIRI := fw.GetLink()
-			if !handlers.ValidActivityCollection(path.Base(colIRI.String())) {
-				colIRI = as.IRI(fmt.Sprintf("%s/%s", colIRI, col))
-			}
-			colSaver.AddToCollection(colIRI, act.GetLink())
-		}
-	}
-	return act, nil
 }
 
 // ContentManagementActivity processes matching activities
@@ -250,7 +210,7 @@ func ContentManagementActivity(l s.Saver, act *as.Activity, col handlers.Collect
 	now := time.Now().UTC()
 	switch act.Type {
 	case as.CreateType:
-		CreateActivity(l, act, col)
+		_, err = CreateActivity(l, act)
 	case as.UpdateType:
 		// TODO(marius): Move this piece of logic to the validation mechanism
 		if len(act.Object.GetLink()) == 0 {
@@ -300,6 +260,62 @@ func ContentManagementActivity(l s.Saver, act *as.Activity, col handlers.Collect
 	// Set the published date
 	act.Published = now
 	return act, err
+}
+
+// CreateActivity
+func CreateActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
+	iri := act.Object.GetLink()
+	if len(iri) == 0 {
+		l.GenerateID(act.Object, act)
+	}
+	now := time.Now().UTC()
+	obType := act.Object.GetType()
+	// TODO(marius) Add function as.AttributedTo(it as.Item, auth as.Item)
+	if as.ActivityTypes.Contains(obType) {
+		activitypub.OnActivity(act.Object, func(a *as.Activity) error {
+			updateActivityObject(l, &a.Parent, act, now)
+			act.Object = a
+			return nil
+		})
+	} else if as.ActorTypes.Contains(obType) {
+		activitypub.OnPerson(act.Object, func(p *activitypub.Person) error {
+			updateActivityObject(l, &p.Parent, act, now)
+			act.Object = p
+			return nil
+		})
+	} else {
+		activitypub.OnObject(act.Object, func(o *as.Object) error {
+			updateActivityObject(l, o, act, now)
+			act.Object = o
+			return nil
+		})
+	}
+
+	var err error
+	if colSaver, ok := l.(s.CollectionSaver); ok {
+		act.Object, err = AddNewObjectCollections(colSaver, act.Object)
+		if err != nil {
+			return act, errors.Annotatef(err, "unable to add object collections to object %s", act.Object.GetLink())
+		}
+	}
+
+	act.Object, err = l.SaveObject(act.Object)
+
+	if colSaver, ok := l.(s.CollectionSaver); ok {
+		// For each recipient we need to save the incoming activity to the actor's Inbox if the actor is local
+		// Or disseminate it using S2S if the actor is not local
+		// TODO(marius): the processing module needs a method to see if an IRI is local or not
+		for _, fw := range act.Recipients() {
+			colIRI := fw.GetLink()
+			if colIRI == act.Actor.GetLink() {
+				colIRI = as.IRI(fmt.Sprintf("%s/%s", colIRI, handlers.Outbox))
+			} else {
+				colIRI = as.IRI(fmt.Sprintf("%s/%s", colIRI, handlers.Inbox))
+			}
+			colSaver.AddToCollection(colIRI, act.GetLink())
+		}
+	}
+	return act, nil
 }
 
 // ReactionsActivity processes matching activities
