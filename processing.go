@@ -188,7 +188,10 @@ func ProcessActivity(r s.Saver, act *as.Activity, col handlers.CollectionType) (
 			// TODO(marius): the processing module needs a method to see if an IRI is local or not
 			//    For each recipient we need to save the incoming activity to the actor's Inbox if the actor is local
 			//    Or disseminate it using S2S if the actor is not local
-			colSaver.AddToCollection(colIRI, act.GetLink())
+			err := colSaver.AddToCollection(colIRI, act.GetLink())
+			if err != nil {
+				return act, err
+			}
 		}
 	}
 
@@ -345,6 +348,30 @@ func CreateActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 	return act, nil
 }
 
+
+// AppreciationActivity
+func AppreciationActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
+	if act.Object == nil {
+		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
+	}
+	if act.Actor == nil {
+		return act, errors.NotValidf("Missing actor for %s Activity", act.Type)
+	}
+	good := as.ActivityVocabularyTypes{as.LikeType, as.DislikeType}
+	if !good.Contains(act.Type) {
+		return act, errors.NotValidf("Activity has wrong type %s, expected %v", act.Type, good)
+	}
+	var err error
+
+	if colSaver, ok := l.(s.CollectionSaver); ok {
+		err = auth.OnPerson(act.Actor, func(p *auth.Person) error {
+			return colSaver.AddToCollection(p.Liked.GetLink(), act.Object.GetLink())
+		})
+	}
+
+	return act, err
+}
+
 // ReactionsActivity processes matching activities
 // The Reactions use case primarily deals with reactions to content.
 // This can include activities such as liking or disliking content, ignoring updates,
@@ -363,6 +390,7 @@ func ReactionsActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 		case as.DislikeType:
 			fallthrough
 		case as.LikeType:
+			AppreciationActivity(l, act)
 		case as.RejectType:
 		case as.TentativeAcceptType:
 		case as.TentativeRejectType:
