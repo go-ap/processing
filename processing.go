@@ -78,10 +78,13 @@ func AddNewObjectCollections(r s.CollectionSaver, it as.Item) (as.Item, error) {
 func ProcessActivity(r s.Saver, act *as.Activity, col handlers.CollectionType) (*as.Activity, error) {
 	var err error
 
+	iri := act.GetLink()
+	if len(iri) == 0 {
+		r.GenerateID(act, nil)
+	}
 	// TODO(marius): Since we're not failing on the first error, so we can try to process the same type of
 	// activity in multiple contexts, we should propagate all the errors to the end, by probably using some
 	// errors.Annotatef...
-
 	// First we process the activity to effect whatever changes we need to on the activity properties.
 	if as.ContentManagementActivityTypes.Contains(act.GetType()) && act.Object.GetType() != as.RelationshipType {
 		act, err = ContentManagementActivity(r, act, col)
@@ -154,11 +157,6 @@ func ProcessActivity(r s.Saver, act *as.Activity, col handlers.CollectionType) (
 		if err != nil {
 			return act, err
 		}
-	}
-
-	iri := act.GetLink()
-	if len(iri) == 0 {
-		r.GenerateID(act, nil)
 	}
 
 	act = FlattenActivityProperties(act)
@@ -256,39 +254,7 @@ func ContentManagementActivity(l s.Saver, act *as.Activity, col handlers.Collect
 	case as.CreateType:
 		_, err = CreateActivity(l, act)
 	case as.UpdateType:
-		// TODO(marius): Move this piece of logic to the validation mechanism
-		if len(act.Object.GetLink()) == 0 {
-			return act, errors.Newf("unable to update object without a valid object id")
-		}
-
-		ob := act.Object
-		var cnt uint
-		if as.ActivityTypes.Contains(ob.GetType()) {
-			return act, errors.Newf("unable to update activity")
-		}
-
-		var found as.ItemCollection
-		typ := ob.GetType()
-		if loader, ok := l.(s.ActorLoader); ok && as.ActorTypes.Contains(typ) {
-			found, cnt, _ = loader.LoadActors(ob)
-		}
-		if loader, ok := l.(s.ObjectLoader); ok && as.ObjectTypes.Contains(typ) {
-			found, cnt, _ = loader.LoadObjects(ob)
-		}
-		if len(ob.GetLink()) == 0 {
-			return act, err
-		}
-		if cnt == 0 || found == nil {
-			return act, errors.NotFoundf("Unable to find %s %s", ob.GetType(), ob.GetLink())
-		}
-		if it := found.First(); it != nil {
-			ob, err = UpdateItemProperties(it, ob)
-			if err != nil {
-				return act, err
-			}
-		}
-
-		act.Object, err = l.UpdateObject(ob)
+		_, err = UpdateActivity(l, act)
 	case as.DeleteType:
 		// TODO(marius): Move this piece of logic to the validation mechanism
 		if len(act.Object.GetLink()) == 0 {
@@ -303,6 +269,45 @@ func ContentManagementActivity(l s.Saver, act *as.Activity, col handlers.Collect
 
 	// Set the published date
 	act.Published = now
+	return act, err
+}
+
+// UpdateActivity
+func UpdateActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
+	// TODO(marius): Move this piece of logic to the validation mechanism
+	if len(act.Object.GetLink()) == 0 {
+		return act, errors.Newf("unable to update object without a valid object id")
+	}
+	var err error
+
+	ob := act.Object
+	var cnt uint
+	if as.ActivityTypes.Contains(ob.GetType()) {
+		return act, errors.Newf("unable to update activity")
+	}
+
+	var found as.ItemCollection
+	typ := ob.GetType()
+	if loader, ok := l.(s.ActorLoader); ok && as.ActorTypes.Contains(typ) {
+		found, cnt, _ = loader.LoadActors(ob)
+	}
+	if loader, ok := l.(s.ObjectLoader); ok && as.ObjectTypes.Contains(typ) {
+		found, cnt, _ = loader.LoadObjects(ob)
+	}
+	if len(ob.GetLink()) == 0 {
+		return act, err
+	}
+	if cnt == 0 || found == nil {
+		return act, errors.NotFoundf("Unable to find %s %s", ob.GetType(), ob.GetLink())
+	}
+	if it := found.First(); it != nil {
+		ob, err = UpdateItemProperties(it, ob)
+		if err != nil {
+			return act, err
+		}
+	}
+
+	act.Object, err = l.UpdateObject(ob)
 	return act, err
 }
 
