@@ -328,8 +328,8 @@ func CreateActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 			return nil
 		})
 	} else {
-		activitypub.OnObject(act.Object, func(o *as.Object) error {
-			updateActivityObject(l, o, act, now)
+		activitypub.OnObject(act.Object, func(o *activitypub.Object) error {
+			updateActivityObject(l, &o.Parent, act, now)
 			act.Object = o
 			return nil
 		})
