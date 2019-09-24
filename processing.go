@@ -170,7 +170,7 @@ func ProcessActivity(r s.Saver, act *as.Activity, col handlers.CollectionType) (
 			if colIRI == as.PublicNS {
 				continue
 			}
-			authorOutbox :=  as.IRI(fmt.Sprintf("%s/%s", act.Actor.GetLink(), handlers.Outbox))
+			authorOutbox := as.IRI(fmt.Sprintf("%s/%s", act.Actor.GetLink(), handlers.Outbox))
 			if colIRI == act.Actor.GetLink() {
 				// the recipient is just the author IRI
 				colIRI = authorOutbox
@@ -196,7 +196,7 @@ func ProcessActivity(r s.Saver, act *as.Activity, col handlers.CollectionType) (
 	return act, err
 }
 
-func updateActivityObject(l s.Saver, o *as.Object, act *as.Activity, now time.Time) {
+func updateActivityObject(l s.Saver, o *as.Object, act *as.Activity, now time.Time) error {
 	// See https://www.w3.org/TR/ActivityPub/#create-activity-outbox
 	// Copying the actor's IRI to the object's AttributedTo
 	o.AttributedTo = act.Actor.GetLink()
@@ -229,14 +229,18 @@ func updateActivityObject(l s.Saver, o *as.Object, act *as.Activity, now time.Ti
 
 	if o.InReplyTo != nil {
 		if colSaver, ok := l.(s.CollectionSaver); ok {
-			replies := as.IRI(fmt.Sprintf("%s/%s", o.InReplyTo.GetLink(), handlers.Replies))
-			colSaver.AddToCollection(replies, o.GetLink())
+			for _, repl := range o.InReplyTo {
+				iri := as.IRI(fmt.Sprintf("%s/%s", repl.GetLink(), handlers.Replies))
+				colSaver.AddToCollection(iri, o.GetLink())
+			}
 		}
 	}
 
 	// TODO(marius): Move these to a ProcessObject function
 	// Set the published date
 	o.Published = now
+
+	return nil
 }
 
 // ContentManagementActivity processes matching activities
@@ -322,21 +326,15 @@ func CreateActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 	// TODO(marius) Add function as.AttributedTo(it as.Item, auth as.Item)
 	if as.ActivityTypes.Contains(obType) {
 		activitypub.OnActivity(act.Object, func(a *as.Activity) error {
-			updateActivityObject(l, &a.Parent, act, now)
-			act.Object = a
-			return nil
+			return updateActivityObject(l, &a.Parent, act, now)
 		})
 	} else if as.ActorTypes.Contains(obType) {
 		activitypub.OnPerson(act.Object, func(p *activitypub.Person) error {
-			updateActivityObject(l, &p.Parent, act, now)
-			act.Object = p
-			return nil
+			return updateActivityObject(l, &p.Parent, act, now)
 		})
 	} else {
 		activitypub.OnObject(act.Object, func(o *activitypub.Object) error {
-			updateActivityObject(l, &o.Parent, act, now)
-			act.Object = o
-			return nil
+			return updateActivityObject(l, &o.Parent, act, now)
 		})
 	}
 
@@ -352,7 +350,6 @@ func CreateActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 
 	return act, nil
 }
-
 
 // AppreciationActivity
 func AppreciationActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
@@ -506,7 +503,7 @@ func UpdateObjectProperties(old, new *as.Object) (*as.Object, error) {
 	old.Generator = replaceIfItem(old.Generator, new.Generator)
 	old.Icon = replaceIfItem(old.Icon, new.Icon)
 	old.Image = replaceIfItem(old.Image, new.Image)
-	old.InReplyTo = replaceIfItem(old.InReplyTo, new.InReplyTo)
+	old.InReplyTo = replaceIfItemCollection(old.InReplyTo, new.InReplyTo)
 	old.Location = replaceIfItem(old.Location, new.Location)
 	old.Preview = replaceIfItem(old.Preview, new.Preview)
 	if !new.Published.IsZero() {
