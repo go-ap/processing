@@ -330,7 +330,7 @@ func CreateActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 		})
 	} else if as.ActorTypes.Contains(obType) {
 		activitypub.OnPerson(act.Object, func(p *activitypub.Person) error {
-			return updateActivityObject(l, &p.Parent, act, now)
+			return updateActivityObject(l, &p.Parent.Parent, act, now)
 		})
 	} else {
 		activitypub.OnObject(act.Object, func(o *activitypub.Object) error {
@@ -487,7 +487,7 @@ func OffersActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 }
 
 // UpdateObjectProperties updates the "old" object properties with "new's"
-func UpdateObjectProperties(old, new *as.Object) (*as.Object, error) {
+func UpdateObjectProperties(old, new *activitypub.Object) (*activitypub.Object, error) {
 	old.Name = replaceIfNaturalLanguageValues(old.Name, new.Name)
 	old.Attachment = replaceIfItem(old.Attachment, new.Attachment)
 	old.AttributedTo = replaceIfItem(old.AttributedTo, new.AttributedTo)
@@ -558,11 +558,11 @@ func UpdateItemProperties(to, from as.Item) (as.Item, error) {
 		return UpdatePersonProperties(o, n)
 	}
 	if as.ObjectTypes.Contains(to.GetType()) {
-		o, err := as.ToObject(to)
+		o, err := activitypub.ToObject(to)
 		if err != nil {
 			return o, err
 		}
-		n, err := as.ToObject(from)
+		n, err := activitypub.ToObject(from)
 		if err != nil {
 			return o, err
 		}

@@ -19,7 +19,7 @@ func FlattenActivityProperties(act *as.Activity) *as.Activity {
 
 // FlattenObjectProperties flattens the Object's properties from Object types to IRI
 func FlattenPersonProperties(o *auth.Person) *auth.Person {
-	o.Parent = *as.FlattenObjectProperties(&o.Parent)
+	o.Parent.Parent = *as.FlattenObjectProperties(&o.Parent.Parent)
 	return o
 }
 
