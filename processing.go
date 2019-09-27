@@ -545,7 +545,7 @@ func UpdateItemProperties(to, from as.Item) (as.Item, error) {
 		return to, errors.Newf("Object IDs don't match")
 	}
 	if to.GetType() != from.GetType() {
-		return to, errors.Newf("Invalid object types for update")
+		return to, errors.Newf("Invalid object types for update %s(old) and %s(new)", from.GetType(), to.GetType())
 	}
 	if as.ActorTypes.Contains(to.GetType()) {
 		o, err := auth.ToPerson(to)
@@ -605,7 +605,6 @@ func replaceIfNaturalLanguageValues(old, new as.NaturalLanguageValues) as.Natura
 	}
 	return new
 }
-
 
 func replaceIfSource(old, new activitypub.Source) activitypub.Source {
 	if new.MediaType != old.MediaType {
