@@ -528,6 +528,7 @@ func UpdateObjectProperties(old, new *activitypub.Object) (*activitypub.Object, 
 	if new.Duration == 0 {
 		old.Duration = new.Duration
 	}
+	old.Source = replaceIfSource(old.Source, new.Source)
 	return old, nil
 }
 
@@ -603,4 +604,13 @@ func replaceIfNaturalLanguageValues(old, new as.NaturalLanguageValues) as.Natura
 		return old
 	}
 	return new
+}
+
+
+func replaceIfSource(old, new activitypub.Source) activitypub.Source {
+	if new.MediaType != old.MediaType {
+		return new
+	}
+	old.Content = replaceIfNaturalLanguageValues(old.Content, new.Content)
+	return old
 }
