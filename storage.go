@@ -93,4 +93,6 @@ type CollectionSaver interface {
 	CreateCollection(col as.CollectionInterface) (as.CollectionInterface, error)
 	// AddToCollection adds "it" element to the "col" collection.
 	AddToCollection(col as.IRI, it as.Item) error
+	// RemoveFromCollection removes "it" item from "col" collection
+	RemoveFromCollection(col as.IRI, it as.Item) error
 }
