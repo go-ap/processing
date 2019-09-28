@@ -2,6 +2,10 @@ package storage
 
 import "testing"
 
+func TestFilterItem(t *testing.T) {
+	t.Skipf("TODO")
+}
+
 func TestItemFilter_Actors(t *testing.T) {
 	t.Skipf("TODO")
 }

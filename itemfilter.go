@@ -5,22 +5,26 @@ import (
 	as "github.com/go-ap/activitystreams"
 )
 
-type ItemFilter struct {
+type itemFilter struct {
 	item as.Item
 }
 
-func (i ItemFilter) GetLink() as.IRI {
+func FilterItem(i as.Item) itemFilter {
+	return itemFilter{ item: i}
+}
+
+func (i itemFilter) GetLink() as.IRI {
 	return i.item.GetLink()
 }
 
-func (i ItemFilter) Types() as.ActivityVocabularyTypes {
+func (i itemFilter) Types() as.ActivityVocabularyTypes {
 	return as.ActivityVocabularyTypes{i.item.GetType()}
 }
 
-func (i ItemFilter) IRIs() as.IRIs {
+func (i itemFilter) IRIs() as.IRIs {
 	return as.IRIs{i.item.GetLink()}
 }
-func (i ItemFilter) Actors() as.IRIs {
+func (i itemFilter) Actors() as.IRIs {
 	iris := make(as.IRIs, 0)
 	if as.ActivityTypes.Contains(i.item.GetType()) {
 		activitypub.OnActivity(i.item, func(a *as.Activity) error {
@@ -36,7 +40,7 @@ func (i ItemFilter) Actors() as.IRIs {
 	}
 	return iris
 }
-func (i ItemFilter) Objects() as.IRIs {
+func (i itemFilter) Objects() as.IRIs {
 	iris := make(as.IRIs, 0)
 	if as.ActivityTypes.Contains(i.item.GetType()) {
 		activitypub.OnActivity(i.item, func(a *as.Activity) error {
@@ -47,7 +51,7 @@ func (i ItemFilter) Objects() as.IRIs {
 	return iris
 }
 
-func (i ItemFilter) Targets() as.IRIs {
+func (i itemFilter) Targets() as.IRIs {
 	iris := make(as.IRIs, 0)
 	if as.ActivityTypes.Contains(i.item.GetType()) {
 		activitypub.OnActivity(i.item, func(a *as.Activity) error {
@@ -64,7 +68,7 @@ func (i ItemFilter) Targets() as.IRIs {
 	return iris
 }
 
-func (i ItemFilter) AttributedTo() as.IRIs {
+func (i itemFilter) AttributedTo() as.IRIs {
 	iris := make(as.IRIs, 0)
 	if as.ObjectTypes.Contains(i.item.GetType()) {
 		activitypub.OnObject(i.item, func(o *activitypub.Object) error {
@@ -74,7 +78,7 @@ func (i ItemFilter) AttributedTo() as.IRIs {
 	}
 	return iris
 }
-func (i ItemFilter) InReplyTo() as.IRIs {
+func (i itemFilter) InReplyTo() as.IRIs {
 	iris := make(as.IRIs, 0)
 	if as.ObjectTypes.Contains(i.item.GetType()) {
 		activitypub.OnObject(i.item, func(o *activitypub.Object) error {
@@ -84,7 +88,7 @@ func (i ItemFilter) InReplyTo() as.IRIs {
 	}
 	return iris
 }
-func (i ItemFilter) MediaTypes() []as.MimeType {
+func (i itemFilter) MediaTypes() []as.MimeType {
 	types := make([]as.MimeType, 0)
 	if as.ObjectTypes.Contains(i.item.GetType()) {
 		activitypub.OnObject(i.item, func(o *activitypub.Object) error {
@@ -94,7 +98,7 @@ func (i ItemFilter) MediaTypes() []as.MimeType {
 	}
 	return types
 }
-func (i ItemFilter) Names() []string {
+func (i itemFilter) Names() []string {
 	names := make([]string, 0)
 	if as.ActivityTypes.Contains(i.item.GetType()) {
 		activitypub.OnActivity(i.item, func(a *as.Activity) error {
@@ -125,7 +129,7 @@ func (i ItemFilter) Names() []string {
 	}
 	return names
 }
-func (i ItemFilter) URLs() as.IRIs {
+func (i itemFilter) URLs() as.IRIs {
 	iris := make(as.IRIs, 0)
 	activitypub.OnObject(i.item, func(o *activitypub.Object) error {
 		iris = append(iris, o.URL.GetLink())
@@ -133,7 +137,7 @@ func (i ItemFilter) URLs() as.IRIs {
 	})
 	return iris
 }
-func (i ItemFilter) Audience() as.IRIs {
+func (i itemFilter) Audience() as.IRIs {
 	iris := make(as.IRIs, 0)
 	activitypub.OnObject(i.item, func(o *activitypub.Object) error {
 		iris = append(iris, o.Audience.GetLink())
@@ -141,7 +145,7 @@ func (i ItemFilter) Audience() as.IRIs {
 	})
 	return iris
 }
-func (i ItemFilter) Context() as.IRIs {
+func (i itemFilter) Context() as.IRIs {
 	iris := make(as.IRIs, 0)
 	activitypub.OnObject(i.item, func(o *activitypub.Object) error {
 		iris = append(iris, o.Context.GetLink())
