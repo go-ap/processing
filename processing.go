@@ -365,10 +365,31 @@ func AppreciationActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 	}
 	var err error
 
+	liked := as.IRI(fmt.Sprintf("%s/%s", act.Actor.GetLink(), handlers.Liked))
+	likes := as.IRI(fmt.Sprintf("%s/%s", act.Object.GetLink(), handlers.Likes))
+	if loader, ok := l.(s.ActivityLoader); ok {
+		basePath := path.Dir(string(act.GetLink()))
+		f := as.Activity{
+			Parent: as.Object{
+				ID:   as.ObjectID(basePath),
+				Type: act.Type,
+			},
+			Actor: act.Actor.GetLink(),
+			Object: act.Object.GetLink(),
+		}
+		filter := s.FilterItem(f)
+
+		// TODO(marius): we need to check if an activity matching the Type and Actor of the current
+		//     one already exists, and error out if it does.
+		existing, cnt, err := loader.LoadActivities(filter)
+		if cnt > 0 && err == nil {
+			return act, errors.Newf("A %s activity already exists for current actor/object: %s", act.GetType(), existing.GetLink())
+		}
+	}
+
 	if colSaver, ok := l.(s.CollectionSaver); ok {
-		err = auth.OnPerson(act.Actor, func(p *auth.Person) error {
-			return colSaver.AddToCollection(p.Liked.GetLink(), act.Object.GetLink())
-		})
+		err = colSaver.AddToCollection(liked, act.Object.GetLink())
+		err = colSaver.AddToCollection(likes, act.GetLink())
 	}
 
 	return act, err
@@ -513,7 +534,7 @@ func UpdateObjectProperties(old, new *activitypub.Object) (*activitypub.Object, 
 	old.InReplyTo = replaceIfItemCollection(old.InReplyTo, new.InReplyTo)
 	old.Location = replaceIfItem(old.Location, new.Location)
 	old.Preview = replaceIfItem(old.Preview, new.Preview)
-	if !new.Published.IsZero() {
+	if old.Published.IsZero() && !new.Published.IsZero() {
 		old.Published = new.Published
 	}
 	old.Replies = replaceIfItem(old.Replies, new.Replies)
