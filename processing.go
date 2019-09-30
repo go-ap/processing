@@ -501,8 +501,44 @@ func RelationshipManagementActivity(l s.Saver, act *as.Activity) (*as.Activity, 
 // See 5.5 Inverse Activities and "Undo" for more information:
 // https://www.w3.org/TR/activitystreams-vocabulary/#inverse
 func NegatingActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
-	// TODO(marius):
-	return nil, errors.Errorf("Not implemented")
+	if act.Object == nil {
+		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
+	}
+	if act.Actor == nil {
+		return act, errors.NotValidf("Missing actor for %s Activity", act.Type)
+	}
+	if act.Type != as.UndoType {
+		return act, errors.NotValidf("Activity has wrong type %s, expected %s", act.Type, as.UndoType)
+	}
+	// the object of the activity needs to be an activity
+	if !as.ActivityTypes.Contains(act.Object.GetType()) {
+		return act, errors.NotValidf("Activity object has wrong type %s, expected one of %v", act.Type, as.ActivityTypes)
+	}
+	// dereference object activity
+	if act.Object.IsLink() {
+		if actLoader, ok := l.(s.ActivityLoader); ok {
+			obj, _, err := actLoader.LoadActivities(act.Object.GetLink())
+			if err != nil {
+				return act, errors.NotValidf("Unable to dereference object: %s", act.Object.GetLink())
+			}
+			act.Object = obj
+		}
+	}
+	err := activitypub.OnActivity(act.Object, func(a *as.Activity) error {
+		if act.Actor.GetLink() != a.Actor.GetLink() {
+			return errors.NotValidf("The Undo activity has a different actor than its object: %s, expected %s", act.Actor.GetLink(), a.Actor.GetLink())
+		}
+		// TODO(marius): add more valid types
+		good := as.ActivityVocabularyTypes{as.LikeType, as.DislikeType, as.BlockType, as.FollowType}
+		if !good.Contains(act.Type) {
+			return errors.NotValidf("Object Activity has wrong type %s, expected %v", act.Type, good)
+		}
+		return nil
+	})
+	if err != nil {
+		return act, err
+	}
+	return UndoActivity(l, act)
 }
 
 // OffersActivity processes matching activities
@@ -511,7 +547,47 @@ func NegatingActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 // "Sally is offering to add a File to Folder A", etc.
 func OffersActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 	// TODO(marius):
-	return nil, errors.Errorf("Not implemented")
+	return nil, errors.NotImplementedf("Processing %s activity is not implemented", act.GetType())
+}
+
+// UndoAppreciationActivity
+func UndoAppreciationActivity(r s.Saver, act *as.Activity) (*as.Activity, error) {
+	var err error
+	if colSaver, ok := r.(s.CollectionSaver); ok {
+		liked := as.IRI(fmt.Sprintf("%s/%s", act.Actor.GetLink(), handlers.Liked))
+		err = colSaver.RemoveFromCollection(liked, act.Object.GetLink())
+
+		likes := as.IRI(fmt.Sprintf("%s/%s", act.Object.GetLink(), handlers.Likes))
+		err = colSaver.RemoveFromCollection(likes, act.GetLink())
+	}
+
+	return act, err
+}
+
+// UndoActivity
+func UndoActivity(r s.Saver, act *as.Activity) (*as.Activity, error) {
+	var err error
+
+	iri := act.GetLink()
+	if len(iri) == 0 {
+		r.GenerateID(act, nil)
+	}
+	err = activitypub.OnActivity(act.Object, func(toUndo *as.Activity) error {
+		switch toUndo.GetType() {
+		case as.DislikeType:
+			fallthrough
+		case as.LikeType:
+			UndoAppreciationActivity(r, toUndo)
+		case as.BlockType:
+			fallthrough
+		case as.FlagType:
+			fallthrough
+		case as.IgnoreType:
+			return errors.NotImplementedf("Undoing %s is not implemented", toUndo.GetType())
+		}
+		return nil
+	})
+	return act, err
 }
 
 // UpdateObjectProperties updates the "old" object properties with "new's"
