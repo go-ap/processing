@@ -382,20 +382,27 @@ func ReactionsActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 	var err error
 	if act.Object != nil {
 		switch act.Type {
-		case as.BlockType:
-		case as.AcceptType:
-			// TODO(marius): either the actor or the object needs to be local for this action to be valid
-			// in the case of C2S... the actor needs to be local
-			// in the case of S2S... the object is
-		case as.FlagType:
-		case as.IgnoreType:
 		case as.DislikeType:
 			fallthrough
 		case as.LikeType:
 			AppreciationActivity(l, act)
+		case as.BlockType:
+			fallthrough
+		case as.AcceptType:
+			// TODO(marius): either the actor or the object needs to be local for this action to be valid
+			// in the case of C2S... the actor needs to be local
+			// in the case of S2S... the object is
+			fallthrough
+		case as.FlagType:
+			fallthrough
+		case as.IgnoreType:
+			fallthrough
 		case as.RejectType:
+			fallthrough
 		case as.TentativeAcceptType:
+			fallthrough
 		case as.TentativeRejectType:
+			return act, errors.NotImplementedf("Processing reaction activity of type %s is not implemented", act.GetType())
 		}
 	}
 	return act, err
@@ -408,14 +415,14 @@ func ReactionsActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 // "John moved the file from Folder A to Folder B", etc.
 func CollectionManagementActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 	// TODO(marius):
-	return nil, errors.Errorf("Not implemented")
+	return nil, errors.NotImplementedf("Processing %s activity is not implemented", act.GetType())
 }
 
 // EventRSVPActivity processes matching activities
 // The Event RSVP use case primarily deals with invitations to events and RSVP type responses.
 func EventRSVPActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 	// TODO(marius):
-	return nil, errors.Errorf("Not implemented")
+	return nil, errors.NotImplementedf("Processing %s activity is not implemented", act.GetType())
 }
 
 // GroupManagementActivity processes matching activities
@@ -424,7 +431,7 @@ func EventRSVPActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 // "Joe left Group A", etc.
 func GroupManagementActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 	// TODO(marius):
-	return nil, errors.Errorf("Not implemented")
+	return nil, errors.NotImplementedf("Processing %s activity is not implemented", act.GetType())
 }
 
 // ContentExperienceActivity processes matching activities
@@ -432,7 +439,7 @@ func GroupManagementActivity(l s.Saver, act *as.Activity) (*as.Activity, error) 
 // reading, or viewing content. For instance, "Sally read the article", "Joe listened to the song".
 func ContentExperienceActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 	// TODO(marius):
-	return nil, errors.Errorf("Not implemented")
+	return nil, errors.NotImplementedf("Processing %s activity is not implemented", act.GetType())
 }
 
 // GeoSocialEventsActivity processes matching activities
@@ -440,14 +447,14 @@ func ContentExperienceActivity(l s.Saver, act *as.Activity) (*as.Activity, error
 // it can include activities such as "Joe arrived at work", "Sally left work", and "John is travel from home to work".
 func GeoSocialEventsActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 	// TODO(marius):
-	return nil, errors.Errorf("Not implemented")
+	return nil, errors.NotImplementedf("Processing %s activity is not implemented", act.GetType())
 }
 
 // NotificationActivity processes matching activities
 // The Notification use case primarily deals with calling attention to particular objects or notifications.
 func NotificationActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 	// TODO(marius):
-	return nil, errors.Errorf("Not implemented")
+	return nil, errors.NotImplementedf("Processing %s activity is not implemented", act.GetType())
 }
 
 // QuestionActivity processes matching activities
@@ -455,7 +462,7 @@ func NotificationActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 // Representing Questions for more information.
 func QuestionActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 	// TODO(marius):
-	return nil, errors.Errorf("Not implemented")
+	return nil, errors.NotImplementedf("Processing %s activity is not implemented", act.GetType())
 }
 
 // RelationshipManagementActivity processes matching activities
@@ -465,7 +472,7 @@ func QuestionActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 // https://www.w3.org/TR/activitystreams-vocabulary/#connections
 func RelationshipManagementActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 	// TODO(marius):
-	return nil, errors.Errorf("Not implemented")
+	return nil, errors.NotImplementedf("Processing %s activity is not implemented", act.GetType())
 }
 
 // NegatingActivity processes matching activities
