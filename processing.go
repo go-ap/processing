@@ -49,24 +49,24 @@ func AddNewObjectCollections(r s.CollectionSaver, it as.Item) (as.Item, error) {
 			} else {
 				p.Liked = ld.GetLink()
 			}
-			if ls, err := r.CreateCollection(getCollection(p, handlers.Likes)); err != nil {
-				return it, errors.Errorf("could not create bucket for collection %s", err)
-			} else {
-				p.Likes = ls.GetLink()
-			}
-			if sh, err := r.CreateCollection(getCollection(p, handlers.Shares)); err != nil {
-				return it, errors.Errorf("could not create bucket for collection %s", err)
-			} else {
-				p.Shares = sh.GetLink()
-			}
 			it = p
 		}
 	} else if as.ObjectTypes.Contains(it.GetType()) {
-		if o, err := as.ToObject(it); err == nil {
+		if o, err := activitypub.ToObject(it); err == nil {
 			if repl, err := r.CreateCollection(getCollection(o, handlers.Replies)); err != nil {
 				return it, errors.Errorf("could not create bucket for collection %s", err)
 			} else {
 				o.Replies = repl.GetLink()
+			}
+			if ls, err := r.CreateCollection(getCollection(o, handlers.Likes)); err != nil {
+				return it, errors.Errorf("could not create bucket for collection %s", err)
+			} else {
+				o.Likes = ls.GetLink()
+			}
+			if sh, err := r.CreateCollection(getCollection(o, handlers.Shares)); err != nil {
+				return it, errors.Errorf("could not create bucket for collection %s", err)
+			} else {
+				o.Shares = sh.GetLink()
 			}
 			it = o
 		}
