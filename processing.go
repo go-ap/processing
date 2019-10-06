@@ -256,9 +256,9 @@ func ContentManagementActivity(l s.Saver, act *as.Activity, col handlers.Collect
 	now := time.Now().UTC()
 	switch act.Type {
 	case as.CreateType:
-		_, err = CreateActivity(l, act)
+		act, err = CreateActivity(l, act)
 	case as.UpdateType:
-		_, err = UpdateActivity(l, act)
+		act, err = UpdateActivity(l, act)
 	case as.DeleteType:
 		// TODO(marius): Move this piece of logic to the validation mechanism
 		if len(act.Object.GetLink()) == 0 {
@@ -363,36 +363,19 @@ func AppreciationActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 	if !good.Contains(act.Type) {
 		return act, errors.NotValidf("Activity has wrong type %s, expected %v", act.Type, good)
 	}
-	var err error
-
-	liked := as.IRI(fmt.Sprintf("%s/%s", act.Actor.GetLink(), handlers.Liked))
-	likes := as.IRI(fmt.Sprintf("%s/%s", act.Object.GetLink(), handlers.Likes))
-	if loader, ok := l.(s.ActivityLoader); ok {
-		basePath := path.Dir(string(act.GetLink()))
-		f := as.Activity{
-			Parent: as.Object{
-				ID:   as.ObjectID(basePath),
-				Type: act.Type,
-			},
-			Actor: act.Actor.GetLink(),
-			Object: act.Object.GetLink(),
-		}
-		filter := s.FilterItem(f)
-
-		// TODO(marius): we need to check if an activity matching the Type and Actor of the current
-		//     one already exists, and error out if it does.
-		existing, cnt, err := loader.LoadActivities(filter)
-		if cnt > 0 && err == nil {
-			return act, errors.Newf("A %s activity already exists for current actor/object: %s", act.GetType(), existing.GetLink())
-		}
-	}
 
 	if colSaver, ok := l.(s.CollectionSaver); ok {
-		err = colSaver.AddToCollection(liked, act.Object.GetLink())
-		err = colSaver.AddToCollection(likes, act.GetLink())
+		liked := as.IRI(fmt.Sprintf("%s/%s", act.Actor.GetLink(), handlers.Liked))
+		if err := colSaver.AddToCollection(liked, act.Object.GetLink()); err != nil {
+			return act, errors.Annotatef(err, "Unable to save item to collection %s", liked)
+		}
+		likes := as.IRI(fmt.Sprintf("%s/%s", act.Object.GetLink(), handlers.Likes))
+		if err := colSaver.AddToCollection(likes, act.GetLink()); err != nil {
+			return act, errors.Annotatef(err, "Unable to save item to collection %s", likes)
+		}
 	}
 
-	return act, err
+	return act, nil
 }
 
 // ReactionsActivity processes matching activities
@@ -406,7 +389,7 @@ func ReactionsActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 		case as.DislikeType:
 			fallthrough
 		case as.LikeType:
-			AppreciationActivity(l, act)
+			act, err = AppreciationActivity(l, act)
 		case as.BlockType:
 			fallthrough
 		case as.AcceptType:
