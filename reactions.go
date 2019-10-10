@@ -43,6 +43,8 @@ func ReactionsActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 }
 
 // AppreciationActivity
+// The Like(and Dislike) activity indicates the actor likes the object.
+// The side effect of receiving this in an outbox is that the server SHOULD add the object to the actor's liked Collection.
 func AppreciationActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 	if act.Object == nil {
 		return act, errors.NotValidf("Missing object for %s Activity", act.Type)

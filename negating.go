@@ -56,6 +56,13 @@ func NegatingActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 }
 
 // UndoActivity
+// The Undo activity is used to undo a previous activity. See the Activity Vocabulary documentation on
+// Inverse Activities and "Undo". For example, Undo may be used to undo a previous Like, Follow, or Block.
+// The undo activity and the activity being undone MUST both have the same actor.
+// Side effects should be undone, to the extent possible. For example, if undoing a Like, any counter that had been
+// incremented previously should be decremented appropriately.
+// There are some exceptions where there is an existing and explicit "inverse activity" which should be used instead.
+// Create based activities should instead use Delete, and Add activities should use Remove.
 func UndoActivity(r s.Saver, act *as.Activity) (*as.Activity, error) {
 	var err error
 

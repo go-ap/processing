@@ -43,6 +43,14 @@ func ContentManagementActivity(l s.Saver, act *as.Activity, col handlers.Collect
 }
 
 // CreateActivity
+// The Create activity is used when posting a new object. This has the side effect that the object embedded within the
+// Activity (in the object property) is created.
+// When a Create activity is posted, the actor of the activity SHOULD be copied onto the object's attributedTo field.
+// A mismatch between addressing of the Create activity and its object is likely to lead to confusion.
+// As such, a server SHOULD copy any recipients of the Create activity to its object upon initial distribution,
+// and likewise with copying recipients from the object to the wrapping Create activity.
+// Note that it is acceptable for the object's addressing to be changed later without changing the Create's addressing
+// (for example via an Update activity).
 func CreateActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 	iri := act.Object.GetLink()
 	if len(iri) == 0 {
@@ -79,6 +87,9 @@ func CreateActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 }
 
 // UpdateActivity
+// The Update activity is used when updating an already existing object. The side effect of this is that the object
+// MUST be modified to reflect the new structure as defined in the update activity,
+// assuming the actor has permission to update this object.
 func UpdateActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 	// TODO(marius): Move this piece of logic to the validation mechanism
 	if len(act.Object.GetLink()) == 0 {
