@@ -30,14 +30,6 @@ func TestContentExperienceActivity(t *testing.T) {
 	t.Skipf("TODO")
 }
 
-func TestContentManagementActivity(t *testing.T) {
-	t.Skipf("TODO")
-}
-
-func TestReactionsActivity(t *testing.T) {
-	t.Skipf("TODO")
-}
-
 func TestQuestionActivity(t *testing.T) {
 	t.Skipf("TODO")
 }
@@ -51,10 +43,6 @@ func TestGeoSocialEventsActivity(t *testing.T) {
 }
 
 func TestGroupManagementActivity(t *testing.T) {
-	t.Skipf("TODO")
-}
-
-func TestNegatingActivity(t *testing.T) {
 	t.Skipf("TODO")
 }
 
