@@ -1,6 +1,7 @@
 package processing
 
 import (
+	"fmt"
 	"github.com/go-ap/activitypub"
 	as "github.com/go-ap/activitystreams"
 	"github.com/go-ap/errors"
@@ -19,7 +20,6 @@ func ContentManagementActivity(l s.Saver, act *as.Activity, col handlers.Collect
 	if act.Object == nil {
 		return act, errors.NotValidf("Missing object for Activity")
 	}
-	now := time.Now().UTC()
 	switch act.Type {
 	case as.CreateType:
 		act, err = CreateActivity(l, act)
@@ -37,8 +37,6 @@ func ContentManagementActivity(l s.Saver, act *as.Activity, col handlers.Collect
 		return act, err
 	}
 
-	// Set the published date
-	act.Published = now
 	return act, err
 }
 
@@ -61,15 +59,15 @@ func CreateActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 	// TODO(marius) Add function as.AttributedTo(it as.Item, auth as.Item)
 	if as.ActivityTypes.Contains(obType) {
 		activitypub.OnActivity(act.Object, func(a *as.Activity) error {
-			return updateActivityObject(l, &a.Parent, act, now)
+			return updateCreateActivityObject(l, &a.Parent, act, now)
 		})
 	} else if as.ActorTypes.Contains(obType) {
 		activitypub.OnPerson(act.Object, func(p *activitypub.Person) error {
-			return updateActivityObject(l, &p.Parent.Parent, act, now)
+			return updateCreateActivityObject(l, &p.Parent.Parent, act, now)
 		})
 	} else {
 		activitypub.OnObject(act.Object, func(o *activitypub.Object) error {
-			return updateActivityObject(l, &o.Parent, act, now)
+			return updateCreateActivityObject(l, &o.Parent, act, now)
 		})
 	}
 
@@ -118,7 +116,7 @@ func UpdateActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 		return act, errors.NotFoundf("Unable to find %s %s", ob.GetType(), ob.GetLink())
 	}
 	if it := found.First(); it != nil {
-		ob, err = UpdateItemProperties(it, ob)
+		ob, err = CopyItemProperties(it, ob)
 		if err != nil {
 			return act, err
 		}
@@ -126,4 +124,51 @@ func UpdateActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 
 	act.Object, err = l.UpdateObject(ob)
 	return act, err
+}
+
+func updateCreateActivityObject(l s.Saver, o *as.Object, act *as.Activity, now time.Time) error {
+	// See https://www.w3.org/TR/ActivityPub/#create-activity-outbox
+	// Copying the actor's IRI to the object's AttributedTo
+	o.AttributedTo = act.Actor.GetLink()
+
+	// Merging the activity's and the object's Audience
+	if aud, err := as.ItemCollectionDeduplication(&act.Audience, &o.Audience); err == nil {
+		o.Audience = FlattenItemCollection(aud)
+		act.Audience = FlattenItemCollection(aud)
+	}
+	// Merging the activity's and the object's To addressing
+	if to, err := as.ItemCollectionDeduplication(&act.To, &o.To); err == nil {
+		o.To = FlattenItemCollection(to)
+		act.To = FlattenItemCollection(to)
+	}
+	// Merging the activity's and the object's Bto addressing
+	if bto, err := as.ItemCollectionDeduplication(&act.Bto, &o.Bto); err == nil {
+		o.Bto = FlattenItemCollection(bto)
+		act.Bto = FlattenItemCollection(bto)
+	}
+	// Merging the activity's and the object's Cc addressing
+	if cc, err := as.ItemCollectionDeduplication(&act.CC, &o.CC); err == nil {
+		o.CC = FlattenItemCollection(cc)
+		act.CC = FlattenItemCollection(cc)
+	}
+	// Merging the activity's and the object's Bcc addressing
+	if bcc, err := as.ItemCollectionDeduplication(&act.BCC, &o.BCC); err == nil {
+		o.BCC = FlattenItemCollection(bcc)
+		act.BCC = FlattenItemCollection(bcc)
+	}
+
+	if o.InReplyTo != nil {
+		if colSaver, ok := l.(s.CollectionSaver); ok {
+			for _, repl := range o.InReplyTo {
+				iri := as.IRI(fmt.Sprintf("%s/%s", repl.GetLink(), handlers.Replies))
+				colSaver.AddToCollection(iri, o.GetLink())
+			}
+		}
+	}
+
+	// TODO(marius): Move these to a ProcessObject function
+	// Set the published date
+	o.Published = now
+
+	return nil
 }

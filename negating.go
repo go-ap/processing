@@ -89,6 +89,9 @@ func UndoActivity(r s.Saver, act *as.Activity) (*as.Activity, error) {
 }
 
 // UndoAppreciationActivity
+// Removes the side effects of an existing Appreciation activity (Like or Dislike)
+// Currently this means only removal of the Liked/Disliked object from the actor's `liked` collection and
+// removal of the Like/Dislike Activity from the object's `likes` collection
 func UndoAppreciationActivity(r s.Saver, act *as.Activity) (*as.Activity, error) {
 	var err error
 	if colSaver, ok := r.(s.CollectionSaver); ok {

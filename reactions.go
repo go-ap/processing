@@ -39,6 +39,7 @@ func ReactionsActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 			return act, errors.NotImplementedf("Processing reaction activity of type %s is not implemented", act.GetType())
 		}
 	}
+
 	return act, err
 }
 

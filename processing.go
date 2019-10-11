@@ -158,8 +158,10 @@ func ProcessActivity(r s.Saver, act *as.Activity, col handlers.CollectionType) (
 			return act, err
 		}
 	}
-
 	act = FlattenActivityProperties(act)
+	if act.Published.IsZero() {
+		act.Published = time.Now()
+	}
 	it, err := r.SaveActivity(act)
 	act, _ = it.(*as.Activity)
 
@@ -196,50 +198,11 @@ func ProcessActivity(r s.Saver, act *as.Activity, col handlers.CollectionType) (
 	return act, err
 }
 
-func updateActivityObject(l s.Saver, o *as.Object, act *as.Activity, now time.Time) error {
-	// See https://www.w3.org/TR/ActivityPub/#create-activity-outbox
-	// Copying the actor's IRI to the object's AttributedTo
-	o.AttributedTo = act.Actor.GetLink()
-
+func updateActivity(act *as.Activity, now time.Time) error {
 	// Merging the activity's and the object's Audience
-	if aud, err := as.ItemCollectionDeduplication(&act.Audience, &o.Audience); err == nil {
-		o.Audience = FlattenItemCollection(aud)
-		act.Audience = FlattenItemCollection(aud)
-	}
-	// Merging the activity's and the object's To addressing
-	if to, err := as.ItemCollectionDeduplication(&act.To, &o.To); err == nil {
-		o.To = FlattenItemCollection(to)
-		act.To = FlattenItemCollection(to)
-	}
-	// Merging the activity's and the object's Bto addressing
-	if bto, err := as.ItemCollectionDeduplication(&act.Bto, &o.Bto); err == nil {
-		o.Bto = FlattenItemCollection(bto)
-		act.Bto = FlattenItemCollection(bto)
-	}
-	// Merging the activity's and the object's Cc addressing
-	if cc, err := as.ItemCollectionDeduplication(&act.CC, &o.CC); err == nil {
-		o.CC = FlattenItemCollection(cc)
-		act.CC = FlattenItemCollection(cc)
-	}
-	// Merging the activity's and the object's Bcc addressing
-	if bcc, err := as.ItemCollectionDeduplication(&act.BCC, &o.BCC); err == nil {
-		o.BCC = FlattenItemCollection(bcc)
-		act.BCC = FlattenItemCollection(bcc)
-	}
 
-	if o.InReplyTo != nil {
-		if colSaver, ok := l.(s.CollectionSaver); ok {
-			for _, repl := range o.InReplyTo {
-				iri := as.IRI(fmt.Sprintf("%s/%s", repl.GetLink(), handlers.Replies))
-				colSaver.AddToCollection(iri, o.GetLink())
-			}
-		}
-	}
-
-	// TODO(marius): Move these to a ProcessObject function
 	// Set the published date
-	o.Published = now
-
+	act.Published = now
 	return nil
 }
 
@@ -317,132 +280,4 @@ func RelationshipManagementActivity(l s.Saver, act *as.Activity) (*as.Activity, 
 func OffersActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 	// TODO(marius):
 	return nil, errors.NotImplementedf("Processing %s activity is not implemented", act.GetType())
-}
-
-// UpdateObjectProperties updates the "old" object properties with "new's"
-func UpdateObjectProperties(old, new *activitypub.Object) (*activitypub.Object, error) {
-	old.Name = replaceIfNaturalLanguageValues(old.Name, new.Name)
-	old.Attachment = replaceIfItem(old.Attachment, new.Attachment)
-	old.AttributedTo = replaceIfItem(old.AttributedTo, new.AttributedTo)
-	old.Audience = replaceIfItemCollection(old.Audience, new.Audience)
-	old.Content = replaceIfNaturalLanguageValues(old.Content, new.Content)
-	old.Context = replaceIfItem(old.Context, new.Context)
-	if len(new.MediaType) > 0 {
-		old.MediaType = new.MediaType
-	}
-	if !new.EndTime.IsZero() {
-		old.EndTime = new.EndTime
-	}
-	old.Generator = replaceIfItem(old.Generator, new.Generator)
-	old.Icon = replaceIfItem(old.Icon, new.Icon)
-	old.Image = replaceIfItem(old.Image, new.Image)
-	old.InReplyTo = replaceIfItemCollection(old.InReplyTo, new.InReplyTo)
-	old.Location = replaceIfItem(old.Location, new.Location)
-	old.Preview = replaceIfItem(old.Preview, new.Preview)
-	if old.Published.IsZero() && !new.Published.IsZero() {
-		old.Published = new.Published
-	}
-	old.Replies = replaceIfItem(old.Replies, new.Replies)
-	if !new.StartTime.IsZero() {
-		old.StartTime = new.StartTime
-	}
-	old.Summary = replaceIfNaturalLanguageValues(old.Summary, new.Summary)
-	old.Tag = replaceIfItemCollection(old.Tag, new.Tag)
-	if !new.Updated.IsZero() {
-		old.Updated = new.Updated
-	}
-	if new.URL != nil {
-		old.URL = new.URL
-	}
-	old.To = replaceIfItemCollection(old.To, new.To)
-	old.Bto = replaceIfItemCollection(old.Bto, new.Bto)
-	old.CC = replaceIfItemCollection(old.CC, new.CC)
-	old.BCC = replaceIfItemCollection(old.BCC, new.BCC)
-	if new.Duration == 0 {
-		old.Duration = new.Duration
-	}
-	old.Source = replaceIfSource(old.Source, new.Source)
-	return old, nil
-}
-
-// UpdateItemProperties delegates to the correct per type functions for copying
-// properties between matching Activity Objects
-func UpdateItemProperties(to, from as.Item) (as.Item, error) {
-	if to == nil {
-		return to, errors.Newf("Nil object to update")
-	}
-	if from == nil {
-		return to, errors.Newf("Nil object for update")
-	}
-	if *to.GetID() != *from.GetID() {
-		return to, errors.Newf("Object IDs don't match")
-	}
-	if to.GetType() != from.GetType() {
-		return to, errors.Newf("Invalid object types for update %s(old) and %s(new)", from.GetType(), to.GetType())
-	}
-	if as.ActorTypes.Contains(to.GetType()) {
-		o, err := auth.ToPerson(to)
-		if err != nil {
-			return o, err
-		}
-		n, err := auth.ToPerson(from)
-		if err != nil {
-			return o, err
-		}
-		return UpdatePersonProperties(o, n)
-	}
-	if as.ObjectTypes.Contains(to.GetType()) {
-		o, err := activitypub.ToObject(to)
-		if err != nil {
-			return o, err
-		}
-		n, err := activitypub.ToObject(from)
-		if err != nil {
-			return o, err
-		}
-		return UpdateObjectProperties(o, n)
-	}
-	return to, errors.Newf("could not process objects with type %s", to.GetType())
-}
-
-// UpdatePersonProperties
-func UpdatePersonProperties(old, new *auth.Person) (*auth.Person, error) {
-	o, err := UpdateObjectProperties(&old.Parent, &new.Parent)
-	old.Parent = *o
-	old.Inbox = replaceIfItem(old.Inbox, new.Inbox)
-	old.Outbox = replaceIfItem(old.Outbox, new.Outbox)
-	old.Following = replaceIfItem(old.Following, new.Following)
-	old.Followers = replaceIfItem(old.Followers, new.Followers)
-	old.Liked = replaceIfItem(old.Liked, new.Liked)
-	old.PreferredUsername = replaceIfNaturalLanguageValues(old.PreferredUsername, new.PreferredUsername)
-	return old, err
-}
-
-func replaceIfItem(old, new as.Item) as.Item {
-	if new == nil {
-		return old
-	}
-	return new
-}
-
-func replaceIfItemCollection(old, new as.ItemCollection) as.ItemCollection {
-	if new == nil {
-		return old
-	}
-	return new
-}
-
-func replaceIfNaturalLanguageValues(old, new as.NaturalLanguageValues) as.NaturalLanguageValues {
-	if new == nil {
-		return old
-	}
-	return new
-}
-
-func replaceIfSource(old, new activitypub.Source) activitypub.Source {
-	if new.MediaType != old.MediaType {
-		return new
-	}
-	old.Content = replaceIfNaturalLanguageValues(old.Content, new.Content)
-	return old
 }

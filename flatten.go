@@ -14,6 +14,12 @@ func FlattenActivityProperties(act *as.Activity) *as.Activity {
 	act.Origin = as.FlattenToIRI(act.Origin)
 	act.Result = as.FlattenToIRI(act.Result)
 	act.Instrument = as.FlattenToIRI(act.Instrument)
+	act.AttributedTo = as.FlattenToIRI(act.AttributedTo)
+	act.Audience = FlattenItemCollection(act.Audience)
+	act.To = FlattenItemCollection(act.To)
+	act.Bto = FlattenItemCollection(act.Bto)
+	act.CC = FlattenItemCollection(act.CC)
+	act.BCC = FlattenItemCollection(act.BCC)
 	return act
 }
 
@@ -52,6 +58,7 @@ func FlattenItemCollection(col as.ItemCollection) as.ItemCollection {
 	if col == nil {
 		return col
 	}
+	as.ItemCollectionDeduplication(&col)
 	for k, it := range col {
 		col[k] = it.GetLink()
 	}
@@ -64,6 +71,7 @@ func FlattenCollection(col *as.Collection) *as.Collection {
 	if col == nil {
 		return col
 	}
+	as.ItemCollectionDeduplication(&col.Items)
 	for k, it := range col.Items {
 		col.Items[k] = it.GetLink()
 	}
