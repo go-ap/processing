@@ -12,9 +12,3 @@ require (
 	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45 // indirect
 	golang.org/x/xerrors v0.0.0-20190513163551-3ee3066db522 // indirect
 )
-
-replace (
-	github.com/go-ap/activitypub => /home/habarnam/playground/go-ap/activitypub
-	github.com/go-ap/activitystreams => /home/habarnam/playground/go-ap/activitystreams
-	github.com/go-ap/processing => /home/habarnam/playground/go-ap/processing
-)
