@@ -24,19 +24,22 @@ func NegatingActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 	if act.Type != as.UndoType {
 		return act, errors.NotValidf("Activity has wrong type %s, expected %s", act.Type, as.UndoType)
 	}
-	// the object of the activity needs to be an activity
-	if !as.ActivityTypes.Contains(act.Object.GetType()) {
-		return act, errors.NotValidf("Activity object has wrong type %s, expected one of %v", act.Type, as.ActivityTypes)
-	}
 	// dereference object activity
 	if act.Object.IsLink() {
 		if actLoader, ok := l.(s.ActivityLoader); ok {
-			obj, _, err := actLoader.LoadActivities(act.Object.GetLink())
+			obj, cnt, err := actLoader.LoadActivities(act.Object.GetLink())
 			if err != nil {
 				return act, errors.NotValidf("Unable to dereference object: %s", act.Object.GetLink())
 			}
-			act.Object = obj
+			if cnt != 1 {
+				return act, errors.NotValidf("Too many objects to dereference object: %s", act.Object.GetLink())
+			}
+			act.Object = obj.First()
 		}
+	}
+	// the object of the activity needs to be an activity
+	if !as.ActivityTypes.Contains(act.Object.GetType()) {
+		return act, errors.NotValidf("Activity object has wrong type %s, expected one of %v", act.Type, as.ActivityTypes)
 	}
 	err := activitypub.OnActivity(act.Object, func(a *as.Activity) error {
 		if act.Actor.GetLink() != a.Actor.GetLink() {
@@ -44,8 +47,8 @@ func NegatingActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 		}
 		// TODO(marius): add more valid types
 		good := as.ActivityVocabularyTypes{as.LikeType, as.DislikeType, as.BlockType, as.FollowType}
-		if !good.Contains(act.Type) {
-			return errors.NotValidf("Object Activity has wrong type %s, expected %v", act.Type, good)
+		if !good.Contains(a.Type) {
+			return errors.NotValidf("Object Activity has wrong type %s, expected %v", a.Type, good)
 		}
 		return nil
 	})
