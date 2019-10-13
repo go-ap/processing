@@ -22,7 +22,11 @@ func (i itemFilter) Types() as.ActivityVocabularyTypes {
 }
 
 func (i itemFilter) IRIs() as.IRIs {
-	return as.IRIs{i.item.GetLink()}
+	iri := i.item.GetLink()
+	if len(iri) > 0 {
+		return as.IRIs{iri}
+	}
+	return nil
 }
 func (i itemFilter) Actors() as.IRIs {
 	iris := make(as.IRIs, 0)
