@@ -44,6 +44,7 @@ type FilterableObject interface {
 	InReplyTo() as.IRIs
 	MediaTypes() []as.MimeType
 	Names() []string
+	Content() []string
 	//PublishedBefore() time.Time
 	//PublishedAfter() time.Time
 	URLs() as.IRIs
