@@ -1,6 +1,5 @@
 package processing
 
-
 import (
 	"fmt"
 	"github.com/go-ap/activitypub"
@@ -8,6 +7,8 @@ import (
 	"github.com/go-ap/errors"
 	"github.com/go-ap/handlers"
 	s "github.com/go-ap/storage"
+	"path"
+	"strings"
 )
 
 // NegatingActivity processes matching activities
@@ -74,6 +75,16 @@ func UndoActivity(r s.Saver, act *as.Activity) (*as.Activity, error) {
 		r.GenerateID(act, nil)
 	}
 	err = activitypub.OnActivity(act.Object, func(toUndo *as.Activity) error {
+		for _, to := range act.Bto {
+			if !toUndo.Bto.Contains(to.GetLink()) {
+				toUndo.Bto = append(toUndo.Bto, to)
+			}
+		}
+		for _, to := range act.BCC {
+			if !toUndo.BCC.Contains(to.GetLink()) {
+				toUndo.BCC = append(toUndo.BCC, to)
+			}
+		}
 		switch toUndo.GetType() {
 		case as.DislikeType:
 			fallthrough
@@ -96,14 +107,45 @@ func UndoActivity(r s.Saver, act *as.Activity) (*as.Activity, error) {
 // Currently this means only removal of the Liked/Disliked object from the actor's `liked` collection and
 // removal of the Like/Dislike Activity from the object's `likes` collection
 func UndoAppreciationActivity(r s.Saver, act *as.Activity) (*as.Activity, error) {
-	var err error
+	errs := make([]error, 0)
+	rem := act.GetLink()
 	if colSaver, ok := r.(s.CollectionSaver); ok {
+		rec := act.Recipients()
+		for _, rec := range rec {
+			iri := rec.GetLink()
+			if iri == as.PublicNS {
+				continue
+			}
+			base := path.Base(string(iri))
+			if !handlers.ValidCollection(base) {
+				// if not a valid collection, then it's an actor and we need their inbox
+				iri = as.IRI(fmt.Sprintf("%s/%s", iri, handlers.Inbox))
+			}
+			if err := colSaver.RemoveFromCollection(iri, rem); err != nil {
+				errs = append(errs, err)
+			}
+
+		}
+		outbox := as.IRI(fmt.Sprintf("%s/%s", act.Actor.GetLink(), handlers.Outbox))
+		if err := colSaver.RemoveFromCollection(outbox, rem); err != nil {
+			errs = append(errs, err)
+		}
 		liked := as.IRI(fmt.Sprintf("%s/%s", act.Actor.GetLink(), handlers.Liked))
-		err = colSaver.RemoveFromCollection(liked, act.Object.GetLink())
-
+		if err := colSaver.RemoveFromCollection(liked, act.Object.GetLink()); err != nil {
+			errs = append(errs, err)
+		}
 		likes := as.IRI(fmt.Sprintf("%s/%s", act.Object.GetLink(), handlers.Likes))
-		err = colSaver.RemoveFromCollection(likes, act.GetLink())
+		if err := colSaver.RemoveFromCollection(likes, rem); err != nil {
+			errs = append(errs, err)
+		}
 	}
-
-	return act, err
+	if len(errs) > 0 {
+		msgs := make([]string, len(errs))
+		for i, e := range errs {
+			msgs[i] = e.Error()
+		}
+		err := errors.Newf("%s", strings.Join(msgs, ", "))
+		return act, err
+	}
+	return act, nil
 }
