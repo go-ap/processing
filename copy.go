@@ -7,7 +7,6 @@ import (
 	"github.com/go-ap/errors"
 )
 
-
 // CopyObjectProperties updates the "old" object properties with "new's"
 func CopyObjectProperties(old, new *activitypub.Object) (*activitypub.Object, error) {
 	old.Name = replaceIfNaturalLanguageValues(old.Name, new.Name)
