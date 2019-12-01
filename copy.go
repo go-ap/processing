@@ -24,7 +24,7 @@ func CopyObjectProperties(old, new *activitypub.Object) (*activitypub.Object, er
 	old.Generator = replaceIfItem(old.Generator, new.Generator)
 	old.Icon = replaceIfItem(old.Icon, new.Icon)
 	old.Image = replaceIfItem(old.Image, new.Image)
-	old.InReplyTo = replaceIfItemCollection(old.InReplyTo, new.InReplyTo)
+	old.InReplyTo = replaceIfItem(old.InReplyTo, new.InReplyTo)
 	old.Location = replaceIfItem(old.Location, new.Location)
 	old.Preview = replaceIfItem(old.Preview, new.Preview)
 	if old.Published.IsZero() && !new.Published.IsZero() {

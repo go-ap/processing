@@ -159,8 +159,13 @@ func updateCreateActivityObject(l s.Saver, o *as.Object, act *as.Activity, now t
 
 	if o.InReplyTo != nil {
 		if colSaver, ok := l.(s.CollectionSaver); ok {
-			for _, repl := range o.InReplyTo {
-				iri := as.IRI(fmt.Sprintf("%s/%s", repl.GetLink(), handlers.Replies))
+			if c, ok := o.InReplyTo.(as.ItemCollection); ok {
+				for _, repl := range c {
+					iri := as.IRI(fmt.Sprintf("%s/%s", repl.GetLink(), handlers.Replies))
+					colSaver.AddToCollection(iri, o.GetLink())
+				}
+			} else {
+				iri := as.IRI(fmt.Sprintf("%s/%s",  o.InReplyTo.GetLink(), handlers.Replies))
 				colSaver.AddToCollection(iri, o.GetLink())
 			}
 		}
