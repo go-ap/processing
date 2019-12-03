@@ -54,11 +54,7 @@ func CreateActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 		l.GenerateID(act.Object, act)
 	}
 	now := time.Now().UTC()
-	pub.OnObject(act.Object, func(o *pub.Object) error {
-		return updateCreateActivityObject(l, o, act, now)
-	})
-
-	var err error
+	err := updateCreateActivityObject(l, act.Object, act, now)
 	if colSaver, ok := l.(s.CollectionSaver); ok {
 		act.Object, err = AddNewObjectCollections(colSaver, act.Object)
 		if err != nil {
@@ -113,54 +109,55 @@ func UpdateActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 	return act, err
 }
 
-func updateCreateActivityObject(l s.Saver, o *pub.Object, act *pub.Activity, now time.Time) error {
-	// See https://www.w3.org/TR/ActivityPub/#create-activity-outbox
-	// Copying the actor's IRI to the object's AttributedTo
-	o.AttributedTo = act.Actor.GetLink()
+func updateCreateActivityObject(l s.Saver, o pub.Item, act *pub.Activity, now time.Time) error {
+	return pub.OnObject(o, func(o *pub.Object) error {
+		// See https://www.w3.org/TR/ActivityPub/#create-activity-outbox
+		// Copying the actor's IRI to the object's AttributedTo
+		o.AttributedTo = act.Actor.GetLink()
 
-	// Merging the activity's and the object's Audience
-	if aud, err := pub.ItemCollectionDeduplication(&act.Audience, &o.Audience); err == nil {
-		o.Audience = FlattenItemCollection(aud)
-		act.Audience = FlattenItemCollection(aud)
-	}
-	// Merging the activity's and the object's To addressing
-	if to, err := pub.ItemCollectionDeduplication(&act.To, &o.To); err == nil {
-		o.To = FlattenItemCollection(to)
-		act.To = FlattenItemCollection(to)
-	}
-	// Merging the activity's and the object's Bto addressing
-	if bto, err := pub.ItemCollectionDeduplication(&act.Bto, &o.Bto); err == nil {
-		o.Bto = FlattenItemCollection(bto)
-		act.Bto = FlattenItemCollection(bto)
-	}
-	// Merging the activity's and the object's Cc addressing
-	if cc, err := pub.ItemCollectionDeduplication(&act.CC, &o.CC); err == nil {
-		o.CC = FlattenItemCollection(cc)
-		act.CC = FlattenItemCollection(cc)
-	}
-	// Merging the activity's and the object's Bcc addressing
-	if bcc, err := pub.ItemCollectionDeduplication(&act.BCC, &o.BCC); err == nil {
-		o.BCC = FlattenItemCollection(bcc)
-		act.BCC = FlattenItemCollection(bcc)
-	}
+		// Merging the activity's and the object's Audience
+		if aud, err := pub.ItemCollectionDeduplication(&act.Audience, &o.Audience); err == nil {
+			o.Audience = FlattenItemCollection(aud)
+			act.Audience = FlattenItemCollection(aud)
+		}
+		// Merging the activity's and the object's To addressing
+		if to, err := pub.ItemCollectionDeduplication(&act.To, &o.To); err == nil {
+			o.To = FlattenItemCollection(to)
+			act.To = FlattenItemCollection(to)
+		}
+		// Merging the activity's and the object's Bto addressing
+		if bto, err := pub.ItemCollectionDeduplication(&act.Bto, &o.Bto); err == nil {
+			o.Bto = FlattenItemCollection(bto)
+			act.Bto = FlattenItemCollection(bto)
+		}
+		// Merging the activity's and the object's Cc addressing
+		if cc, err := pub.ItemCollectionDeduplication(&act.CC, &o.CC); err == nil {
+			o.CC = FlattenItemCollection(cc)
+			act.CC = FlattenItemCollection(cc)
+		}
+		// Merging the activity's and the object's Bcc addressing
+		if bcc, err := pub.ItemCollectionDeduplication(&act.BCC, &o.BCC); err == nil {
+			o.BCC = FlattenItemCollection(bcc)
+			act.BCC = FlattenItemCollection(bcc)
+		}
 
-	if o.InReplyTo != nil {
-		if colSaver, ok := l.(s.CollectionSaver); ok {
-			if c, ok := o.InReplyTo.(pub.ItemCollection); ok {
-				for _, repl := range c {
-					iri := pub.IRI(fmt.Sprintf("%s/%s", repl.GetLink(), handlers.Replies))
+		if o.InReplyTo != nil {
+			if colSaver, ok := l.(s.CollectionSaver); ok {
+				if c, ok := o.InReplyTo.(pub.ItemCollection); ok {
+					for _, repl := range c {
+						iri := pub.IRI(fmt.Sprintf("%s/%s", repl.GetLink(), handlers.Replies))
+						colSaver.AddToCollection(iri, o.GetLink())
+					}
+				} else {
+					iri := pub.IRI(fmt.Sprintf("%s/%s",  o.InReplyTo.GetLink(), handlers.Replies))
 					colSaver.AddToCollection(iri, o.GetLink())
 				}
-			} else {
-				iri := pub.IRI(fmt.Sprintf("%s/%s",  o.InReplyTo.GetLink(), handlers.Replies))
-				colSaver.AddToCollection(iri, o.GetLink())
 			}
 		}
-	}
 
-	// TODO(marius): Move these to a ProcessObject function
-	// Set the published date
-	o.Published = now
-
-	return nil
+		// TODO(marius): Move these to a ProcessObject function
+		// Set the published date
+		o.Published = now
+		return nil
+	})
 }
