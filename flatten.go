@@ -1,20 +1,19 @@
 package processing
 
 import (
-	as "github.com/go-ap/activitystreams"
-	"github.com/go-ap/auth"
+	pub "github.com/go-ap/activitypub"
 )
 
 // FlattenActivityProperties flattens the Activity's properties from Object type to IRI
-func FlattenActivityProperties(act *as.Activity) *as.Activity {
-	act.Object = as.FlattenToIRI(act.Object)
-	act.Actor = as.FlattenToIRI(act.Actor)
-	act.Target = as.FlattenToIRI(act.Target)
-	act.Result = as.FlattenToIRI(act.Result)
-	act.Origin = as.FlattenToIRI(act.Origin)
-	act.Result = as.FlattenToIRI(act.Result)
-	act.Instrument = as.FlattenToIRI(act.Instrument)
-	act.AttributedTo = as.FlattenToIRI(act.AttributedTo)
+func FlattenActivityProperties(act *pub.Activity) *pub.Activity {
+	act.Object = pub.FlattenToIRI(act.Object)
+	act.Actor = pub.FlattenToIRI(act.Actor)
+	act.Target = pub.FlattenToIRI(act.Target)
+	act.Result = pub.FlattenToIRI(act.Result)
+	act.Origin = pub.FlattenToIRI(act.Origin)
+	act.Result = pub.FlattenToIRI(act.Result)
+	act.Instrument = pub.FlattenToIRI(act.Instrument)
+	act.AttributedTo = pub.FlattenToIRI(act.AttributedTo)
 	act.Audience = FlattenItemCollection(act.Audience)
 	act.To = FlattenItemCollection(act.To)
 	act.Bto = FlattenItemCollection(act.Bto)
@@ -23,42 +22,12 @@ func FlattenActivityProperties(act *as.Activity) *as.Activity {
 	return act
 }
 
-// FlattenObjectProperties flattens the Object's properties from Object types to IRI
-func FlattenPersonProperties(o *auth.Person) *auth.Person {
-	o.Parent.Parent = *as.FlattenObjectProperties(&o.Parent.Parent)
-	return o
-}
-
-// FlattenProperties flattens the Item's properties from Object types to IRI
-func FlattenProperties(it as.Item) as.Item {
-	if as.ActivityTypes.Contains(it.GetType()) {
-		a, err := as.ToActivity(it)
-		if err == nil {
-			return FlattenActivityProperties(a)
-		}
-	}
-	if as.ActorTypes.Contains(it.GetType()) {
-		ob, err := auth.ToPerson(it)
-		if err == nil {
-			return FlattenPersonProperties(ob)
-		}
-	}
-	if it.GetType() == as.TombstoneType {
-		t, err := as.ToTombstone(it)
-		if err == nil {
-			t.Parent = *as.FlattenObjectProperties(&t.Parent)
-			return t
-		}
-	}
-	return as.FlattenProperties(it)
-}
-
 // FlattenItemCollection flattens an Item Collection to their respective IRIs
-func FlattenItemCollection(col as.ItemCollection) as.ItemCollection {
+func FlattenItemCollection(col pub.ItemCollection) pub.ItemCollection {
 	if col == nil {
 		return col
 	}
-	as.ItemCollectionDeduplication(&col)
+	pub.ItemCollectionDeduplication(&col)
 	for k, it := range col {
 		col[k] = it.GetLink()
 	}
@@ -67,11 +36,11 @@ func FlattenItemCollection(col as.ItemCollection) as.ItemCollection {
 }
 
 // FlattenCollection flattens a Collection's objects to their respective IRIs
-func FlattenCollection(col *as.Collection) *as.Collection {
+func FlattenCollection(col *pub.Collection) *pub.Collection {
 	if col == nil {
 		return col
 	}
-	as.ItemCollectionDeduplication(&col.Items)
+	pub.ItemCollectionDeduplication(&col.Items)
 	for k, it := range col.Items {
 		col.Items[k] = it.GetLink()
 	}
@@ -80,7 +49,7 @@ func FlattenCollection(col *as.Collection) *as.Collection {
 }
 
 // FlattenOrderedCollection flattens an OrderedCollection's objects to their respective IRIs
-func FlattenOrderedCollection(col *as.OrderedCollection) *as.OrderedCollection {
+func FlattenOrderedCollection(col *pub.OrderedCollection) *pub.OrderedCollection {
 	if col == nil {
 		return col
 	}

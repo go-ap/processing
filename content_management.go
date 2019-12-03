@@ -2,8 +2,7 @@ package processing
 
 import (
 	"fmt"
-	"github.com/go-ap/activitypub"
-	as "github.com/go-ap/activitystreams"
+	pub "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
 	"github.com/go-ap/handlers"
 	s "github.com/go-ap/storage"
@@ -15,17 +14,17 @@ import (
 // modification or deletion of content.
 // This includes, for instance, activities such as "John created a new note",
 // "Sally updated an article", and "Joe deleted the photo".
-func ContentManagementActivity(l s.Saver, act *as.Activity, col handlers.CollectionType) (*as.Activity, error) {
+func ContentManagementActivity(l s.Saver, act *pub.Activity, col handlers.CollectionType) (*pub.Activity, error) {
 	var err error
 	if act.Object == nil {
 		return act, errors.NotValidf("Missing object for Activity")
 	}
 	switch act.Type {
-	case as.CreateType:
+	case pub.CreateType:
 		act, err = CreateActivity(l, act)
-	case as.UpdateType:
+	case pub.UpdateType:
 		act, err = UpdateActivity(l, act)
-	case as.DeleteType:
+	case pub.DeleteType:
 		// TODO(marius): Move this piece of logic to the validation mechanism
 		if len(act.Object.GetLink()) == 0 {
 			return act, errors.Newf("unable to update object without a valid object id")
@@ -49,27 +48,15 @@ func ContentManagementActivity(l s.Saver, act *as.Activity, col handlers.Collect
 // and likewise with copying recipients from the object to the wrapping Create activity.
 // Note that it is acceptable for the object's addressing to be changed later without changing the Create's addressing
 // (for example via an Update activity).
-func CreateActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
+func CreateActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 	iri := act.Object.GetLink()
 	if len(iri) == 0 {
 		l.GenerateID(act.Object, act)
 	}
 	now := time.Now().UTC()
-	obType := act.Object.GetType()
-	// TODO(marius) Add function as.AttributedTo(it as.Item, auth as.Item)
-	if as.ActivityTypes.Contains(obType) {
-		activitypub.OnActivity(act.Object, func(a *as.Activity) error {
-			return updateCreateActivityObject(l, &a.Parent, act, now)
-		})
-	} else if as.ActorTypes.Contains(obType) {
-		activitypub.OnPerson(act.Object, func(p *activitypub.Person) error {
-			return updateCreateActivityObject(l, &p.Parent.Parent, act, now)
-		})
-	} else {
-		activitypub.OnObject(act.Object, func(o *activitypub.Object) error {
-			return updateCreateActivityObject(l, &o.Parent, act, now)
-		})
-	}
+	pub.OnObject(act.Object, func(o *pub.Object) error {
+		return updateCreateActivityObject(l, o, act, now)
+	})
 
 	var err error
 	if colSaver, ok := l.(s.CollectionSaver); ok {
@@ -88,7 +75,7 @@ func CreateActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 // The Update activity is used when updating an already existing object. The side effect of this is that the object
 // MUST be modified to reflect the new structure as defined in the update activity,
 // assuming the actor has permission to update this object.
-func UpdateActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
+func UpdateActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 	// TODO(marius): Move this piece of logic to the validation mechanism
 	if len(act.Object.GetLink()) == 0 {
 		return act, errors.Newf("unable to update object without a valid object id")
@@ -97,16 +84,16 @@ func UpdateActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 
 	ob := act.Object
 	var cnt uint
-	if as.ActivityTypes.Contains(ob.GetType()) {
+	if pub.ActivityTypes.Contains(ob.GetType()) {
 		return act, errors.Newf("unable to update activity")
 	}
 
-	var found as.ItemCollection
+	var found pub.ItemCollection
 	typ := ob.GetType()
-	if loader, ok := l.(s.ActorLoader); ok && as.ActorTypes.Contains(typ) {
+	if loader, ok := l.(s.ActorLoader); ok && pub.ActorTypes.Contains(typ) {
 		found, cnt, _ = loader.LoadActors(ob)
 	}
-	if loader, ok := l.(s.ObjectLoader); ok && as.ObjectTypes.Contains(typ) {
+	if loader, ok := l.(s.ObjectLoader); ok && pub.ObjectTypes.Contains(typ) {
 		found, cnt, _ = loader.LoadObjects(ob)
 	}
 	if len(ob.GetLink()) == 0 {
@@ -126,46 +113,46 @@ func UpdateActivity(l s.Saver, act *as.Activity) (*as.Activity, error) {
 	return act, err
 }
 
-func updateCreateActivityObject(l s.Saver, o *as.Object, act *as.Activity, now time.Time) error {
+func updateCreateActivityObject(l s.Saver, o *pub.Object, act *pub.Activity, now time.Time) error {
 	// See https://www.w3.org/TR/ActivityPub/#create-activity-outbox
 	// Copying the actor's IRI to the object's AttributedTo
 	o.AttributedTo = act.Actor.GetLink()
 
 	// Merging the activity's and the object's Audience
-	if aud, err := as.ItemCollectionDeduplication(&act.Audience, &o.Audience); err == nil {
+	if aud, err := pub.ItemCollectionDeduplication(&act.Audience, &o.Audience); err == nil {
 		o.Audience = FlattenItemCollection(aud)
 		act.Audience = FlattenItemCollection(aud)
 	}
 	// Merging the activity's and the object's To addressing
-	if to, err := as.ItemCollectionDeduplication(&act.To, &o.To); err == nil {
+	if to, err := pub.ItemCollectionDeduplication(&act.To, &o.To); err == nil {
 		o.To = FlattenItemCollection(to)
 		act.To = FlattenItemCollection(to)
 	}
 	// Merging the activity's and the object's Bto addressing
-	if bto, err := as.ItemCollectionDeduplication(&act.Bto, &o.Bto); err == nil {
+	if bto, err := pub.ItemCollectionDeduplication(&act.Bto, &o.Bto); err == nil {
 		o.Bto = FlattenItemCollection(bto)
 		act.Bto = FlattenItemCollection(bto)
 	}
 	// Merging the activity's and the object's Cc addressing
-	if cc, err := as.ItemCollectionDeduplication(&act.CC, &o.CC); err == nil {
+	if cc, err := pub.ItemCollectionDeduplication(&act.CC, &o.CC); err == nil {
 		o.CC = FlattenItemCollection(cc)
 		act.CC = FlattenItemCollection(cc)
 	}
 	// Merging the activity's and the object's Bcc addressing
-	if bcc, err := as.ItemCollectionDeduplication(&act.BCC, &o.BCC); err == nil {
+	if bcc, err := pub.ItemCollectionDeduplication(&act.BCC, &o.BCC); err == nil {
 		o.BCC = FlattenItemCollection(bcc)
 		act.BCC = FlattenItemCollection(bcc)
 	}
 
 	if o.InReplyTo != nil {
 		if colSaver, ok := l.(s.CollectionSaver); ok {
-			if c, ok := o.InReplyTo.(as.ItemCollection); ok {
+			if c, ok := o.InReplyTo.(pub.ItemCollection); ok {
 				for _, repl := range c {
-					iri := as.IRI(fmt.Sprintf("%s/%s", repl.GetLink(), handlers.Replies))
+					iri := pub.IRI(fmt.Sprintf("%s/%s", repl.GetLink(), handlers.Replies))
 					colSaver.AddToCollection(iri, o.GetLink())
 				}
 			} else {
-				iri := as.IRI(fmt.Sprintf("%s/%s",  o.InReplyTo.GetLink(), handlers.Replies))
+				iri := pub.IRI(fmt.Sprintf("%s/%s",  o.InReplyTo.GetLink(), handlers.Replies))
 				colSaver.AddToCollection(iri, o.GetLink())
 			}
 		}
