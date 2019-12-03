@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"github.com/go-ap/activitypub"
 	pub "github.com/go-ap/activitypub"
 )
 
@@ -10,7 +9,7 @@ type itemFilter struct {
 }
 
 func FilterItem(i pub.Item) itemFilter {
-	return itemFilter{ item: i}
+	return itemFilter{item: i}
 }
 
 func (i itemFilter) GetLink() pub.IRI {
@@ -31,13 +30,13 @@ func (i itemFilter) IRIs() pub.IRIs {
 func (i itemFilter) Actors() pub.IRIs {
 	iris := make(pub.IRIs, 0)
 	if pub.ActivityTypes.Contains(i.item.GetType()) {
-		activitypub.OnActivity(i.item, func(a *pub.Activity) error {
+		pub.OnActivity(i.item, func(a *pub.Activity) error {
 			iris = append(iris, a.Actor.GetLink())
 			return nil
 		})
 	}
 	if pub.IntransitiveActivityTypes.Contains(i.item.GetType()) {
-		activitypub.OnIntransitiveActivity(i.item, func(a *pub.IntransitiveActivity) error {
+		pub.OnIntransitiveActivity(i.item, func(a *pub.IntransitiveActivity) error {
 			iris = append(iris, a.Actor.GetLink())
 			return nil
 		})
@@ -47,7 +46,7 @@ func (i itemFilter) Actors() pub.IRIs {
 func (i itemFilter) Objects() pub.IRIs {
 	iris := make(pub.IRIs, 0)
 	if pub.ActivityTypes.Contains(i.item.GetType()) {
-		activitypub.OnActivity(i.item, func(a *pub.Activity) error {
+		pub.OnActivity(i.item, func(a *pub.Activity) error {
 			iris = append(iris, a.Object.GetLink())
 			return nil
 		})
@@ -58,13 +57,13 @@ func (i itemFilter) Objects() pub.IRIs {
 func (i itemFilter) Targets() pub.IRIs {
 	iris := make(pub.IRIs, 0)
 	if pub.ActivityTypes.Contains(i.item.GetType()) {
-		activitypub.OnActivity(i.item, func(a *pub.Activity) error {
+		pub.OnActivity(i.item, func(a *pub.Activity) error {
 			iris = append(iris, a.Target.GetLink())
 			return nil
 		})
 	}
 	if pub.IntransitiveActivityTypes.Contains(i.item.GetType()) {
-		activitypub.OnIntransitiveActivity(i.item, func(a *pub.IntransitiveActivity) error {
+		pub.OnIntransitiveActivity(i.item, func(a *pub.IntransitiveActivity) error {
 			iris = append(iris, a.Target.GetLink())
 			return nil
 		})
@@ -75,7 +74,7 @@ func (i itemFilter) Targets() pub.IRIs {
 func (i itemFilter) AttributedTo() pub.IRIs {
 	iris := make(pub.IRIs, 0)
 	if pub.ObjectTypes.Contains(i.item.GetType()) {
-		activitypub.OnObject(i.item, func(o *activitypub.Object) error {
+		pub.OnObject(i.item, func(o *pub.Object) error {
 			iris = append(iris, o.AttributedTo.GetLink())
 			return nil
 		})
@@ -85,7 +84,7 @@ func (i itemFilter) AttributedTo() pub.IRIs {
 func (i itemFilter) InReplyTo() pub.IRIs {
 	iris := make(pub.IRIs, 0)
 	if pub.ObjectTypes.Contains(i.item.GetType()) {
-		activitypub.OnObject(i.item, func(o *activitypub.Object) error {
+		pub.OnObject(i.item, func(o *pub.Object) error {
 			iris = append(iris, o.InReplyTo.GetLink())
 			return nil
 		})
@@ -95,7 +94,7 @@ func (i itemFilter) InReplyTo() pub.IRIs {
 func (i itemFilter) MediaTypes() []pub.MimeType {
 	types := make([]pub.MimeType, 0)
 	if pub.ObjectTypes.Contains(i.item.GetType()) {
-		activitypub.OnObject(i.item, func(o *activitypub.Object) error {
+		pub.OnObject(i.item, func(o *pub.Object) error {
 			types = append(types, o.MediaType)
 			return nil
 		})
@@ -105,7 +104,7 @@ func (i itemFilter) MediaTypes() []pub.MimeType {
 func (i itemFilter) Names() []string {
 	names := make([]string, 0)
 	if pub.ActivityTypes.Contains(i.item.GetType()) {
-		activitypub.OnActivity(i.item, func(a *pub.Activity) error {
+		pub.OnActivity(i.item, func(a *pub.Activity) error {
 			for _, name := range a.Name {
 				names = append(names, name.Value)
 			}
@@ -113,7 +112,7 @@ func (i itemFilter) Names() []string {
 		})
 	}
 	if pub.ObjectTypes.Contains(i.item.GetType()) {
-		activitypub.OnObject(i.item, func(o *activitypub.Object) error {
+		pub.OnObject(i.item, func(o *pub.Object) error {
 			for _, name := range o.Name {
 				names = append(names, name.Value)
 			}
@@ -121,7 +120,7 @@ func (i itemFilter) Names() []string {
 		})
 	}
 	if pub.ActivityTypes.Contains(i.item.GetType()) {
-		activitypub.OnPerson(i.item, func(p *activitypub.Person) error {
+		pub.OnActor(i.item, func(p *pub.Actor) error {
 			for _, name := range p.Name {
 				names = append(names, name.Value)
 			}
@@ -135,7 +134,7 @@ func (i itemFilter) Names() []string {
 }
 func (i itemFilter) URLs() pub.IRIs {
 	iris := make(pub.IRIs, 0)
-	activitypub.OnObject(i.item, func(o *activitypub.Object) error {
+	pub.OnObject(i.item, func(o *pub.Object) error {
 		iris = append(iris, o.URL.GetLink())
 		return nil
 	})
@@ -143,7 +142,7 @@ func (i itemFilter) URLs() pub.IRIs {
 }
 func (i itemFilter) Audience() pub.IRIs {
 	iris := make(pub.IRIs, 0)
-	activitypub.OnObject(i.item, func(o *activitypub.Object) error {
+	pub.OnObject(i.item, func(o *pub.Object) error {
 		iris = append(iris, o.Audience.GetLink())
 		return nil
 	})
@@ -151,7 +150,7 @@ func (i itemFilter) Audience() pub.IRIs {
 }
 func (i itemFilter) Context() pub.IRIs {
 	iris := make(pub.IRIs, 0)
-	activitypub.OnObject(i.item, func(o *activitypub.Object) error {
+	pub.OnObject(i.item, func(o *pub.Object) error {
 		iris = append(iris, o.Context.GetLink())
 		return nil
 	})
