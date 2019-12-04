@@ -162,24 +162,23 @@ func ProcessActivity(r s.Saver, act *pub.Activity, col handlers.CollectionType) 
 	act, _ = it.(*pub.Activity)
 
 	if colSaver, ok := r.(s.CollectionSaver); ok {
+		authorOutbox := pub.IRI(fmt.Sprintf("%s/%s", act.Actor.GetLink(), handlers.Outbox))
+		if err := colSaver.AddToCollection(authorOutbox, act.GetLink()); err != nil {
+			return act, err
+		}
 		recipients := act.Recipients()
 		for _, fw := range recipients {
 			colIRI := fw.GetLink()
 			if colIRI == pub.PublicNS {
 				continue
 			}
-			authorOutbox := pub.IRI(fmt.Sprintf("%s/%s", act.Actor.GetLink(), handlers.Outbox))
-			if colIRI == act.Actor.GetLink() {
-				// the recipient is just the author IRI
-				colIRI = authorOutbox
+			// TODO(marius): This needs to check and do the following things only for local Collections and IRIs
+			if !handlers.ValidCollection(path.Base(colIRI.String())) {
+				// TODO(marius): add check if IRI represents an actor
+				colIRI = pub.IRI(fmt.Sprintf("%s/%s", colIRI, handlers.Inbox))
 			} else {
-				if !handlers.ValidCollection(path.Base(colIRI.String())) {
-					// TODO(marius): add check if IRI represents an actor
-					colIRI = pub.IRI(fmt.Sprintf("%s/%s", colIRI, handlers.Inbox))
-				} else {
-					// TODO(marius): the recipient consists of a collection, we need to load it's elements if it's local
-					//     and save it in each of them. :(
-				}
+				// TODO(marius): the recipient consists of a collection, we need to load it's elements if it's local
+				//     and save it in each of them. :(
 			}
 			// TODO(marius): the processing module needs a method to see if an IRI is local or not
 			//    For each recipient we need to save the incoming activity to the actor's Inbox if the actor is local
@@ -208,14 +207,38 @@ func updateActivity(act *pub.Activity, now time.Time) error {
 // This includes, for instance, activities such as "Sally added a file to Folder A",
 // "John moved the file from Folder A to Folder B", etc.
 func CollectionManagementActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
-	// TODO(marius):
+	if act.Object == nil {
+		return act, errors.NotValidf("Missing object for Activity")
+	}
+	if act.Target == nil {
+		return act, errors.NotValidf("Missing target collection for Activity")
+	}
+	switch act.Type {
+	case pub.AddType:
+	case pub.MoveType:
+	case pub.RemoveType:
+	default:
+		return nil, errors.NotValidf("Invalid type %s", act.GetType())
+	}
 	return nil, errors.NotImplementedf("Processing %s activity is not implemented", act.GetType())
 }
 
 // EventRSVPActivity processes matching activities
 // The Event RSVP use case primarily deals with invitations to events and RSVP type responses.
 func EventRSVPActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
-	// TODO(marius):
+	if act.Object == nil {
+		return act, errors.NotValidf("Missing object for Activity")
+	}
+	switch act.Type {
+	case pub.AcceptType:
+	case pub.IgnoreType:
+	case pub.InviteType:
+	case pub.RejectType:
+	case pub.TentativeAcceptType:
+	case pub.TentativeRejectType:
+	default:
+		return nil, errors.NotValidf("Invalid type %s", act.GetType())
+	}
 	return nil, errors.NotImplementedf("Processing %s activity is not implemented", act.GetType())
 }
 
