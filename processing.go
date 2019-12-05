@@ -12,7 +12,7 @@ import (
 
 func getCollection(it pub.Item, c handlers.CollectionType) pub.CollectionInterface {
 	return &pub.OrderedCollection{
-		ID:   pub.ObjectID(fmt.Sprintf("%s/%s", it.GetLink(), c)),
+		ID:   pub.ID(fmt.Sprintf("%s/%s", it.GetLink(), c)),
 		Type: pub.OrderedCollectionType,
 	}
 }
