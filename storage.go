@@ -46,12 +46,12 @@ type Saver interface {
 	ObjectSaver
 }
 
-// IDGenerator generates an ObjectID for an ActivityStreams object.
+// IDGenerator generates an ID for an ActivityStreams object.
 type IDGenerator interface {
 	// GenerateID takes an ActivityStreams object, IRI and activity object triplet.
 	//  "it" is the object we want to generate the ID for.
 	//  "by' represents the Activity that generated the object.
-	GenerateID(it pub.Item, by pub.Item) (pub.ObjectID, error)
+	GenerateID(it pub.Item, by pub.Item) (pub.ID, error)
 }
 
 // ActivitySaver saves ActivityStreams activities.

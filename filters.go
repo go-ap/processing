@@ -4,8 +4,8 @@ import (
 	pub "github.com/go-ap/activitypub"
 )
 
-// Filterable can filter objects by Type and ObjectID
-// This should be the minimal interface a filter object should implement for the storage layer
+// Filterable can filter objects by Type and ID
+// This should be the minimal interface a filter object shoul,ad implement for the storage layer
 // to work.
 // It also allows for an activitystreams.IRI to be used pub a filter.
 type Filterable interface {
