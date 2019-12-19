@@ -4,5 +4,5 @@ go 1.12
 
 require (
 	github.com/buger/jsonparser v0.0.0-20191204142016-1a29609e0929 // indirect
-	github.com/go-ap/activitypub v0.0.0-20191205181648-67aa065f9f6f
+	github.com/go-ap/activitypub v0.0.0-20191219161622-ed094c68d68d
 )
