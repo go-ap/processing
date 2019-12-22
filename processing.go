@@ -136,10 +136,10 @@ func ProcessActivity(r s.Saver, act *pub.Activity, col handlers.CollectionType) 
 			return act, err
 		}
 	}
-	if pub.RelationshipManagementActivityTypes.Contains(act.GetType()) && act.Object.GetType() == pub.RelationshipType {
+	if pub.RelationshipManagementActivityTypes.Contains(act.GetType()) {
 		act, err = RelationshipManagementActivity(r, act)
-		if err == nil {
-			return act, errors.Annotatef(err, "%s activity processing failed", act.Type)
+		if err != nil {
+			return act, err
 		}
 	}
 	if pub.NegatingActivityTypes.Contains(act.GetType()) {
