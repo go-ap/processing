@@ -174,11 +174,12 @@ func ProcessActivity(r s.Saver, act *pub.Activity, col handlers.CollectionType) 
 			}
 			// TODO(marius): This needs to check and do the following things only for local Collections and IRIs
 			if !handlers.ValidCollection(path.Base(colIRI.String())) {
-				// TODO(marius): add check if IRI represents an actor
+				// TODO(marius): add check if IRI represents an actor (or rely on the collection saver to break if not)
 				colIRI = pub.IRI(fmt.Sprintf("%s/%s", colIRI, handlers.Inbox))
 			} else {
 				// TODO(marius): the recipient consists of a collection, we need to load it's elements if it's local
 				//     and save it in each of them. :(
+				continue
 			}
 			// TODO(marius): the processing module needs a method to see if an IRI is local or not
 			//    For each recipient we need to save the incoming activity to the actor's Inbox if the actor is local
