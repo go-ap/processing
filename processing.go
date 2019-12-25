@@ -78,81 +78,34 @@ func ProcessActivity(r s.Saver, act *pub.Activity, col handlers.CollectionType) 
 	if len(iri) == 0 {
 		r.GenerateID(act, nil)
 	}
-	// TODO(marius): Since we're not failing on the first error, so we can try to process the same type of
-	// activity in multiple contexts, we should propagate all the errors to the end, by probably using some
-	// errors.Annotatef...
 	// First we process the activity to effect whatever changes we need to on the activity properties.
 	if pub.ContentManagementActivityTypes.Contains(act.GetType()) && act.Object.GetType() != pub.RelationshipType {
 		act, err = ContentManagementActivity(r, act, col)
-		if err != nil {
-			return act, err
-		}
-	}
-	if pub.CollectionManagementActivityTypes.Contains(act.GetType()) {
+	} else if pub.CollectionManagementActivityTypes.Contains(act.GetType()) {
 		act, err = CollectionManagementActivity(r, act)
-		if err != nil {
-			return act, err
-		}
-	}
-	if pub.ReactionsActivityTypes.Contains(act.GetType()) {
+	} else if pub.ReactionsActivityTypes.Contains(act.GetType()) {
 		act, err = ReactionsActivity(r, act)
-		if err != nil {
-			return act, err
-		}
-	}
-	if pub.EventRSVPActivityTypes.Contains(act.GetType()) {
+	} else if pub.EventRSVPActivityTypes.Contains(act.GetType()) {
 		act, err = EventRSVPActivity(r, act)
-		if err != nil {
-			return act, err
-		}
-	}
-	if pub.GroupManagementActivityTypes.Contains(act.GetType()) {
+	} else if pub.GroupManagementActivityTypes.Contains(act.GetType()) {
 		act, err = GroupManagementActivity(r, act)
-		if err != nil {
-			return act, err
-		}
-	}
-	if pub.ContentExperienceActivityTypes.Contains(act.GetType()) {
+	} else if pub.ContentExperienceActivityTypes.Contains(act.GetType()) {
 		act, err = ContentExperienceActivity(r, act)
-		if err != nil {
-			return act, err
-		}
-	}
-	if pub.GeoSocialEventsActivityTypes.Contains(act.GetType()) {
+	} else if pub.GeoSocialEventsActivityTypes.Contains(act.GetType()) {
 		act, err = GeoSocialEventsActivity(r, act)
-		if err != nil {
-			return act, err
-		}
-	}
-	if pub.NotificationActivityTypes.Contains(act.GetType()) {
+	} else if pub.NotificationActivityTypes.Contains(act.GetType()) {
 		act, err = NotificationActivity(r, act)
-		if err != nil {
-			return act, err
-		}
-	}
-	if pub.QuestionActivityTypes.Contains(act.GetType()) {
+	} else if pub.QuestionActivityTypes.Contains(act.GetType()) {
 		act, err = QuestionActivity(r, act)
-		if err != nil {
-			return act, err
-		}
-	}
-	if pub.RelationshipManagementActivityTypes.Contains(act.GetType()) {
+	} else if pub.RelationshipManagementActivityTypes.Contains(act.GetType()) {
 		act, err = RelationshipManagementActivity(r, act)
-		if err != nil {
-			return act, err
-		}
-	}
-	if pub.NegatingActivityTypes.Contains(act.GetType()) {
+	} else if pub.NegatingActivityTypes.Contains(act.GetType()) {
 		act, err = NegatingActivity(r, act)
-		if err != nil {
-			return act, err
-		}
-	}
-	if pub.OffersActivityTypes.Contains(act.GetType()) {
+	} else if pub.OffersActivityTypes.Contains(act.GetType()) {
 		act, err = OffersActivity(r, act)
-		if err != nil {
-			return act, err
-		}
+	}
+	if err != nil {
+		return act, err
 	}
 	act = FlattenActivityProperties(act)
 	if act.Published.IsZero() {
