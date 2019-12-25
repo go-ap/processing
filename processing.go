@@ -236,16 +236,6 @@ func QuestionActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 	return act, errors.NotImplementedf("Processing %s activity is not implemented", act.GetType())
 }
 
-// RelationshipManagementActivity processes matching activities
-// The Relationship Management use case primarily deals with representing activities involving the management
-// of interpersonal and social relationships (e.g. friend requests, management of social network, etc).
-// See 5.2 Representing Relationships Between Entities for more information:
-// https://www.w3.org/TR/activitystreams-vocabulary/#connections
-func RelationshipManagementActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
-	// TODO(marius):
-	return nil, errors.NotImplementedf("Processing %s activity is not implemented", act.GetType())
-}
-
 // OffersActivity processes matching activities
 // The Offers use case deals with activities involving offering one object to another. It can include, for instance,
 // activities such as "Company A is offering a discount on purchase of Product Z to Sally",

@@ -89,6 +89,8 @@ func UndoActivity(r s.Saver, act *pub.Activity) (*pub.Activity, error) {
 			fallthrough
 		case pub.LikeType:
 			UndoAppreciationActivity(r, toUndo)
+		case pub.FollowType:
+			fallthrough
 		case pub.BlockType:
 			fallthrough
 		case pub.FlagType:
