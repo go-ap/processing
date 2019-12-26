@@ -16,19 +16,12 @@ import (
 // "Sally updated an article", and "Joe deleted the photo".
 func ContentManagementActivity(l s.Saver, act *pub.Activity, col handlers.CollectionType) (*pub.Activity, error) {
 	var err error
-	if act.Object == nil {
-		return act, errors.NotValidf("Missing object for Activity")
-	}
 	switch act.Type {
 	case pub.CreateType:
 		act, err = CreateActivity(l, act)
 	case pub.UpdateType:
 		act, err = UpdateActivity(l, act)
 	case pub.DeleteType:
-		// TODO(marius): Move this piece of logic to the validation mechanism
-		if len(act.Object.GetLink()) == 0 {
-			return act, errors.Newf("unable to update object without a valid object id")
-		}
 		act.Object, err = l.DeleteObject(act.Object)
 	}
 	if err != nil && !isDuplicateKey(err) {
@@ -72,17 +65,10 @@ func CreateActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 // MUST be modified to reflect the new structure as defined in the update activity,
 // assuming the actor has permission to update this object.
 func UpdateActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
-	// TODO(marius): Move this piece of logic to the validation mechanism
-	if len(act.Object.GetLink()) == 0 {
-		return act, errors.Newf("unable to update object without a valid object id")
-	}
 	var err error
 
 	ob := act.Object
 	var cnt uint
-	if pub.ActivityTypes.Contains(ob.GetType()) {
-		return act, errors.Newf("unable to update activity")
-	}
 
 	var found pub.ItemCollection
 	typ := ob.GetType()

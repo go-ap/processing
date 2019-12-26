@@ -24,8 +24,9 @@ func NegatingActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 	if act.Type != pub.UndoType {
 		return act, errors.NotValidf("Activity has wrong type %s, expected %s", act.Type, pub.UndoType)
 	}
-	// dereference object activity
+	// TODO(marius): a lot of validation logic should be moved to the validation package
 	if act.Object.IsLink() {
+		// dereference object activity
 		if actLoader, ok := l.(s.ActivityLoader); ok {
 			obj, cnt, err := actLoader.LoadActivities(act.Object.GetLink())
 			if err != nil {
