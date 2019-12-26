@@ -33,7 +33,7 @@ func NegatingActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 				return act, errors.NotValidf("Unable to dereference object: %s", act.Object.GetLink())
 			}
 			if cnt != 1 {
-				return act, errors.NotValidf("Too many objects to dereference object: %s", act.Object.GetLink())
+				return act, errors.NotValidf("Too many objects to dereference IRI: %s", act.Object.GetLink())
 			}
 			act.Object = obj.First()
 		}
@@ -44,7 +44,7 @@ func NegatingActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 	}
 	err := pub.OnActivity(act.Object, func(a *pub.Activity) error {
 		if act.Actor.GetLink() != a.Actor.GetLink() {
-			return errors.NotValidf("The Undo activity has a different actor than its object: %s, expected %s", act.Actor.GetLink(), a.Actor.GetLink())
+			return errors.NotValidf("The %s activity has a different actor than its object: %s, expected %s", act.Type, act.Actor.GetLink(), a.Actor.GetLink())
 		}
 		// TODO(marius): add more valid types
 		good := pub.ActivityVocabularyTypes{pub.LikeType, pub.DislikeType, pub.BlockType, pub.FollowType}
