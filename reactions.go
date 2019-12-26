@@ -20,22 +20,19 @@ func ReactionsActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 			fallthrough
 		case pub.LikeType:
 			act, err = AppreciationActivity(l, act)
-		case pub.BlockType:
+		case pub.RejectType:
+			fallthrough
+		case pub.TentativeRejectType:
+			// I think nothing happens here.
+		case pub.TentativeAcceptType:
 			fallthrough
 		case pub.AcceptType:
-			// TODO(marius): either the actor or the object needs to be local for this action to be valid
-			// in the case of C2S... the actor needs to be local
-			// in the case of S2S... the object needs to be local
-			fallthrough
+			act, err = AcceptActivity(l, act)
 		case pub.FlagType:
 			fallthrough
 		case pub.IgnoreType:
 			fallthrough
-		case pub.RejectType:
-			fallthrough
-		case pub.TentativeAcceptType:
-			fallthrough
-		case pub.TentativeRejectType:
+		case pub.BlockType:
 			return act, errors.NotImplementedf("Processing reaction activity of type %s is not implemented", act.GetType())
 		}
 	}
@@ -70,4 +67,53 @@ func AppreciationActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 	}
 
 	return act, nil
+}
+// AcceptActivity
+// The side effect of receiving this in an inbox is that the server SHOULD add the object to the actor's followers Collection.
+func AcceptActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
+	if act.Object == nil {
+		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
+	}
+	if act.Actor == nil {
+		return act, errors.NotValidf("Missing actor for %s Activity", act.Type)
+	}
+	good := pub.ActivityVocabularyTypes{pub.AcceptType, pub.TentativeAcceptType}
+	if !good.Contains(act.Type) {
+		return act, errors.NotValidf("Activity has wrong type %s, expected %v", act.Type, good)
+	}
+
+	if act.Object.IsLink() {
+		// dereference object activity
+		if actLoader, ok := l.(s.ActivityLoader); ok {
+			obj, cnt, err := actLoader.LoadActivities(act.Object.GetLink())
+			if err != nil {
+				return act, errors.NotValidf("Unable to dereference object: %s", act.Object.GetLink())
+			}
+			if cnt != 1 {
+				return act, errors.NotValidf("Too many objects to dereference for IRI: %s", act.Object.GetLink())
+			}
+			act.Object = obj.First()
+		}
+	}
+	err := pub.OnActivity(act.Object, func(a *pub.Activity) error {
+		if act.Actor.GetLink() != a.Object.GetLink() {
+			return errors.NotValidf("The %s activity has a different actor than its object: %s, expected %s", act.Type, act.Actor.GetLink(), a.Actor.GetLink())
+		}
+		good := pub.ActivityVocabularyTypes{pub.FollowType}
+		if !good.Contains(a.Type) {
+			return errors.NotValidf("Object Activity has wrong type %s, expected %v", a.Type, good)
+		}
+		followers := pub.IRI(fmt.Sprintf("%s/%s", act.Actor.GetLink(), handlers.Followers))
+		following := pub.IRI(fmt.Sprintf("%s/%s", a.Actor.GetLink(), handlers.Following))
+		if colSaver, ok := l.(s.CollectionSaver); ok {
+			if err := colSaver.AddToCollection(followers, a.Actor.GetLink()); err != nil {
+				return err
+			}
+			if err := colSaver.AddToCollection(following, a.Object.GetLink()); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	return act, err
 }
