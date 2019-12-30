@@ -3,6 +3,7 @@ package processing
 import (
 	"fmt"
 	pub "github.com/go-ap/activitypub"
+	c "github.com/go-ap/client"
 	"github.com/go-ap/errors"
 	"github.com/go-ap/handlers"
 	s "github.com/go-ap/storage"
@@ -10,6 +11,75 @@ import (
 	"time"
 )
 
+type _p struct {
+	p *defaultProcessor
+	v *defaultValidator
+}
+
+type defaultProcessor struct {
+	baseIRI pub.IRI
+	c       c.Client
+	s       s.Saver
+	infoFn  c.LogFn
+	errFn   c.LogFn
+}
+
+func New(o ...optionFn) (*defaultProcessor, *defaultValidator, error) {
+	v := &_p{
+		p: &defaultProcessor{},
+		v: &defaultValidator{},
+	}
+	for _, fn := range o {
+		if err := fn(v); err != nil {
+			return v.p, v.v, err
+		}
+	}
+	return v.p, v.v, nil
+}
+
+type optionFn func(s *_p) error
+
+func SetInfoLogger(logFn c.LogFn) optionFn {
+	return func(v *_p) error {
+		c.InfoLogger = logFn
+		v.v.infoFn = logFn
+		v.p.infoFn = logFn
+		return nil
+	}
+}
+
+func SetErrorLogger(logFn c.LogFn) optionFn {
+	return func(v *_p) error {
+		c.ErrorLogger = logFn
+		v.v.errFn = logFn
+		v.p.errFn = logFn
+		return nil
+	}
+}
+
+func SetClient(c c.Client) optionFn {
+	return func(v *_p) error {
+		v.v.c = c
+		v.p.c = c
+		return nil
+	}
+}
+
+func SetStorage(s s.Repository) optionFn {
+	return func(v *_p) error {
+		v.v.s = s
+		v.p.s = s
+		return nil
+	}
+}
+
+func SetIRI(i pub.IRI) optionFn {
+	return func(v *_p) error {
+		v.v.baseIRI = i
+		v.p.baseIRI = i
+		return nil
+	}
+}
 func getCollection(it pub.Item, c handlers.CollectionType) pub.CollectionInterface {
 	return &pub.OrderedCollection{
 		ID:   pub.ID(fmt.Sprintf("%s/%s", it.GetLink(), c)),
@@ -71,38 +141,38 @@ func AddNewObjectCollections(r s.CollectionSaver, it pub.Item) (pub.Item, error)
 }
 
 // ProcessActivity
-func ProcessActivity(r s.Saver, act *pub.Activity, col handlers.CollectionType) (*pub.Activity, error) {
+func (p defaultProcessor) ProcessClientActivity(act *pub.Activity) (*pub.Activity, error) {
 	var err error
 
 	iri := act.GetLink()
 	if len(iri) == 0 {
-		r.GenerateID(act, nil)
+		p.s.GenerateID(act, nil)
 	}
 	// First we process the activity to effect whatever changes we need to on the activity properties.
 	if pub.ContentManagementActivityTypes.Contains(act.GetType()) && act.Object.GetType() != pub.RelationshipType {
-		act, err = ContentManagementActivity(r, act, col)
+		act, err = ContentManagementActivity(p.s, act, handlers.Outbox)
 	} else if pub.CollectionManagementActivityTypes.Contains(act.GetType()) {
-		act, err = CollectionManagementActivity(r, act)
+		act, err = CollectionManagementActivity(p.s, act)
 	} else if pub.ReactionsActivityTypes.Contains(act.GetType()) {
-		act, err = ReactionsActivity(r, act)
+		act, err = ReactionsActivity(p.s, act)
 	} else if pub.EventRSVPActivityTypes.Contains(act.GetType()) {
-		act, err = EventRSVPActivity(r, act)
+		act, err = EventRSVPActivity(p.s, act)
 	} else if pub.GroupManagementActivityTypes.Contains(act.GetType()) {
-		act, err = GroupManagementActivity(r, act)
+		act, err = GroupManagementActivity(p.s, act)
 	} else if pub.ContentExperienceActivityTypes.Contains(act.GetType()) {
-		act, err = ContentExperienceActivity(r, act)
+		act, err = ContentExperienceActivity(p.s, act)
 	} else if pub.GeoSocialEventsActivityTypes.Contains(act.GetType()) {
-		act, err = GeoSocialEventsActivity(r, act)
+		act, err = GeoSocialEventsActivity(p.s, act)
 	} else if pub.NotificationActivityTypes.Contains(act.GetType()) {
-		act, err = NotificationActivity(r, act)
+		act, err = NotificationActivity(p.s, act)
 	} else if pub.QuestionActivityTypes.Contains(act.GetType()) {
-		act, err = QuestionActivity(r, act)
+		act, err = QuestionActivity(p.s, act)
 	} else if pub.RelationshipManagementActivityTypes.Contains(act.GetType()) {
-		act, err = RelationshipManagementActivity(r, act)
+		act, err = RelationshipManagementActivity(p.s, act)
 	} else if pub.NegatingActivityTypes.Contains(act.GetType()) {
-		act, err = NegatingActivity(r, act)
+		act, err = NegatingActivity(p.s, act)
 	} else if pub.OffersActivityTypes.Contains(act.GetType()) {
-		act, err = OffersActivity(r, act)
+		act, err = OffersActivity(p.s, act)
 	}
 	if err != nil {
 		return act, err
@@ -111,10 +181,10 @@ func ProcessActivity(r s.Saver, act *pub.Activity, col handlers.CollectionType) 
 	if act.Published.IsZero() {
 		act.Published = time.Now()
 	}
-	it, err := r.SaveActivity(act)
+	it, err := p.s.SaveActivity(act)
 	act, _ = it.(*pub.Activity)
 
-	if colSaver, ok := r.(s.CollectionSaver); ok {
+	if colSaver, ok := p.s.(s.CollectionSaver); ok {
 		authorOutbox := pub.IRI(fmt.Sprintf("%s/%s", act.Actor.GetLink(), handlers.Outbox))
 		if err := colSaver.AddToCollection(authorOutbox, act.GetLink()); err != nil {
 			return act, err
@@ -145,14 +215,6 @@ func ProcessActivity(r s.Saver, act *pub.Activity, col handlers.CollectionType) 
 	}
 
 	return act, err
-}
-
-func updateActivity(act *pub.Activity, now time.Time) error {
-	// Merging the activity's and the object's Audience
-
-	// Set the published date
-	act.Published = now
-	return nil
 }
 
 // CollectionManagementActivity processes matching activities

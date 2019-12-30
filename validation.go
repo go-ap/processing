@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 	pub "github.com/go-ap/activitypub"
-	"github.com/go-ap/client"
+	c "github.com/go-ap/client"
 	"github.com/go-ap/errors"
 	"github.com/go-ap/handlers"
-	"github.com/go-ap/storage"
+	s "github.com/go-ap/storage"
 	"path"
 	"strings"
 )
@@ -59,19 +59,13 @@ type invalidActivity struct {
 	errors.Err
 }
 
-type genericValidator struct {
+type defaultValidator struct {
 	baseIRI pub.IRI
 	auth    *pub.Actor
-	c       client.Client
-	s       storage.Loader
-}
-
-func New(iri string, c client.Client, s storage.Loader) *genericValidator {
-	return &genericValidator{
-		baseIRI: pub.IRI(iri),
-		c:       c,
-		s:       s,
-	}
+	c       c.Client
+	s       s.Loader
+	infoFn  c.LogFn
+	errFn   c.LogFn
 }
 
 type ActivityPubError struct {
@@ -107,7 +101,7 @@ func (m *MissingActorError) Is(e error) bool {
 	return okp || oks
 }
 
-func (v genericValidator) ValidateServerActivity(a pub.Item, inbox pub.IRI) error {
+func (v defaultValidator) ValidateServerActivity(a pub.Item, inbox pub.IRI) error {
 	if !IsInbox(inbox) {
 		return errors.NotValidf("Trying to validate a non inbox IRI %s", inbox)
 	}
@@ -193,7 +187,7 @@ func IRIBelongsToActor(iri pub.IRI, actor *pub.Actor) bool {
 
 var missingActor = new(MissingActorError)
 
-func (v genericValidator) ValidateClientActivity(a pub.Item, outbox pub.IRI) error {
+func (v defaultValidator) ValidateClientActivity(a pub.Item, outbox pub.IRI) error {
 	if !IsOutbox(outbox) {
 		return errors.NotValidf("Trying to validate a non outbox IRI %s", outbox)
 	}
@@ -259,7 +253,7 @@ func (v genericValidator) ValidateClientActivity(a pub.Item, outbox pub.IRI) err
 }
 
 // ValidateClientContentManagementActivity
-func ValidateClientContentManagementActivity(l storage.Loader, act *pub.Activity) error {
+func ValidateClientContentManagementActivity(l s.Loader, act *pub.Activity) error {
 	if act.Object == nil {
 		return errors.NotValidf("nil object for %s activity", act.Type)
 	}
@@ -307,50 +301,50 @@ func ValidateClientContentManagementActivity(l storage.Loader, act *pub.Activity
 }
 
 // ValidateClientCollectionManagementActivity
-func ValidateClientCollectionManagementActivity(l storage.Loader, act *pub.Activity) error {
+func ValidateClientCollectionManagementActivity(l s.Loader, act *pub.Activity) error {
 	return nil
 }
 
 // ValidateClientReactionsActivity
-func ValidateClientReactionsActivity(l storage.Loader, act *pub.Activity) error {
+func ValidateClientReactionsActivity(l s.Loader, act *pub.Activity) error {
 	return nil
 }
 
 // ValidateClientEventRSVPActivity
-func ValidateClientEventRSVPActivity(l storage.Loader, act *pub.Activity) error {
+func ValidateClientEventRSVPActivity(l s.Loader, act *pub.Activity) error {
 	return nil
 }
 
 // ValidateClientGroupManagementActivity
-func ValidateClientGroupManagementActivity(l storage.Loader, act *pub.Activity) error {
+func ValidateClientGroupManagementActivity(l s.Loader, act *pub.Activity) error {
 	return nil
 }
 
 // ValidateClientContentExperienceActivity
-func ValidateClientContentExperienceActivity(l storage.Loader, act *pub.Activity) error {
+func ValidateClientContentExperienceActivity(l s.Loader, act *pub.Activity) error {
 	return nil
 }
 
 // ValidateClientGeoSocialEventsActivity
-func ValidateClientGeoSocialEventsActivity(l storage.Loader, act *pub.Activity) error {
+func ValidateClientGeoSocialEventsActivity(l s.Loader, act *pub.Activity) error {
 	return nil
 }
 
 // ValidateClientNotificationActivity
-func ValidateClientNotificationActivity(l storage.Loader, act *pub.Activity) error {
+func ValidateClientNotificationActivity(l s.Loader, act *pub.Activity) error {
 	return nil
 }
 
 // ValidateClientQuestionActivity
-func ValidateClientQuestionActivity(l storage.Loader, act *pub.Activity) error {
+func ValidateClientQuestionActivity(l s.Loader, act *pub.Activity) error {
 	return nil
 }
 
 // ValidateClientRelationshipManagementActivity
-func ValidateClientRelationshipManagementActivity(l storage.Loader, act *pub.Activity) error {
+func ValidateClientRelationshipManagementActivity(l s.Loader, act *pub.Activity) error {
 	switch act.Type {
 	case pub.FollowType:
-		_, cnt, _ := l.LoadActivities(storage.FilterItem(act))
+		_, cnt, _ := l.LoadActivities(s.FilterItem(act))
 		if cnt > 0 {
 			return errors.Newf("%s already exists for this actor/object pair", act.Type)
 		}
@@ -373,22 +367,22 @@ func ValidateClientRelationshipManagementActivity(l storage.Loader, act *pub.Act
 }
 
 // ValidateClientNegatingActivity
-func ValidateClientNegatingActivity(l storage.Loader, act *pub.Activity) error {
+func ValidateClientNegatingActivity(l s.Loader, act *pub.Activity) error {
 	return nil
 }
 
 // ValidateClientOffersActivity
-func ValidateClientOffersActivity(l storage.Loader, act *pub.Activity) error {
+func ValidateClientOffersActivity(l s.Loader, act *pub.Activity) error {
 	return nil
 }
 
 // IsLocalIRI shows if the received IRI belongs to the current instance
 // TODO(marius): make this not be true always
-func (v genericValidator) IsLocalIRI(i pub.IRI) bool {
+func (v defaultValidator) IsLocalIRI(i pub.IRI) bool {
 	return i.Contains(v.baseIRI, false)
 }
 
-func (v genericValidator) ValidateLink(i pub.IRI) error {
+func (v defaultValidator) ValidateLink(i pub.IRI) error {
 	if i.Equals(pub.PublicNS, false) {
 		return InvalidActivityActor("Public namespace is not a local actor")
 	}
@@ -409,7 +403,7 @@ func (v genericValidator) ValidateLink(i pub.IRI) error {
 	return nil
 }
 
-func (v genericValidator) ValidateClientActor(a pub.Item) error {
+func (v defaultValidator) ValidateClientActor(a pub.Item) error {
 	if a == nil {
 		return MissingActivityActor("")
 	}
@@ -419,11 +413,11 @@ func (v genericValidator) ValidateClientActor(a pub.Item) error {
 	return v.ValidateActor(a)
 }
 
-func (v genericValidator) ValidateServerActor(a pub.Item) error {
+func (v defaultValidator) ValidateServerActor(a pub.Item) error {
 	return v.ValidateActor(a)
 }
 
-func (v genericValidator) ValidateActor(a pub.Item) error {
+func (v defaultValidator) ValidateActor(a pub.Item) error {
 	if a == nil {
 		return InvalidActivityActor("is nil")
 	}
@@ -441,15 +435,15 @@ func (v genericValidator) ValidateActor(a pub.Item) error {
 	return nil
 }
 
-func (v genericValidator) ValidateClientObject(o pub.Item) error {
+func (v defaultValidator) ValidateClientObject(o pub.Item) error {
 	return v.ValidateObject(o)
 }
 
-func (v genericValidator) ValidateServerObject(o pub.Item) error {
+func (v defaultValidator) ValidateServerObject(o pub.Item) error {
 	return v.ValidateObject(o)
 }
 
-func (v genericValidator) ValidateObject(o pub.Item) error {
+func (v defaultValidator) ValidateObject(o pub.Item) error {
 	if o == nil {
 		return InvalidActivityObject("is nil")
 	}
@@ -462,7 +456,7 @@ func (v genericValidator) ValidateObject(o pub.Item) error {
 	return nil
 }
 
-func (v genericValidator) ValidateTarget(t pub.Item) error {
+func (v defaultValidator) ValidateTarget(t pub.Item) error {
 	if t == nil {
 		return InvalidActivityObject("is nil")
 	}
@@ -475,7 +469,7 @@ func (v genericValidator) ValidateTarget(t pub.Item) error {
 	return nil
 }
 
-func (v genericValidator) ValidateAudience(audience ...pub.ItemCollection) error {
+func (v defaultValidator) ValidateAudience(audience ...pub.ItemCollection) error {
 	for _, elem := range audience {
 		for _, iri := range elem {
 			if err := v.validateLocalIRI(iri.GetLink()); err == nil {
@@ -493,17 +487,17 @@ type CtxtKey string
 
 var ValidatorKey = CtxtKey("__validator")
 
-func FromContext(ctx context.Context) (*genericValidator, bool) {
+func ValidatorFromContext(ctx context.Context) (*defaultValidator, bool) {
 	ctxVal := ctx.Value(ValidatorKey)
-	s, ok := ctxVal.(*genericValidator)
+	s, ok := ctxVal.(*defaultValidator)
 	return s, ok
 }
 
-func (v *genericValidator) SetActor(p *pub.Actor) {
+func (v *defaultValidator) SetActor(p *pub.Actor) {
 	v.auth = p
 }
 
-func (v genericValidator) validateLocalIRI(i pub.IRI) error {
+func (v defaultValidator) validateLocalIRI(i pub.IRI) error {
 	u1, err := i.URL()
 	if err != nil {
 		return err
