@@ -5,6 +5,7 @@ go 1.12
 require (
 	github.com/go-ap/activitypub v0.0.0-20191222130856-db8e40c89444
 	github.com/go-ap/auth v0.0.0-20191222184010-2c9169a82468 // indirect
+	github.com/go-ap/client v0.0.0-20191222183513-a49cd9f438bb
 	github.com/go-ap/errors v0.0.0-20191222183928-b7ce8b9c41e0
 	github.com/go-ap/handlers v0.0.0-20191222184133-108335c3587d
 	github.com/go-ap/storage v0.0.0-20191222183609-e64115e84878
