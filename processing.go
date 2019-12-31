@@ -179,7 +179,7 @@ func (p defaultProcessor) ProcessClientActivity(act *pub.Activity) (*pub.Activit
 	}
 	act = FlattenActivityProperties(act)
 	if act.Published.IsZero() {
-		act.Published = time.Now()
+		act.Published = time.Now().UTC()
 	}
 	it, err := p.s.SaveActivity(act)
 	act, _ = it.(*pub.Activity)
