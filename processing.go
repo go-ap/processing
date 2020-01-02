@@ -189,25 +189,38 @@ func (p defaultProcessor) ProcessClientActivity(act *pub.Activity) (*pub.Activit
 		if err := colSaver.AddToCollection(authorOutbox, act.GetLink()); err != nil {
 			return act, err
 		}
-		recipients := act.Recipients()
-		for _, fw := range recipients {
+		allRecipients := make(pub.IRIs, 0)
+		for _, fw := range act.Recipients() {
 			colIRI := fw.GetLink()
 			if colIRI == pub.PublicNS {
 				continue
 			}
 			// TODO(marius): This needs to check and do the following things only for local Collections and IRIs
-			if !handlers.ValidCollection(path.Base(colIRI.String())) {
-				// TODO(marius): add check if IRI represents an actor (or rely on the collection saver to break if not)
-				colIRI = pub.IRI(fmt.Sprintf("%s/%s", colIRI, handlers.Inbox))
-			} else {
+			if handlers.ValidCollection(path.Base(colIRI.String())) {
 				// TODO(marius): the recipient consists of a collection, we need to load it's elements if it's local
 				//     and save it in each of them. :(
+				// TODO(marius): this step should happen at validation time
+				if loader, ok := p.s.(s.Loader); ok {
+					members, cnt, err := loader.LoadActors(colIRI)
+					if err != nil || cnt == 0 {
+						continue
+					}
+					for _, m := range members {
+						if pub.ActorTypes.Contains(m.GetType()) && m.GetLink().Contains(p.baseIRI, false) {
+							allRecipients = append(allRecipients, pub.IRI(fmt.Sprintf("%s/%s", m.GetLink(), handlers.Inbox)))
+						}
+					}
+				}
 				continue
 			}
+			// TODO(marius): add check if IRI represents an actor (or rely on the collection saver to break if not)
+			allRecipients = append(allRecipients, pub.IRI(fmt.Sprintf("%s/%s", colIRI, handlers.Inbox)))
+		}
+		for _, rec := range allRecipients {
 			// TODO(marius): the processing module needs a method to see if an IRI is local or not
 			//    For each recipient we need to save the incoming activity to the actor's Inbox if the actor is local
 			//    Or disseminate it using S2S if the actor is not local
-			err := colSaver.AddToCollection(colIRI, act.GetLink())
+			err := colSaver.AddToCollection(rec, act.GetLink())
 			if err != nil {
 				return act, err
 			}
