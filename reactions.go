@@ -24,6 +24,7 @@ func ReactionsActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 			fallthrough
 		case pub.TentativeRejectType:
 			// I think nothing happens here.
+			act, err = RejectActivity(l, act)
 		case pub.TentativeAcceptType:
 			fallthrough
 		case pub.AcceptType:
@@ -106,14 +107,18 @@ func AcceptActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 		followers := pub.IRI(fmt.Sprintf("%s/%s", act.Actor.GetLink(), handlers.Followers))
 		following := pub.IRI(fmt.Sprintf("%s/%s", a.Actor.GetLink(), handlers.Following))
 		if colSaver, ok := l.(s.CollectionSaver); ok {
-			if err := colSaver.AddToCollection(followers, a.Actor.GetLink()); err != nil {
+			if err := colSaver.AddToCollection(following, a.Object.GetLink()); err != nil {
 				return err
 			}
-			if err := colSaver.AddToCollection(following, a.Object.GetLink()); err != nil {
+			if err := colSaver.AddToCollection(followers, a.Actor.GetLink()); err != nil {
 				return err
 			}
 		}
 		return nil
 	})
 	return act, err
+}
+
+func RejectActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
+	return act, nil
 }
