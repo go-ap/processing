@@ -153,10 +153,10 @@ func IRIBelongsToActor(iri pub.IRI, actor *pub.Actor) bool {
 		return false
 	}
 	//p, _ := activitypub.ToPerson(actor)
-	if actor.Inbox.GetLink().Equals(iri, false) {
+	if actor.Inbox != nil && actor.Inbox.GetLink().Equals(iri, false) {
 		return true
 	}
-	if actor.Outbox.GetLink().Equals(iri, false) {
+	if actor.Outbox != nil && actor.Outbox.GetLink().Equals(iri, false) {
 		return true
 	}
 	if actor.Endpoints != nil && actor.Endpoints.SharedInbox.GetLink().Equals(iri, false) {
@@ -164,22 +164,22 @@ func IRIBelongsToActor(iri pub.IRI, actor *pub.Actor) bool {
 	}
 	// The following should not really come into question at any point.
 	// This function should be used for checking inbox/outbox/sharedInbox IRIS
-	if actor.Following.GetLink().Equals(iri, false) {
+	if actor.Following != nil && actor.Following.GetLink().Equals(iri, false) {
 		return true
 	}
-	if actor.Followers.GetLink().Equals(iri, false) {
+	if actor.Followers != nil && actor.Followers.GetLink().Equals(iri, false) {
 		return true
 	}
-	if actor.Replies.GetLink().Equals(iri, false) {
+	if actor.Replies != nil && actor.Replies.GetLink().Equals(iri, false) {
 		return true
 	}
-	if actor.Liked.GetLink().Equals(iri, false) {
+	if actor.Liked != nil && actor.Liked.GetLink().Equals(iri, false) {
 		return true
 	}
-	if actor.Shares.GetLink().Equals(iri, false) {
+	if actor.Shares != nil && actor.Shares.GetLink().Equals(iri, false) {
 		return true
 	}
-	if actor.Likes.GetLink().Equals(iri, false) {
+	if actor.Likes != nil && actor.Likes.GetLink().Equals(iri, false) {
 		return true
 	}
 	return false
