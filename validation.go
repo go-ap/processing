@@ -152,7 +152,6 @@ func IRIBelongsToActor(iri pub.IRI, actor *pub.Actor) bool {
 	if actor == nil {
 		return false
 	}
-	//p, _ := activitypub.ToPerson(actor)
 	if actor.Inbox != nil && actor.Inbox.GetLink().Equals(iri, false) {
 		return true
 	}
