@@ -186,15 +186,25 @@ func IRIBelongsToActor(iri pub.IRI, actor *pub.Actor) bool {
 
 var missingActor = new(MissingActorError)
 
+func name(a *pub.Actor) pub.LangRefValue {
+	if len(a.Name) > 0 {
+		return a.Name.First()
+	}
+	if len(a.PreferredUsername) > 0 {
+		return a.PreferredUsername.First()
+	}
+	return pub.LangRefValue{Value:path.Base(string(a.ID))}
+}
+
 func (v defaultValidator) ValidateClientActivity(a pub.Item, outbox pub.IRI) error {
 	if !IsOutbox(outbox) {
 		return errors.NotValidf("Trying to validate a non outbox IRI %s", outbox)
 	}
 	if v.auth.GetLink() == pub.PublicNS {
-		return errors.Unauthorizedf("%s actor is not allowed posting to current outbox", v.auth.Name)
+		return errors.Unauthorizedf("%s actor is not allowed posting to current outbox", name(v.auth))
 	}
 	if !IRIBelongsToActor(outbox, v.auth) {
-		return errors.Unauthorizedf("%s actor does not own the current outbox", v.auth.Name)
+		return errors.Unauthorizedf("%s actor does not own the current outbox", name(v.auth))
 	}
 	if a == nil {
 		return InvalidActivityActor("received nil activity")
