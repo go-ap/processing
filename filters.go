@@ -54,6 +54,8 @@ type FilterableObject interface {
 	// An element of the Audience is used to get its Inbox end-point and then disseminate the current Activity
 	// to it.
 	Audience() pub.IRIs
-	// Context returns the list of IRIs to check against an Object's Context.
+	// Context returns the list of IRIs to check against an Object's Context property.
 	Context() pub.IRIs
+	// Generator returns the list of IRIs to check against an Object's Generator property.
+	Generator() pub.IRIs
 }

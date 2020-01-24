@@ -156,3 +156,11 @@ func (i itemFilter) Context() pub.IRIs {
 	})
 	return iris
 }
+func (i itemFilter) Generator() pub.IRIs {
+	iris := make(pub.IRIs, 0)
+	pub.OnObject(i.item, func(o *pub.Object) error {
+		iris = append(iris, o.Generator.GetLink())
+		return nil
+	})
+	return iris
+}
