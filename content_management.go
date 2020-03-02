@@ -135,7 +135,7 @@ func updateCreateActivityObject(l s.Saver, o pub.Item, act *pub.Activity, now ti
 						colSaver.AddToCollection(iri, o.GetLink())
 					}
 				} else {
-					iri := pub.IRI(fmt.Sprintf("%s/%s",  o.InReplyTo.GetLink(), handlers.Replies))
+					iri := pub.IRI(fmt.Sprintf("%s/%s", o.InReplyTo.GetLink(), handlers.Replies))
 					colSaver.AddToCollection(iri, o.GetLink())
 				}
 			}

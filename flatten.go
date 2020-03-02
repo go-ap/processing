@@ -6,7 +6,7 @@ import (
 
 // FlattenActivityProperties flattens the Activity's properties from Object type to IRI
 func FlattenActivityProperties(act *pub.Activity) *pub.Activity {
-	//act.Object = pub.FlattenToIRI(act.Object)
+	act.Object = pub.FlattenToIRI(act.Object)
 	act.Actor = pub.FlattenToIRI(act.Actor)
 	act.Target = pub.FlattenToIRI(act.Target)
 	act.Result = pub.FlattenToIRI(act.Result)
