@@ -60,7 +60,7 @@ func CopyItemProperties(to, from pub.Item) (pub.Item, error) {
 	if from == nil {
 		return to, errors.Newf("Nil object for update")
 	}
-	if to.GetID() != from.GetID() {
+	if !to.GetLink().Equals(from.GetLink(), false) {
 		return to, errors.Newf("Object IDs don't match")
 	}
 	if to.GetType() != from.GetType() {
