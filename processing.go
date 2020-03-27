@@ -80,62 +80,32 @@ func SetIRI(i pub.IRI) optionFn {
 		return nil
 	}
 }
+
 func getCollection(it pub.Item, c handlers.CollectionType) pub.CollectionInterface {
 	return &pub.OrderedCollection{
-		ID:   pub.ID(fmt.Sprintf("%s/%s", it.GetLink(), c)),
+		ID:   c.IRI(it).GetLink(),
 		Type: pub.OrderedCollectionType,
 	}
 }
 
-func AddNewObjectCollections(r s.CollectionSaver, it pub.Item) (pub.Item, error) {
+func addNewObjectCollections(it pub.Item) (pub.Item, error) {
 	if pub.ActorTypes.Contains(it.GetType()) {
-		if p, err := pub.ToActor(it); err == nil {
-			if in, err := r.CreateCollection(getCollection(p, handlers.Inbox)); err != nil {
-				return it, errors.Errorf("could not create bucket for collection %s", err)
-			} else {
-				p.Inbox = in.GetLink()
-			}
-			if out, err := r.CreateCollection(getCollection(p, handlers.Outbox)); err != nil {
-				return it, errors.Errorf("could not create bucket for collection %s", err)
-			} else {
-				p.Outbox = out.GetLink()
-			}
-			if fers, err := r.CreateCollection(getCollection(p, handlers.Followers)); err != nil {
-				return it, errors.Errorf("could not create bucket for collection %s", err)
-			} else {
-				p.Followers = fers.GetLink()
-			}
-			if fing, err := r.CreateCollection(getCollection(p, handlers.Following)); err != nil {
-				return it, errors.Errorf("could not create bucket for collection %s", err)
-			} else {
-				p.Following = fing.GetLink()
-			}
-			if ld, err := r.CreateCollection(getCollection(p, handlers.Liked)); err != nil {
-				return it, errors.Errorf("could not create bucket for collection %s", err)
-			} else {
-				p.Liked = ld.GetLink()
-			}
-			it = p
-		}
-	} else if pub.ObjectTypes.Contains(it.GetType()) {
-		if o, err := pub.ToObject(it); err == nil {
-			if repl, err := r.CreateCollection(getCollection(o, handlers.Replies)); err != nil {
-				return it, errors.Errorf("could not create bucket for collection %s", err)
-			} else {
-				o.Replies = repl.GetLink()
-			}
-			if ls, err := r.CreateCollection(getCollection(o, handlers.Likes)); err != nil {
-				return it, errors.Errorf("could not create bucket for collection %s", err)
-			} else {
-				o.Likes = ls.GetLink()
-			}
-			if sh, err := r.CreateCollection(getCollection(o, handlers.Shares)); err != nil {
-				return it, errors.Errorf("could not create bucket for collection %s", err)
-			} else {
-				o.Shares = sh.GetLink()
-			}
-			it = o
-		}
+		pub.OnActor(it, func(p *pub.Actor) error {
+			p.Inbox = getCollection(p, handlers.Inbox)
+			p.Outbox = getCollection(p, handlers.Outbox)
+			p.Followers = getCollection(p, handlers.Followers)
+			p.Following = getCollection(p, handlers.Following)
+			p.Liked = getCollection(p, handlers.Liked)
+			return nil
+		})
+	}
+	if pub.ObjectTypes.Contains(it.GetType()) {
+		pub.OnObject(it, func(o *pub.Object) error {
+			o.Replies = getCollection(o, handlers.Replies)
+			o.Likes = getCollection(o, handlers.Likes)
+			o.Shares = getCollection(o, handlers.Shares)
+			return nil
+		})
 	}
 	return it, nil
 }
