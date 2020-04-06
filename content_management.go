@@ -46,8 +46,7 @@ func CreateActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 	if len(iri) == 0 {
 		l.GenerateID(act.Object, act)
 	}
-	now := time.Now().UTC()
-	err := updateCreateActivityObject(l, act.Object, act, now)
+	err := updateCreateActivityObject(l, act.Object, act)
 	if err != nil {
 		return act, errors.Annotatef(err, "unable to create activity's object %s", act.Object.GetLink())
 	}
@@ -95,7 +94,7 @@ func UpdateActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 	return act, err
 }
 
-func updateCreateActivityObject(l s.Saver, o pub.Item, act *pub.Activity, now time.Time) error {
+func updateCreateActivityObject(l s.Saver, o pub.Item, act *pub.Activity) error {
 	return pub.OnObject(o, func(o *pub.Object) error {
 		// See https://www.w3.org/TR/ActivityPub/#create-activity-outbox
 		// Copying the actor's IRI to the object's AttributedTo
@@ -143,7 +142,9 @@ func updateCreateActivityObject(l s.Saver, o pub.Item, act *pub.Activity, now ti
 
 		// TODO(marius): Move these to a ProcessObject function
 		// Set the published date
-		o.Published = now
+		if o.Published.IsZero() {
+			o.Published = time.Now().UTC()
+		}
 		return nil
 	})
 }
