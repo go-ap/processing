@@ -1,7 +1,6 @@
 package processing
 
 import (
-	"fmt"
 	pub "github.com/go-ap/activitypub"
 	c "github.com/go-ap/client"
 	"github.com/go-ap/errors"
@@ -155,8 +154,7 @@ func (p defaultProcessor) ProcessClientActivity(act *pub.Activity) (*pub.Activit
 	act, _ = it.(*pub.Activity)
 
 	if colSaver, ok := p.s.(s.CollectionSaver); ok {
-		authorOutbox := pub.IRI(fmt.Sprintf("%s/%s", act.Actor.GetLink(), handlers.Outbox))
-		if err := colSaver.AddToCollection(authorOutbox, act.GetLink()); err != nil {
+		if err := colSaver.AddToCollection(handlers.Outbox.IRI(act.Actor), act.GetLink()); err != nil {
 			return act, err
 		}
 		allRecipients := make(pub.IRIs, 0)
@@ -177,14 +175,14 @@ func (p defaultProcessor) ProcessClientActivity(act *pub.Activity) (*pub.Activit
 					}
 					for _, m := range members {
 						if pub.ActorTypes.Contains(m.GetType()) && m.GetLink().Contains(p.baseIRI, false) {
-							allRecipients = append(allRecipients, pub.IRI(fmt.Sprintf("%s/%s", m.GetLink(), handlers.Inbox)))
+							allRecipients = append(allRecipients, handlers.Inbox.IRI(m))
 						}
 					}
 				}
 				continue
 			}
 			// TODO(marius): add check if IRI represents an actor (or rely on the collection saver to break if not)
-			allRecipients = append(allRecipients, pub.IRI(fmt.Sprintf("%s/%s", colIRI, handlers.Inbox)))
+			allRecipients = append(allRecipients, handlers.Inbox.IRI(colIRI))
 		}
 		for _, rec := range allRecipients {
 			// TODO(marius): the processing module needs a method to see if an IRI is local or not

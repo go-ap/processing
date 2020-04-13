@@ -1,7 +1,6 @@
 package processing
 
 import (
-	"fmt"
 	pub "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
 	"github.com/go-ap/handlers"
@@ -53,7 +52,7 @@ func FollowActivity(r s.Saver, act *pub.Activity) (*pub.Activity, error) {
 	if colSaver, ok := r.(s.CollectionSaver); ok {
 		if !handlers.ValidCollection(path.Base(ob.String())) {
 			// TODO(marius): add check if IRI represents an actor (or rely on the collection saver to break if not)
-			ob = pub.IRI(fmt.Sprintf("%s/%s", ob, handlers.Inbox))
+			ob = handlers.Inbox.IRI(ob)
 		}
 		err := colSaver.AddToCollection(ob, act.GetLink())
 		if err != nil {

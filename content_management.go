@@ -1,7 +1,6 @@
 package processing
 
 import (
-	"fmt"
 	pub "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
 	"github.com/go-ap/handlers"
@@ -130,11 +129,11 @@ func updateCreateActivityObject(l s.Saver, o pub.Item, act *pub.Activity) error 
 			if colSaver, ok := l.(s.CollectionSaver); ok {
 				if c, ok := o.InReplyTo.(pub.ItemCollection); ok {
 					for _, repl := range c {
-						iri := pub.IRI(fmt.Sprintf("%s/%s", repl.GetLink(), handlers.Replies))
+						iri := handlers.Replies.IRI(repl.GetLink())
 						colSaver.AddToCollection(iri, o.GetLink())
 					}
 				} else {
-					iri := pub.IRI(fmt.Sprintf("%s/%s", o.InReplyTo.GetLink(), handlers.Replies))
+					iri := handlers.Replies.IRI(o.InReplyTo)
 					colSaver.AddToCollection(iri, o.GetLink())
 				}
 			}

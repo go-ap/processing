@@ -1,7 +1,6 @@
 package processing
 
 import (
-	"fmt"
 	pub "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
 	"github.com/go-ap/handlers"
@@ -57,13 +56,13 @@ func AppreciationActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 	}
 
 	if colSaver, ok := l.(s.CollectionSaver); ok {
-		liked := pub.IRI(fmt.Sprintf("%s/%s", act.Actor.GetLink(), handlers.Liked))
+		liked := handlers.Liked.IRI(act.Actor)
 		if err := colSaver.AddToCollection(liked, act.Object.GetLink()); err != nil {
-			return act, errors.Annotatef(err, "Unable to save item to collection %s", liked)
+			return act, errors.Annotatef(err, "Unable to save %s to collection %s", act.Object.GetType(), liked)
 		}
-		likes := pub.IRI(fmt.Sprintf("%s/%s", act.Object.GetLink(), handlers.Likes))
+		likes := handlers.Likes.IRI(act.Object)
 		if err := colSaver.AddToCollection(likes, act.GetLink()); err != nil {
-			return act, errors.Annotatef(err, "Unable to save item to collection %s", likes)
+			return act, errors.Annotatef(err, "Unable to save %s to collection %s", act.GetType(), likes)
 		}
 	}
 
@@ -104,8 +103,8 @@ func AcceptActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 		if !good.Contains(a.Type) {
 			return errors.NotValidf("Object Activity has wrong type %s, expected %v", a.Type, good)
 		}
-		followers := pub.IRI(fmt.Sprintf("%s/%s", act.Actor.GetLink(), handlers.Followers))
-		following := pub.IRI(fmt.Sprintf("%s/%s", a.Actor.GetLink(), handlers.Following))
+		followers := handlers.Followers.IRI(act.Actor)
+		following := handlers.Following.IRI(a.Actor)
 		if colSaver, ok := l.(s.CollectionSaver); ok {
 			if err := colSaver.AddToCollection(following, a.Object.GetLink()); err != nil {
 				return err

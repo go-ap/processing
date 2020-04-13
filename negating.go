@@ -1,7 +1,6 @@
 package processing
 
 import (
-	"fmt"
 	pub "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
 	"github.com/go-ap/handlers"
@@ -121,22 +120,22 @@ func UndoAppreciationActivity(r s.Saver, act *pub.Activity) (*pub.Activity, erro
 			base := path.Base(string(iri))
 			if !handlers.ValidCollection(base) {
 				// if not a valid collection, then it's an actor and we need their inbox
-				iri = pub.IRI(fmt.Sprintf("%s/%s", iri, handlers.Inbox))
+				iri = handlers.Inbox.IRI(iri)
 			}
 			if err := colSaver.RemoveFromCollection(iri, rem); err != nil {
 				errs = append(errs, err)
 			}
 
 		}
-		outbox := pub.IRI(fmt.Sprintf("%s/%s", act.Actor.GetLink(), handlers.Outbox))
+		outbox := handlers.Outbox.IRI(act.Actor)
 		if err := colSaver.RemoveFromCollection(outbox, rem); err != nil {
 			errs = append(errs, err)
 		}
-		liked := pub.IRI(fmt.Sprintf("%s/%s", act.Actor.GetLink(), handlers.Liked))
+		liked := handlers.Liked.IRI(act.Actor)
 		if err := colSaver.RemoveFromCollection(liked, act.Object.GetLink()); err != nil {
 			errs = append(errs, err)
 		}
-		likes := pub.IRI(fmt.Sprintf("%s/%s", act.Object.GetLink(), handlers.Likes))
+		likes := handlers.Likes.IRI(act.Object)
 		if err := colSaver.RemoveFromCollection(likes, rem); err != nil {
 			errs = append(errs, err)
 		}
