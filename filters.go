@@ -5,9 +5,9 @@ import (
 )
 
 // Filterable can filter objects by Type and ID
-// This should be the minimal interface a filter object shoul,ad implement for the storage layer
+// This should be the minimal interface a filter object should implement for the storage layer
 // to work.
-// It also allows for an activitystreams.IRI to be used pub a filter.
+// It also allows for an activitypub.IRI to be used as a filter.
 type Filterable interface {
 	GetLink() pub.IRI
 }
