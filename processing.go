@@ -17,7 +17,7 @@ type _p struct {
 
 type defaultProcessor struct {
 	baseIRI pub.IRI
-	c       c.Client
+	c       c.ActivityPub
 	s       s.Saver
 	infoFn  c.LogFn
 	errFn   c.LogFn
@@ -56,7 +56,7 @@ func SetErrorLogger(logFn c.LogFn) optionFn {
 	}
 }
 
-func SetClient(c c.Client) optionFn {
+func SetClient(c c.ActivityPub) optionFn {
 	return func(v *_p) error {
 		v.v.c = c
 		v.p.c = c

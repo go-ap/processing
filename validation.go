@@ -62,7 +62,7 @@ type invalidActivity struct {
 type defaultValidator struct {
 	baseIRI pub.IRI
 	auth    *pub.Actor
-	c       c.Client
+	c       c.ActivityPub
 	s       s.Loader
 	infoFn  c.LogFn
 	errFn   c.LogFn
