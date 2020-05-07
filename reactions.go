@@ -119,5 +119,23 @@ func AcceptActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 }
 
 func RejectActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
+	if act.Object == nil {
+		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
+	}
+	if act.Actor == nil {
+		return act, errors.NotValidf("Missing actor for %s Activity", act.Type)
+	}
+	good := pub.ActivityVocabularyTypes{pub.RejectType, pub.TentativeRejectType}
+	if !good.Contains(act.Type) {
+		return act, errors.NotValidf("Activity has wrong type %s, expected %v", act.Type, good)
+	}
+
+	if colSaver, ok := l.(s.CollectionSaver); ok {
+		inbox := handlers.Inbox.IRI(act.Actor)
+		err := colSaver.RemoveFromCollection(inbox, act.Object.GetLink())
+		if  err != nil {
+			return act, err
+		}
+	}
 	return act, nil
 }
