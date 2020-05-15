@@ -100,27 +100,27 @@ func updateCreateActivityObject(l s.Saver, o pub.Item, act *pub.Activity) error 
 		o.AttributedTo = act.Actor.GetLink()
 
 		// Merging the activity's and the object's Audience
-		if aud, err := pub.ItemCollectionDeduplication(&act.Audience, &o.Audience); err == nil {
+		if aud := pub.ItemCollectionDeduplication(&act.Audience, &o.Audience); aud != nil {
 			o.Audience = FlattenItemCollection(aud)
 			act.Audience = FlattenItemCollection(aud)
 		}
 		// Merging the activity's and the object's To addressing
-		if to, err := pub.ItemCollectionDeduplication(&act.To, &o.To); err == nil {
+		if to := pub.ItemCollectionDeduplication(&act.To, &o.To); to != nil {
 			o.To = FlattenItemCollection(to)
 			act.To = FlattenItemCollection(to)
 		}
 		// Merging the activity's and the object's Bto addressing
-		if bto, err := pub.ItemCollectionDeduplication(&act.Bto, &o.Bto); err == nil {
+		if bto := pub.ItemCollectionDeduplication(&act.Bto, &o.Bto); bto != nil {
 			o.Bto = FlattenItemCollection(bto)
 			act.Bto = FlattenItemCollection(bto)
 		}
 		// Merging the activity's and the object's Cc addressing
-		if cc, err := pub.ItemCollectionDeduplication(&act.CC, &o.CC); err == nil {
+		if cc := pub.ItemCollectionDeduplication(&act.CC, &o.CC); cc != nil {
 			o.CC = FlattenItemCollection(cc)
 			act.CC = FlattenItemCollection(cc)
 		}
 		// Merging the activity's and the object's Bcc addressing
-		if bcc, err := pub.ItemCollectionDeduplication(&act.BCC, &o.BCC); err == nil {
+		if bcc := pub.ItemCollectionDeduplication(&act.BCC, &o.BCC); bcc != nil {
 			o.BCC = FlattenItemCollection(bcc)
 			act.BCC = FlattenItemCollection(bcc)
 		}

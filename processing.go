@@ -157,7 +157,7 @@ func (p defaultProcessor) ProcessClientActivity(act *pub.Activity) (*pub.Activit
 		if err := colSaver.AddToCollection(handlers.Outbox.IRI(act.Actor), act.GetLink()); err != nil {
 			return act, err
 		}
-		allRecipients := make(pub.IRIs, 0)
+		allRecipients := make(pub.ItemCollection, 0)
 		for _, fw := range act.Recipients() {
 			colIRI := fw.GetLink()
 			if colIRI == pub.PublicNS {
@@ -184,11 +184,11 @@ func (p defaultProcessor) ProcessClientActivity(act *pub.Activity) (*pub.Activit
 			// TODO(marius): add check if IRI represents an actor (or rely on the collection saver to break if not)
 			allRecipients = append(allRecipients, handlers.Inbox.IRI(colIRI))
 		}
-		for _, rec := range allRecipients {
+		for _, rec := range pub.ItemCollectionDeduplication(&allRecipients) {
 			// TODO(marius): the processing module needs a method to see if an IRI is local or not
 			//    For each recipient we need to save the incoming activity to the actor's Inbox if the actor is local
 			//    Or disseminate it using S2S if the actor is not local
-			err := colSaver.AddToCollection(rec, act.GetLink())
+			err := colSaver.AddToCollection(rec.GetLink(), act.GetLink())
 			if err != nil {
 				return act, err
 			}

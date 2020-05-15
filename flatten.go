@@ -27,11 +27,9 @@ func FlattenItemCollection(col pub.ItemCollection) pub.ItemCollection {
 	if col == nil {
 		return col
 	}
-	pub.ItemCollectionDeduplication(&col)
-	for k, it := range col {
+	for k, it := range pub.ItemCollectionDeduplication(&col) {
 		col[k] = it.GetLink()
 	}
-
 	return col
 }
 
@@ -40,8 +38,7 @@ func FlattenCollection(col *pub.Collection) *pub.Collection {
 	if col == nil {
 		return col
 	}
-	pub.ItemCollectionDeduplication(&col.Items)
-	for k, it := range col.Items {
+	for k, it := range pub.ItemCollectionDeduplication(&col.Items) {
 		col.Items[k] = it.GetLink()
 	}
 
@@ -53,7 +50,7 @@ func FlattenOrderedCollection(col *pub.OrderedCollection) *pub.OrderedCollection
 	if col == nil {
 		return col
 	}
-	for k, it := range col.OrderedItems {
+	for k, it := range pub.ItemCollectionDeduplication(&col.OrderedItems) {
 		col.OrderedItems[k] = it.GetLink()
 	}
 
