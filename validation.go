@@ -152,33 +152,33 @@ func IRIBelongsToActor(iri pub.IRI, actor *pub.Actor) bool {
 	if actor == nil {
 		return false
 	}
-	if actor.Inbox != nil && actor.Inbox.GetLink().Equals(iri, false) {
+	if handlers.Inbox.IRI(actor).Equals(iri, false) {
 		return true
 	}
-	if actor.Outbox != nil && actor.Outbox.GetLink().Equals(iri, false) {
-		return true
-	}
-	if actor.Endpoints != nil && actor.Endpoints.SharedInbox.GetLink().Equals(iri, false) {
+	if handlers.Outbox.IRI(actor).Equals(iri, false) {
 		return true
 	}
 	// The following should not really come into question at any point.
 	// This function should be used for checking inbox/outbox/sharedInbox IRIS
-	if actor.Following != nil && actor.Following.GetLink().Equals(iri, false) {
+	if handlers.Following.IRI(actor).Equals(iri, false) {
 		return true
 	}
-	if actor.Followers != nil && actor.Followers.GetLink().Equals(iri, false) {
+	if handlers.Followers.IRI(actor).Equals(iri, false) {
 		return true
 	}
-	if actor.Replies != nil && actor.Replies.GetLink().Equals(iri, false) {
+	if handlers.Replies.IRI(actor).Equals(iri, false) {
 		return true
 	}
-	if actor.Liked != nil && actor.Liked.GetLink().Equals(iri, false) {
+	if handlers.Liked.IRI(actor).Equals(iri, false) {
 		return true
 	}
-	if actor.Shares != nil && actor.Shares.GetLink().Equals(iri, false) {
+	if handlers.Shares.IRI(actor).Equals(iri, false) {
 		return true
 	}
-	if actor.Likes != nil && actor.Likes.GetLink().Equals(iri, false) {
+	if handlers.Likes.IRI(actor).Equals(iri, false) {
+		return true
+	}
+	if actor.Endpoints != nil && actor.Endpoints.SharedInbox.GetLink().Equals(iri, false) {
 		return true
 	}
 	return false
@@ -193,7 +193,7 @@ func name(a *pub.Actor) pub.LangRefValue {
 	if len(a.PreferredUsername) > 0 {
 		return a.PreferredUsername.First()
 	}
-	return pub.LangRefValue{Value:path.Base(string(a.ID))}
+	return pub.LangRefValue{Value: path.Base(string(a.ID))}
 }
 
 func (v defaultValidator) ValidateClientActivity(a pub.Item, outbox pub.IRI) error {
