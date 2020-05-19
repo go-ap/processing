@@ -49,13 +49,9 @@ func CreateActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 	if err != nil {
 		return act, errors.Annotatef(err, "unable to create activity's object %s", act.Object.GetLink())
 	}
-	act.Object, err = addNewObjectCollections(act.Object)
-	if err != nil {
-		return act, errors.Annotatef(err, "unable to add object collections to object %s", act.Object.GetLink())
-	}
 	act.Object, err = l.SaveObject(act.Object)
 
-	return act, nil
+	return act, err
 }
 
 // UpdateActivity

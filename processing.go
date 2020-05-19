@@ -80,36 +80,9 @@ func SetIRI(i pub.IRI) optionFn {
 	}
 }
 
-func getCollection(it pub.Item, c handlers.CollectionType) pub.CollectionInterface {
-	return &pub.OrderedCollection{
-		ID:   c.IRI(it).GetLink(),
-		Type: pub.OrderedCollectionType,
-	}
-}
-
-func addNewObjectCollections(it pub.Item) (pub.Item, error) {
-	if pub.ActorTypes.Contains(it.GetType()) {
-		pub.OnActor(it, func(p *pub.Actor) error {
-			p.Inbox = getCollection(p, handlers.Inbox)
-			p.Outbox = getCollection(p, handlers.Outbox)
-			p.Followers = getCollection(p, handlers.Followers)
-			p.Following = getCollection(p, handlers.Following)
-			p.Liked = getCollection(p, handlers.Liked)
-			return nil
-		})
-	}
-	if pub.ObjectTypes.Contains(it.GetType()) {
-		pub.OnObject(it, func(o *pub.Object) error {
-			o.Replies = getCollection(o, handlers.Replies)
-			o.Likes = getCollection(o, handlers.Likes)
-			o.Shares = getCollection(o, handlers.Shares)
-			return nil
-		})
-	}
-	return it, nil
-}
-
 // ProcessActivity
+// TODO(marius): we need to create an Activity specific interface that we use as the type of the parameter, so we can
+//   receive both Transitive and Intransitive activities. In the current form we can only process transitive ones.
 func (p defaultProcessor) ProcessClientActivity(act *pub.Activity) (*pub.Activity, error) {
 	var err error
 
