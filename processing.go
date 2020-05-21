@@ -40,7 +40,6 @@ type optionFn func(s *_p) error
 
 func SetInfoLogger(logFn c.LogFn) optionFn {
 	return func(v *_p) error {
-		c.InfoLogger = logFn
 		v.v.infoFn = logFn
 		v.p.infoFn = logFn
 		return nil
@@ -49,7 +48,6 @@ func SetInfoLogger(logFn c.LogFn) optionFn {
 
 func SetErrorLogger(logFn c.LogFn) optionFn {
 	return func(v *_p) error {
-		c.ErrorLogger = logFn
 		v.v.errFn = logFn
 		v.p.errFn = logFn
 		return nil
