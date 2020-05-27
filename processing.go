@@ -89,7 +89,7 @@ func (p defaultProcessor) ProcessClientActivity(act *pub.Activity) (*pub.Activit
 		p.s.GenerateID(act, nil)
 	}
 	// First we process the activity to effect whatever changes we need to on the activity properties.
-	if pub.ContentManagementActivityTypes.Contains(act.GetType()) && act.Object.GetType() != pub.RelationshipType {
+	if pub.ContentManagementActivityTypes.Contains(act.GetType()) && (act.Object != nil && act.Object.GetType() != pub.RelationshipType) {
 		act, err = ContentManagementActivity(p.s, act, handlers.Outbox)
 	} else if pub.CollectionManagementActivityTypes.Contains(act.GetType()) {
 		act, err = CollectionManagementActivity(p.s, act)
@@ -125,48 +125,52 @@ func (p defaultProcessor) ProcessClientActivity(act *pub.Activity) (*pub.Activit
 	act, _ = it.(*pub.Activity)
 
 	if colSaver, ok := p.s.(s.CollectionSaver); ok {
-		if err := colSaver.AddToCollection(handlers.Outbox.IRI(act.Actor), act.GetLink()); err != nil {
-			return act, err
+		return AddToCollections(colSaver, act)
+	}
+	return act, err
+}
+
+func AddToCollections(colSaver s.CollectionSaver, act *pub.Activity) (*pub.Activity, error) {
+	if err := colSaver.AddToCollection(handlers.Outbox.IRI(act.Actor), act.GetLink()); err != nil {
+		return act, err
+	}
+	allRecipients := make(pub.ItemCollection, 0)
+	for _, fw := range act.Recipients() {
+		colIRI := fw.GetLink()
+		if colIRI == pub.PublicNS {
+			continue
 		}
-		allRecipients := make(pub.ItemCollection, 0)
-		for _, fw := range act.Recipients() {
-			colIRI := fw.GetLink()
-			if colIRI == pub.PublicNS {
-				continue
-			}
-			// TODO(marius): This needs to check and do the following things only for local Collections and IRIs
-			if handlers.ValidCollection(path.Base(colIRI.String())) {
-				// TODO(marius): the recipient consists of a collection, we need to load it's elements if it's local
-				//     and save it in each of them. :(
-				// TODO(marius): this step should happen at validation time
-				if loader, ok := p.s.(s.Loader); ok {
-					members, cnt, err := loader.LoadActors(colIRI)
-					if err != nil || cnt == 0 {
-						continue
-					}
-					for _, m := range members {
-						if pub.ActorTypes.Contains(m.GetType()) && m.GetLink().Contains(p.baseIRI, false) {
-							allRecipients = append(allRecipients, handlers.Inbox.IRI(m))
-						}
+		// TODO(marius): This needs to check and do the following things only for local Collections and IRIs
+		if handlers.ValidCollection(path.Base(colIRI.String())) {
+			// TODO(marius): the recipient consists of a collection, we need to load it's elements if it's local
+			//     and save it in each of them. :(
+			// TODO(marius): this step should happen at validation time
+			if loader, ok := colSaver.(s.Loader); ok {
+				members, cnt, err := loader.LoadActors(colIRI)
+				if err != nil || cnt == 0 {
+					continue
+				}
+				for _, m := range members {
+					if pub.ActorTypes.Contains(m.GetType())/* && m.GetLink().Contains(loader.baseIRI, false) */{
+						allRecipients = append(allRecipients, handlers.Inbox.IRI(m))
 					}
 				}
-				continue
 			}
-			// TODO(marius): add check if IRI represents an actor (or rely on the collection saver to break if not)
-			allRecipients = append(allRecipients, handlers.Inbox.IRI(colIRI))
+			continue
 		}
-		for _, rec := range pub.ItemCollectionDeduplication(&allRecipients) {
-			// TODO(marius): the processing module needs a method to see if an IRI is local or not
-			//    For each recipient we need to save the incoming activity to the actor's Inbox if the actor is local
-			//    Or disseminate it using S2S if the actor is not local
-			err := colSaver.AddToCollection(rec.GetLink(), act.GetLink())
-			if err != nil {
-				return act, err
-			}
+		// TODO(marius): add check if IRI represents an actor (or rely on the collection saver to break if not)
+		allRecipients = append(allRecipients, handlers.Inbox.IRI(colIRI))
+	}
+	for _, rec := range pub.ItemCollectionDeduplication(&allRecipients) {
+		// TODO(marius): the processing module needs a method to see if an IRI is local or not
+		//    For each recipient we need to save the incoming activity to the actor's Inbox if the actor is local
+		//    Or disseminate it using S2S if the actor is not local
+		err := colSaver.AddToCollection(rec.GetLink(), act.GetLink())
+		if err != nil {
+			return act, err
 		}
 	}
-
-	return act, err
+	return act, nil
 }
 
 // CollectionManagementActivity processes matching activities
