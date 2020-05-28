@@ -81,37 +81,92 @@ func SetIRI(i pub.IRI) optionFn {
 // ProcessActivity
 // TODO(marius): we need to create an Activity specific interface that we use as the type of the parameter, so we can
 //   receive both Transitive and Intransitive activities. In the current form we can only process transitive ones.
-func (p defaultProcessor) ProcessClientActivity(act *pub.Activity) (*pub.Activity, error) {
-	var err error
+func (p defaultProcessor) ProcessClientActivity(it pub.Item) (pub.Item, error) {
+	if it == nil {
+		return nil, errors.Newf("Unable to process nil activity")
+	}
+	if pub.IntransitiveActivityTypes.Contains(it.GetType()) {
+		act, err := pub.ToIntransitiveActivity(it)
+		if err != nil {
+			return nil, err
+		}
+		if act == nil {
+			return nil, errors.Newf("Unable to process nil intransitive activity")
+		}
 
+		return processIntransitiveActivity(p, act)
+	}
+	act, err := pub.ToActivity(it)
+	if err != nil {
+		return nil, err
+	}
+	if act == nil {
+		return nil, errors.Newf("Unable to process nil intransitive activity")
+	}
+
+	return processActivity(p, act)
+}
+
+
+func processIntransitiveActivity (p defaultProcessor, act *pub.IntransitiveActivity) (*pub.IntransitiveActivity, error) {
+iri := act.GetLink()
+	if len(iri) == 0 {
+		p.s.GenerateID(act, nil)
+	}
+	var err error
+	if pub.QuestionActivityTypes.Contains(act.Type) {
+		act, err = QuestionActivity(p.s, act)
+	} else if pub.GeoSocialEventsActivityTypes.Contains(act.Type) {
+		act, err = GeoSocialEventsIntransitiveActivity(p.s, act)
+	}
+	if err != nil {
+		return act, err
+	}
+	act = FlattenIntransitiveActivityProperties(act)
+	if act.Published.IsZero() {
+		act.Published = time.Now().UTC()
+	}
+
+	var it pub.Item
+	it, err = p.s.SaveActivity(act)
+	if err != nil {
+		return act, err
+	}
+	if colSaver, ok := p.s.(s.CollectionSaver); ok {
+		it, err = AddToCollections(colSaver, it)
+	}
+	return act, nil
+}
+
+func processActivity (p defaultProcessor, act *pub.Activity) (*pub.Activity, error) {
 	iri := act.GetLink()
 	if len(iri) == 0 {
 		p.s.GenerateID(act, nil)
 	}
+	var err error
+
 	// First we process the activity to effect whatever changes we need to on the activity properties.
-	if pub.ContentManagementActivityTypes.Contains(act.GetType()) && (act.Object != nil && act.Object.GetType() != pub.RelationshipType) {
+	if pub.ContentManagementActivityTypes.Contains(act.Type) && (act.Object != nil && act.Object.GetType() != pub.RelationshipType) {
 		act, err = ContentManagementActivity(p.s, act, handlers.Outbox)
-	} else if pub.CollectionManagementActivityTypes.Contains(act.GetType()) {
+	} else if pub.CollectionManagementActivityTypes.Contains(act.Type) {
 		act, err = CollectionManagementActivity(p.s, act)
-	} else if pub.ReactionsActivityTypes.Contains(act.GetType()) {
+	} else if pub.ReactionsActivityTypes.Contains(act.Type) {
 		act, err = ReactionsActivity(p.s, act)
-	} else if pub.EventRSVPActivityTypes.Contains(act.GetType()) {
+	} else if pub.EventRSVPActivityTypes.Contains(act.Type) {
 		act, err = EventRSVPActivity(p.s, act)
-	} else if pub.GroupManagementActivityTypes.Contains(act.GetType()) {
+	} else if pub.GroupManagementActivityTypes.Contains(act.Type) {
 		act, err = GroupManagementActivity(p.s, act)
-	} else if pub.ContentExperienceActivityTypes.Contains(act.GetType()) {
+	} else if pub.ContentExperienceActivityTypes.Contains(act.Type) {
 		act, err = ContentExperienceActivity(p.s, act)
-	} else if pub.GeoSocialEventsActivityTypes.Contains(act.GetType()) {
+	} else if pub.GeoSocialEventsActivityTypes.Contains(act.Type) {
 		act, err = GeoSocialEventsActivity(p.s, act)
-	} else if pub.NotificationActivityTypes.Contains(act.GetType()) {
+	} else if pub.NotificationActivityTypes.Contains(act.Type) {
 		act, err = NotificationActivity(p.s, act)
-	} else if pub.QuestionActivityTypes.Contains(act.GetType()) {
-		act, err = QuestionActivity(p.s, act)
-	} else if pub.RelationshipManagementActivityTypes.Contains(act.GetType()) {
+	} else if pub.RelationshipManagementActivityTypes.Contains(act.Type) {
 		act, err = RelationshipManagementActivity(p.s, act)
-	} else if pub.NegatingActivityTypes.Contains(act.GetType()) {
+	} else if pub.NegatingActivityTypes.Contains(act.Type) {
 		act, err = NegatingActivity(p.s, act)
-	} else if pub.OffersActivityTypes.Contains(act.GetType()) {
+	} else if pub.OffersActivityTypes.Contains(act.Type) {
 		act, err = OffersActivity(p.s, act)
 	}
 	if err != nil {
@@ -121,16 +176,32 @@ func (p defaultProcessor) ProcessClientActivity(act *pub.Activity) (*pub.Activit
 	if act.Published.IsZero() {
 		act.Published = time.Now().UTC()
 	}
-	it, err := p.s.SaveActivity(act)
-	act, _ = it.(*pub.Activity)
+
+	var it pub.Item
+	it, err = p.s.SaveActivity(act)
+	if err != nil {
+		return act, err
+	}
 
 	if colSaver, ok := p.s.(s.CollectionSaver); ok {
-		return AddToCollections(colSaver, act)
+		it, err = AddToCollections(colSaver, it)
 	}
-	return act, err
+	return act, nil
 }
 
-func AddToCollections(colSaver s.CollectionSaver, act *pub.Activity) (*pub.Activity, error) {
+// AddToCollections handles the dissemination of the received it Activity to the local collections,
+// it is addressed to:
+//  - the author's Outbox
+//  - the recipients' Inboxes
+func AddToCollections(colSaver s.CollectionSaver, it pub.Item) (pub.Item, error) {
+	act, err := pub.ToActivity(it)
+	if err != nil {
+		return nil, err
+	}
+	if act == nil {
+		return nil, errors.Newf("Unable to process nil activity")
+	}
+
 	if err := colSaver.AddToCollection(handlers.Outbox.IRI(act.Actor), act.GetLink()); err != nil {
 		return act, err
 	}
@@ -239,6 +310,14 @@ func GeoSocialEventsActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error
 	return act, errors.NotImplementedf("Processing %s activity is not implemented", act.GetType())
 }
 
+// GeoSocialEventsIntransitiveActivity processes matching activities
+// The Geo-Social Events use case primarily deals with activities involving geo-tagging type activities. For instance,
+// it can include activities such as "Joe arrived at work", "Sally left work", and "John is travel from home to work".
+func GeoSocialEventsIntransitiveActivity(l s.Saver, act *pub.IntransitiveActivity) (*pub.IntransitiveActivity, error) {
+	// TODO(marius):
+	return act, errors.NotImplementedf("Processing %s activity is not implemented", act.GetType())
+}
+
 // NotificationActivity processes matching activities
 // The Notification use case primarily deals with calling attention to particular objects or notifications.
 func NotificationActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
@@ -249,7 +328,7 @@ func NotificationActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 // QuestionActivity processes matching activities
 // The Questions use case primarily deals with representing inquiries of any type. See 5.4
 // Representing Questions for more information.
-func QuestionActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
+func QuestionActivity(l s.Saver, act *pub.IntransitiveActivity) (*pub.IntransitiveActivity, error) {
 	// TODO(marius):
 	return act, errors.NotImplementedf("Processing %s activity is not implemented", act.GetType())
 }

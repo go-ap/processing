@@ -6,7 +6,16 @@ import (
 
 // FlattenActivityProperties flattens the Activity's properties from Object type to IRI
 func FlattenActivityProperties(act *pub.Activity) *pub.Activity {
+	pub.OnIntransitiveActivity(act, func(in *pub.IntransitiveActivity) error {
+		FlattenIntransitiveActivityProperties(in)
+		return nil
+	})
 	act.Object = pub.FlattenToIRI(act.Object)
+	return act
+}
+
+// FlattenIntransitiveActivityProperties flattens the Activity's properties from Object type to IRI
+func FlattenIntransitiveActivityProperties(act *pub.IntransitiveActivity) *pub.IntransitiveActivity {
 	act.Actor = pub.FlattenToIRI(act.Actor)
 	act.Target = pub.FlattenToIRI(act.Target)
 	act.Result = pub.FlattenToIRI(act.Result)
