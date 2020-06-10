@@ -150,7 +150,7 @@ func processActivity (p defaultProcessor, act *pub.Activity) (*pub.Activity, err
 		act, err = ContentManagementActivity(p.s, act, handlers.Outbox)
 	} else if pub.CollectionManagementActivityTypes.Contains(act.Type) {
 		act, err = CollectionManagementActivity(p.s, act)
-	} else if pub.ReactionsActivityTypes.Contains(act.Type) {
+	} else if pub.ReactionsActivityTypes.Contains(act.Type) && (act.Object != nil && act.Object.GetType() != pub.RelationshipType) {
 		act, err = ReactionsActivity(p.s, act)
 	} else if pub.EventRSVPActivityTypes.Contains(act.Type) {
 		act, err = EventRSVPActivity(p.s, act)
@@ -202,8 +202,11 @@ func AddToCollections(colSaver s.CollectionSaver, it pub.Item) (pub.Item, error)
 		return nil, errors.Newf("Unable to process nil activity")
 	}
 
-	if err := colSaver.AddToCollection(handlers.Outbox.IRI(act.Actor), act.GetLink()); err != nil {
-		return act, err
+	if act.Actor.GetLink() != pub.PublicNS {
+		err = colSaver.AddToCollection(handlers.Outbox.IRI(act.Actor), act.GetLink())
+		if err != nil {
+			return act, err
+		}
 	}
 	allRecipients := make(pub.ItemCollection, 0)
 	for _, fw := range act.Recipients() {

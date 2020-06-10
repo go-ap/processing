@@ -28,11 +28,11 @@ func ReactionsActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 			fallthrough
 		case pub.AcceptType:
 			act, err = AcceptActivity(l, act)
-		case pub.FlagType:
-			fallthrough
+		case pub.BlockType:
+			act, err = BlockActivity(l, act)
 		case pub.IgnoreType:
 			fallthrough
-		case pub.BlockType:
+		case pub.FlagType:
 			return act, errors.NotImplementedf("Processing reaction activity of type %s is not implemented", act.GetType())
 		}
 	}
@@ -68,6 +68,7 @@ func AppreciationActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 
 	return act, nil
 }
+
 // AcceptActivity
 // The side effect of receiving this in an inbox is that the server SHOULD add the object to the actor's followers Collection.
 func AcceptActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
@@ -133,7 +134,38 @@ func RejectActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 	if colSaver, ok := l.(s.CollectionSaver); ok {
 		inbox := handlers.Inbox.IRI(act.Actor)
 		err := colSaver.RemoveFromCollection(inbox, act.Object.GetLink())
-		if  err != nil {
+		if err != nil {
+			return act, err
+		}
+	}
+	return act, nil
+}
+
+// BlockActivity
+// The side effect of receiving this in an outbox is that the server SHOULD add the object to the actor's blocked Collection.
+func BlockActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
+	if act.Object == nil {
+		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
+	}
+	if act.Actor == nil {
+		return act, errors.NotValidf("Missing actor for %s Activity", act.Type)
+	}
+	if act.Type != pub.BlockType {
+		return act, errors.NotValidf("Activity has wrong type %s, expected %s", act.Type, pub.BlockType)
+	}
+
+	obIRI := act.Object.GetLink()
+	// Remove object from any recipients collections
+	act.To.Remove(obIRI)
+	act.CC.Remove(obIRI)
+	act.Bto.Remove(obIRI)
+	act.BCC.Remove(obIRI)
+
+	b := handlers.CollectionType("blocked")
+	if colSaver, ok := l.(s.CollectionSaver); ok {
+		blocked := b.IRI(act.Actor)
+		err := colSaver.AddToCollection(blocked, obIRI)
+		if err != nil {
 			return act, err
 		}
 	}
