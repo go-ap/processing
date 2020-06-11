@@ -121,8 +121,8 @@ func (v defaultValidator) ValidateServerActivity(a pub.Item, inbox pub.IRI) erro
 	if err != nil {
 		return err
 	}
-	if err := v.ValidateServerActor(act.Actor); err != nil {
-		if (&MissingActorError{}).Is(err) && v.auth != nil {
+	if act.Actor, err = v.ValidateServerActor(act.Actor); err != nil {
+		if missingActor.Is(err) && v.auth != nil {
 			act.Actor = v.auth
 		} else {
 			return err
@@ -216,14 +216,14 @@ func (v defaultValidator) ValidateClientActivity(a pub.Item, outbox pub.IRI) err
 		return InvalidActivity("invalid type %s", a.GetType())
 	}
 	return pub.OnActivity(a, func(act *pub.Activity) error {
-		if err := v.ValidateClientActor(act.Actor); err != nil {
+		var err error
+		if act.Actor, err = v.ValidateClientActor(act.Actor); err != nil {
 			if missingActor.Is(err) && v.auth != nil {
 				act.Actor = v.auth
 			} else {
 				return err
 			}
 		}
-		var err error
 		if act.Object, err = v.ValidateClientObject(act.Object); err != nil {
 			return err
 		}
@@ -412,36 +412,46 @@ func (v defaultValidator) ValidateLink(i pub.IRI) error {
 	return nil
 }
 
-func (v defaultValidator) ValidateClientActor(a pub.Item) error {
+func (v defaultValidator) ValidateClientActor(a pub.Item) (pub.Item, error) {
 	if a == nil {
-		return MissingActivityActor("")
+		return a, MissingActivityActor("")
 	}
 	if err := v.validateLocalIRI(a.GetLink()); err != nil {
-		return InvalidActivityActor("%s is not local", a.GetLink())
+		return a, InvalidActivityActor("%s is not local", a.GetLink())
 	}
 	return v.ValidateActor(a)
 }
 
-func (v defaultValidator) ValidateServerActor(a pub.Item) error {
+func (v defaultValidator) ValidateServerActor(a pub.Item) (pub.Item, error) {
 	return v.ValidateActor(a)
 }
 
-func (v defaultValidator) ValidateActor(a pub.Item) error {
+func (v defaultValidator) ValidateActor(a pub.Item) (pub.Item, error) {
 	if a == nil {
-		return InvalidActivityActor("is nil")
+		return a, InvalidActivityActor("is nil")
 	}
 	if a.IsLink() {
-		return v.ValidateLink(a.GetLink())
+		if err := v.ValidateLink(a.GetLink()); err != nil {
+			return a, err
+		}
+		obj, cnt, err := v.s.LoadObjects(a.GetLink())
+		if err != nil {
+			return a, err
+		}
+		if cnt == 0 {
+			return a, errors.NotFoundf("Invalid activity object not found")
+		}
+		a = obj.First()
 	}
 	if !pub.ActorTypes.Contains(a.GetType()) {
-		return InvalidActivityActor("invalid type %s", a.GetType())
+		return a, InvalidActivityActor("invalid type %s", a.GetType())
 	}
 	if v.auth != nil {
-		if v.auth.GetLink().String() == a.GetLink().String() {
-			return InvalidActivityActor("current activity's actor doesn't match the authenticated one")
+		if !v.auth.GetLink().Equals(a.GetLink(), false) {
+			return a, InvalidActivityActor("current activity's actor doesn't match the authenticated one")
 		}
 	}
-	return nil
+	return a, nil
 }
 
 func (v defaultValidator) ValidateClientObject(o pub.Item) (pub.Item, error) {
@@ -460,7 +470,6 @@ func (v defaultValidator) ValidateObject(o pub.Item) (pub.Item, error) {
 		if err := v.ValidateLink(o.GetLink()); err != nil {
 			return o, err
 		}
-		// @todo(marius): move this to the validator
 		obj, cnt, err := v.s.LoadObjects(o.GetLink())
 		if err != nil {
 			return o, err
