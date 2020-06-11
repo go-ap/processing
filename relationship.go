@@ -22,7 +22,7 @@ func RelationshipManagementActivity(l s.Saver, act *pub.Activity) (*pub.Activity
 	}
 	switch act.Type {
 	case pub.FollowType:
-		fallthrough
+		return FollowActivity(l, act)
 	case pub.BlockType:
 		fallthrough
 	case pub.AcceptType:

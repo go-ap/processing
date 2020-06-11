@@ -107,9 +107,8 @@ func (p defaultProcessor) ProcessClientActivity(it pub.Item) (pub.Item, error) {
 	return processActivity(p, act)
 }
 
-
-func processIntransitiveActivity (p defaultProcessor, act *pub.IntransitiveActivity) (*pub.IntransitiveActivity, error) {
-iri := act.GetLink()
+func processIntransitiveActivity(p defaultProcessor, act *pub.IntransitiveActivity) (*pub.IntransitiveActivity, error) {
+	iri := act.GetLink()
 	if len(iri) == 0 {
 		p.s.GenerateID(act, nil)
 	}
@@ -138,19 +137,24 @@ iri := act.GetLink()
 	return act, nil
 }
 
-func processActivity (p defaultProcessor, act *pub.Activity) (*pub.Activity, error) {
+func processActivity(p defaultProcessor, act *pub.Activity) (*pub.Activity, error) {
 	iri := act.GetLink()
 	if len(iri) == 0 {
 		p.s.GenerateID(act, nil)
 	}
 	var err error
 
+	if act.Object == nil {
+		return act, errors.BadRequestf("Invalid %s: object is nil", act.Type)
+	}
+
+	obType := act.Object.GetType()
 	// First we process the activity to effect whatever changes we need to on the activity properties.
-	if pub.ContentManagementActivityTypes.Contains(act.Type) && (act.Object != nil && act.Object.GetType() != pub.RelationshipType) {
+	if pub.ContentManagementActivityTypes.Contains(act.Type) && obType != pub.RelationshipType {
 		act, err = ContentManagementActivity(p.s, act, handlers.Outbox)
 	} else if pub.CollectionManagementActivityTypes.Contains(act.Type) {
 		act, err = CollectionManagementActivity(p.s, act)
-	} else if pub.ReactionsActivityTypes.Contains(act.Type) && (act.Object != nil && act.Object.GetType() != pub.RelationshipType) {
+	} else if pub.ReactionsActivityTypes.Contains(act.Type) {
 		act, err = ReactionsActivity(p.s, act)
 	} else if pub.EventRSVPActivityTypes.Contains(act.Type) {
 		act, err = EventRSVPActivity(p.s, act)
@@ -225,7 +229,7 @@ func AddToCollections(colSaver s.CollectionSaver, it pub.Item) (pub.Item, error)
 					continue
 				}
 				for _, m := range members {
-					if pub.ActorTypes.Contains(m.GetType())/* && m.GetLink().Contains(loader.baseIRI, false) */{
+					if pub.ActorTypes.Contains(m.GetType()) /* && m.GetLink().Contains(loader.baseIRI, false) */ {
 						allRecipients = append(allRecipients, handlers.Inbox.IRI(m))
 					}
 				}

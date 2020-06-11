@@ -128,11 +128,11 @@ func (v defaultValidator) ValidateServerActivity(a pub.Item, inbox pub.IRI) erro
 			return err
 		}
 	}
-	if err := v.ValidateServerObject(act.Object); err != nil {
+	if act.Object, err = v.ValidateServerObject(act.Object); err != nil {
 		return err
 	}
 	if act.Target != nil {
-		if err := v.ValidateServerObject(act.Target); err != nil {
+		if act.Target, err = v.ValidateServerObject(act.Target); err != nil {
 			return err
 		}
 	}
@@ -223,15 +223,15 @@ func (v defaultValidator) ValidateClientActivity(a pub.Item, outbox pub.IRI) err
 				return err
 			}
 		}
-		if err := v.ValidateClientObject(act.Object); err != nil {
+		var err error
+		if act.Object, err = v.ValidateClientObject(act.Object); err != nil {
 			return err
 		}
 		if act.Target != nil {
-			if err := v.ValidateClientObject(act.Target); err != nil {
+			if act.Target, err = v.ValidateClientObject(act.Target); err != nil {
 				return err
 			}
 		}
-		var err error
 		if pub.ContentManagementActivityTypes.Contains(act.GetType()) && act.Object.GetType() != pub.RelationshipType {
 			err = ValidateClientContentManagementActivity(v.s, act)
 		} else if pub.CollectionManagementActivityTypes.Contains(act.GetType()) {
@@ -444,25 +444,36 @@ func (v defaultValidator) ValidateActor(a pub.Item) error {
 	return nil
 }
 
-func (v defaultValidator) ValidateClientObject(o pub.Item) error {
+func (v defaultValidator) ValidateClientObject(o pub.Item) (pub.Item, error) {
 	return v.ValidateObject(o)
 }
 
-func (v defaultValidator) ValidateServerObject(o pub.Item) error {
+func (v defaultValidator) ValidateServerObject(o pub.Item) (pub.Item, error) {
 	return v.ValidateObject(o)
 }
 
-func (v defaultValidator) ValidateObject(o pub.Item) error {
+func (v defaultValidator) ValidateObject(o pub.Item) (pub.Item, error) {
 	if o == nil {
-		return InvalidActivityObject("is nil")
+		return o, InvalidActivityObject("is nil")
 	}
 	if o.IsLink() {
-		return v.ValidateLink(o.GetLink())
+		if err := v.ValidateLink(o.GetLink()); err != nil {
+			return o, err
+		}
+		// @todo(marius): move this to the validator
+		obj, cnt, err := v.s.LoadObjects(o.GetLink())
+		if err != nil {
+			return o, err
+		}
+		if cnt == 0 {
+			return o, errors.NotFoundf("Invalid activity object not found")
+		}
+		o = obj.First()
 	}
 	if !(pub.ObjectTypes.Contains(o.GetType()) || pub.ActorTypes.Contains(o.GetType())) {
-		return InvalidActivityObject("invalid type %s", o.GetType())
+		return o, InvalidActivityObject("invalid type %s", o.GetType())
 	}
-	return nil
+	return o, nil
 }
 
 func (v defaultValidator) ValidateTarget(t pub.Item) error {
