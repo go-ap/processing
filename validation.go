@@ -121,6 +121,12 @@ func (v defaultValidator) ValidateServerActivity(a pub.Item, inbox pub.IRI) erro
 	if err != nil {
 		return err
 	}
+
+	if inboxBelongsTo, err := handlers.Inbox.OfActor(inbox); err == nil {
+		if isBlocked(v.s, inboxBelongsTo, act.Actor) {
+			return errors.NotFoundf("")
+		}
+	}
 	if act.Actor, err = v.ValidateServerActor(act.Actor); err != nil {
 		if missingActor.Is(err) && v.auth != nil {
 			act.Actor = v.auth

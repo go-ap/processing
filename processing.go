@@ -193,6 +193,15 @@ func processActivity(p defaultProcessor, act *pub.Activity) (*pub.Activity, erro
 	return act, nil
 }
 
+const blockedCollection = handlers.CollectionType("blocked")
+
+func isBlocked(loader s.Loader, rec, act pub.Item) bool {
+	// Check if any of the local recipients are blocking the actor
+	blockedIRI := blockedCollection.IRI(rec)
+	blockedAct, err := loader.LoadCollection(blockedIRI)
+	return err == nil && blockedAct.Contains(act)
+}
+
 // AddToCollections handles the dissemination of the received it Activity to the local collections,
 // it is addressed to:
 //  - the author's Outbox
@@ -213,40 +222,41 @@ func AddToCollections(colSaver s.CollectionSaver, it pub.Item) (pub.Item, error)
 		}
 	}
 	allRecipients := make(pub.ItemCollection, 0)
-	for _, fw := range act.Recipients() {
-		colIRI := fw.GetLink()
-		if colIRI == pub.PublicNS {
+	for _, rec := range act.Recipients() {
+		recIRI := rec.GetLink()
+		if recIRI == pub.PublicNS {
 			continue
 		}
-		// TODO(marius): This needs to check and do the following things only for local Collections and IRIs
-		if handlers.ValidCollection(path.Base(colIRI.String())) {
-			// TODO(marius): the recipient consists of a collection, we need to load it's elements if it's local
-			//     and save it in each of them. :(
+		if handlers.ValidCollection(path.Base(recIRI.String())) {
 			// TODO(marius): this step should happen at validation time
 			if loader, ok := colSaver.(s.Loader); ok {
-				members, cnt, err := loader.LoadActors(colIRI)
+				// Load all members if colIRI is a valid actor collection
+				members, cnt, err := loader.LoadActors(recIRI)
 				if err != nil || cnt == 0 {
 					continue
 				}
 				for _, m := range members {
-					if pub.ActorTypes.Contains(m.GetType()) /* && m.GetLink().Contains(loader.baseIRI, false) */ {
-						allRecipients = append(allRecipients, handlers.Inbox.IRI(m))
+					if !pub.ActorTypes.Contains(m.GetType()) || isBlocked(loader, m, act.Actor) {
+						continue
 					}
+					allRecipients = append(allRecipients, handlers.Inbox.IRI(m))
 				}
 			}
-			continue
+		} else {
+			if loader, ok := colSaver.(s.Loader); ok {
+				if isBlocked(loader, recIRI, act.Actor) {
+					continue
+				}
+			}
+			// TODO(marius): add check if IRI represents an actor (or rely on the collection saver to break if not)
+			allRecipients = append(allRecipients, handlers.Inbox.IRI(recIRI))
 		}
-		// TODO(marius): add check if IRI represents an actor (or rely on the collection saver to break if not)
-		allRecipients = append(allRecipients, handlers.Inbox.IRI(colIRI))
 	}
-	for _, rec := range pub.ItemCollectionDeduplication(&allRecipients) {
+	for _, recInb := range pub.ItemCollectionDeduplication(&allRecipients) {
 		// TODO(marius): the processing module needs a method to see if an IRI is local or not
 		//    For each recipient we need to save the incoming activity to the actor's Inbox if the actor is local
 		//    Or disseminate it using S2S if the actor is not local
-		err := colSaver.AddToCollection(rec.GetLink(), act.GetLink())
-		if err != nil {
-			return act, err
-		}
+		colSaver.AddToCollection(recInb.GetLink(), act.GetLink())
 	}
 	return act, nil
 }
