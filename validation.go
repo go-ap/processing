@@ -230,6 +230,9 @@ func (v defaultValidator) ValidateClientActivity(a pub.Item, outbox pub.IRI) err
 				return err
 			}
 		}
+		// @todo(marius): this needs to be extended by a ValidateActivityClientObject
+		//   because the first step would be to test the object in the context of the activity
+		//   The ValidateActivityClientObject could then validate just the object itself.
 		if act.Object, err = v.ValidateClientObject(act.Object); err != nil {
 			return err
 		}
@@ -484,9 +487,6 @@ func (v defaultValidator) ValidateObject(o pub.Item) (pub.Item, error) {
 			return o, errors.NotFoundf("Invalid activity object not found")
 		}
 		o = obj.First()
-	}
-	if !(pub.ObjectTypes.Contains(o.GetType()) || pub.ActorTypes.Contains(o.GetType())) {
-		return o, InvalidActivityObject("invalid type %s", o.GetType())
 	}
 	return o, nil
 }
