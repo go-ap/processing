@@ -215,7 +215,7 @@ func AddToCollections(colSaver s.CollectionSaver, it pub.Item) (pub.Item, error)
 		return nil, errors.Newf("Unable to process nil activity")
 	}
 
-	if act.Actor.GetLink() != pub.PublicNS {
+	if act.Actor.GetLink() != pub.PublicNS && !act.GetLink().Contains(handlers.Outbox.IRI(act.Actor), false) {
 		err = colSaver.AddToCollection(handlers.Outbox.IRI(act.Actor), act.GetLink())
 		if err != nil {
 			return act, err
