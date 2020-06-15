@@ -31,6 +31,39 @@ func ContentManagementActivity(l s.Saver, act *pub.Activity, col handlers.Collec
 	return act, err
 }
 
+func getCollection(it pub.Item, c handlers.CollectionType) pub.CollectionInterface {
+	return &pub.OrderedCollection{
+		ID:   c.IRI(it).GetLink(),
+		Type: pub.OrderedCollectionType,
+	}
+}
+
+func addNewActorCollections(p *pub.Actor) error {
+	p.Inbox = getCollection(p, handlers.Inbox)
+	p.Outbox = getCollection(p, handlers.Outbox)
+	p.Followers = getCollection(p, handlers.Followers)
+	p.Following = getCollection(p, handlers.Following)
+	p.Liked = getCollection(p, handlers.Liked)
+	return nil
+}
+
+func addNewObjectCollections(o *pub.Object) error {
+	o.Replies = getCollection(o, handlers.Replies)
+	o.Likes = getCollection(o, handlers.Likes)
+	o.Shares = getCollection(o, handlers.Shares)
+	return nil
+}
+
+func addNewItemCollections(it pub.Item) (pub.Item, error) {
+	if pub.ActorTypes.Contains(it.GetType()) {
+		pub.OnActor(it, addNewActorCollections)
+	}
+	//if pub.ObjectTypes.Contains(it.GetType()) {
+	//	pub.OnObject(it, addNewObjectCollections)
+	//}
+	return it, nil
+}
+
 // CreateActivity
 // The Create activity is used when posting a new object. This has the side effect that the object embedded within the
 // Activity (in the object property) is created.
@@ -48,6 +81,10 @@ func CreateActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 	err := updateCreateActivityObject(l, act.Object, act)
 	if err != nil {
 		return act, errors.Annotatef(err, "unable to create activity's object %s", act.Object.GetLink())
+	}
+	act.Object, err = addNewItemCollections(act.Object)
+	if err != nil {
+		return act, errors.Annotatef(err, "unable to add object collections to object %s", act.Object.GetLink())
 	}
 	act.Object, err = l.SaveObject(act.Object)
 

@@ -14,10 +14,6 @@ func TestFlattenProperties(t *testing.T) {
 	t.Skipf("TODO")
 }
 
-func TestAddNewObjectCollections(t *testing.T) {
-	t.Skipf("TODO")
-}
-
 func TestFlattenItemCollection(t *testing.T) {
 	t.Skipf("TODO")
 }
