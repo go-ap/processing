@@ -39,18 +39,34 @@ func getCollection(it pub.Item, c handlers.CollectionType) pub.CollectionInterfa
 }
 
 func addNewActorCollections(p *pub.Actor) error {
-	p.Inbox = getCollection(p, handlers.Inbox)
-	p.Outbox = getCollection(p, handlers.Outbox)
-	p.Followers = getCollection(p, handlers.Followers)
-	p.Following = getCollection(p, handlers.Following)
-	p.Liked = getCollection(p, handlers.Liked)
+	if p.Inbox == nil {
+		p.Inbox = getCollection(p, handlers.Inbox)
+	}
+	if p.Outbox == nil {
+		p.Outbox = getCollection(p, handlers.Outbox)
+	}
+	if p.Followers == nil {
+		p.Followers = getCollection(p, handlers.Followers)
+	}
+	if p.Following == nil {
+		p.Following = getCollection(p, handlers.Following)
+	}
+	if p.Liked == nil {
+		p.Liked = getCollection(p, handlers.Liked)
+	}
 	return nil
 }
 
 func addNewObjectCollections(o *pub.Object) error {
-	o.Replies = getCollection(o, handlers.Replies)
-	o.Likes = getCollection(o, handlers.Likes)
-	o.Shares = getCollection(o, handlers.Shares)
+	if o.Replies == nil {
+		o.Replies = getCollection(o, handlers.Replies)
+	}
+	if o.Likes == nil {
+		o.Likes = getCollection(o, handlers.Likes)
+	}
+	if o.Shares == nil {
+		o.Shares = getCollection(o, handlers.Shares)
+	}
 	return nil
 }
 
