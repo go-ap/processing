@@ -6,7 +6,6 @@ import (
 	"github.com/go-ap/errors"
 	"github.com/go-ap/handlers"
 	s "github.com/go-ap/storage"
-	"path"
 	"time"
 )
 
@@ -227,7 +226,7 @@ func AddToCollections(colSaver s.CollectionSaver, it pub.Item) (pub.Item, error)
 		if recIRI == pub.PublicNS {
 			continue
 		}
-		if handlers.ValidCollection(path.Base(recIRI.String())) {
+		if handlers.ValidCollectionIRI(recIRI) {
 			// TODO(marius): this step should happen at validation time
 			if loader, ok := colSaver.(s.Loader); ok {
 				// Load all members if colIRI is a valid actor collection

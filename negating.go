@@ -5,7 +5,6 @@ import (
 	"github.com/go-ap/errors"
 	"github.com/go-ap/handlers"
 	s "github.com/go-ap/storage"
-	"path"
 	"strings"
 )
 
@@ -117,8 +116,7 @@ func UndoAppreciationActivity(r s.Saver, act *pub.Activity) (*pub.Activity, erro
 			if iri == pub.PublicNS {
 				continue
 			}
-			base := path.Base(string(iri))
-			if !handlers.ValidCollection(base) {
+			if !handlers.ValidCollectionIRI(iri) {
 				// if not a valid collection, then it's an actor and we need their inbox
 				iri = handlers.Inbox.IRI(iri)
 			}

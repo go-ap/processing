@@ -5,7 +5,6 @@ import (
 	"github.com/go-ap/errors"
 	"github.com/go-ap/handlers"
 	s "github.com/go-ap/storage"
-	"path"
 )
 
 // RelationshipManagementActivity processes matching activities
@@ -50,7 +49,7 @@ func RelationshipManagementActivity(l s.Saver, act *pub.Activity) (*pub.Activity
 func FollowActivity(r s.Saver, act *pub.Activity) (*pub.Activity, error) {
 	ob := act.Object.GetLink()
 	if colSaver, ok := r.(s.CollectionSaver); ok {
-		if !handlers.ValidCollection(path.Base(ob.String())) {
+		if !handlers.ValidCollectionIRI(ob) {
 			// TODO(marius): add check if IRI represents an actor (or rely on the collection saver to break if not)
 			ob = handlers.Inbox.IRI(ob)
 		}
