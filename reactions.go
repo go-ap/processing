@@ -30,9 +30,9 @@ func ReactionsActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 			act, err = AcceptActivity(l, act)
 		case pub.BlockType:
 			act, err = BlockActivity(l, act)
-		case pub.IgnoreType:
-			fallthrough
 		case pub.FlagType:
+			act, err = FlagActivity(l, act)
+		case pub.IgnoreType:
 			return act, errors.NotImplementedf("Processing reaction activity of type %s is not implemented", act.GetType())
 		}
 	}
@@ -169,5 +169,41 @@ func BlockActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 			return act, err
 		}
 	}
+	return act, nil
+}
+
+// FlagActivity
+// There isn't any side effect to this activity except delivering it to the inboxes of its recipients.
+// From the list of recipients we remove the Object itself if it represents an Actor being flagged,
+// or its author if it's another type of object.
+func FlagActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
+	if act.Object == nil {
+		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
+	}
+	if act.Actor == nil {
+		return act, errors.NotValidf("Missing actor for %s Activity", act.Type)
+	}
+	if act.Type != pub.FlagType {
+		return act, errors.NotValidf("Activity has wrong type %s, expected %s", act.Type, pub.FlagType)
+	}
+
+	pub.OnObject(act.Object, func(o *pub.Object) error {
+		var toRemoveIRI pub.IRI
+		if !pub.ActorTypes.Contains(o.Type) {
+			// Remove object's author from any recipients collections
+			toRemoveIRI = o.AttributedTo.GetLink()
+		} else {
+			// Remove object from any recipients collections
+			toRemoveIRI = o.GetLink()
+		}
+		if toRemoveIRI.IsValid() {
+			act.To.Remove(toRemoveIRI)
+			act.CC.Remove(toRemoveIRI)
+			act.Bto.Remove(toRemoveIRI)
+			act.BCC.Remove(toRemoveIRI)
+		}
+		return nil
+	})
+
 	return act, nil
 }
