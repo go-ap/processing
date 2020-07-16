@@ -206,7 +206,7 @@ func (v defaultValidator) ValidateClientActivity(a pub.Item, outbox pub.IRI) err
 	if !IsOutbox(outbox) {
 		return errors.NotValidf("Trying to validate a non outbox IRI %s", outbox)
 	}
-	if v.auth.GetLink() == pub.PublicNS {
+	if v.auth == nil || v.auth.GetLink() == pub.PublicNS {
 		return errors.Unauthorizedf("%s actor is not allowed posting to current outbox", name(v.auth))
 	}
 	if !IRIBelongsToActor(outbox, v.auth) {
