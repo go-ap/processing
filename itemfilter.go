@@ -101,8 +101,8 @@ func (i itemFilter) MediaTypes() []pub.MimeType {
 	}
 	return types
 }
-func (i itemFilter) Names() []string {
-	names := make([]string, 0)
+func (i itemFilter) Names() []pub.Content {
+	names := make([]pub.Content, 0)
 	if pub.ActivityTypes.Contains(i.item.GetType()) {
 		pub.OnActivity(i.item, func(a *pub.Activity) error {
 			for _, name := range a.Name {
