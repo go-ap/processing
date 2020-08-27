@@ -199,7 +199,7 @@ func name(a *pub.Actor) pub.LangRefValue {
 	if len(a.PreferredUsername) > 0 {
 		return a.PreferredUsername.First()
 	}
-	return pub.LangRefValue{Value: path.Base(string(a.ID))}
+	return pub.LangRefValue{Value: pub.Content(path.Base(string(a.ID)))}
 }
 
 func (v defaultValidator) ValidateClientActivity(a pub.Item, outbox pub.IRI) error {
