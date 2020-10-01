@@ -190,8 +190,10 @@ func FlagActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 	pub.OnObject(act.Object, func(o *pub.Object) error {
 		var toRemoveIRI pub.IRI
 		if !pub.ActorTypes.Contains(o.Type) {
-			// Remove object's author from any recipients collections
-			toRemoveIRI = o.AttributedTo.GetLink()
+			if o.AttributedTo != nil {
+				// Remove object's author from any recipients collections
+				toRemoveIRI = o.AttributedTo.GetLink()
+			}
 		} else {
 			// Remove object from any recipients collections
 			toRemoveIRI = o.GetLink()
