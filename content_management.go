@@ -74,9 +74,7 @@ func addNewItemCollections(it pub.Item) (pub.Item, error) {
 	if pub.ActorTypes.Contains(it.GetType()) {
 		pub.OnActor(it, addNewActorCollections)
 	}
-	//if pub.ObjectTypes.Contains(it.GetType()) {
-	//	pub.OnObject(it, addNewObjectCollections)
-	//}
+	pub.OnObject(it, addNewObjectCollections)
 	return it, nil
 }
 
