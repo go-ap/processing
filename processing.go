@@ -181,6 +181,11 @@ func processActivity(p defaultProcessor, act *pub.Activity) (*pub.Activity, erro
 	}
 
 	var it pub.Item
+	if act.Content != nil {
+		// For activities that have a content value, we create the collections that allow actors to interact
+		// with them as they are a regular object.
+		pub.OnObject(act, addNewObjectCollections)
+	}
 	it, err = p.s.SaveActivity(act)
 	if err != nil {
 		return act, err
