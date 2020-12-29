@@ -185,6 +185,28 @@ func updateCreateActivityObject(l s.Saver, o pub.Item, act *pub.Activity) error 
 				}
 			}
 		}
+		// We're trying to automatically save tags as separate objects instead of storing them inline in the current
+		// Object.
+		if o.Tag != nil {
+			// According to the example in the Implementation Notes on the Activity Streams Vocabulary spec,
+			// tag objects are ActivityStreams Objects without a type, that's why we use an empty string valid type:
+			// https://www.w3.org/TR/activitystreams-vocabulary/#microsyntaxes
+			validTypes := pub.ActivityVocabularyTypes{pub.MentionType, pub.ObjectType, pub.ActivityVocabularyType("")}
+			pub.OnCollectionIntf(o.Tag, func(col pub.CollectionInterface) error {
+				for _, tag := range col.Collection() {
+					if typ := tag.GetType(); !validTypes.Contains(typ) {
+						continue
+					}
+					if id := tag.GetID(); len(id) > 0 {
+						continue
+					}
+					if _, err := l.GenerateID(tag, act); err == nil {
+						l.SaveObject(tag)
+					}
+				}
+				return nil
+			})
+		}
 
 		// TODO(marius): Move these to a ProcessObject function
 		// Set the published date
