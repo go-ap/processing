@@ -97,7 +97,7 @@ func AcceptActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 		}
 	}
 	err := pub.OnActivity(act.Object, func(a *pub.Activity) error {
-		if act.Actor.GetLink() != a.Object.GetLink() {
+		if !act.Actor.GetLink().Equals(a.Object.GetLink(), false) {
 			return errors.NotValidf("The %s activity has a different actor than its object: %s, expected %s", act.Type, act.Actor.GetLink(), a.Actor.GetLink())
 		}
 		good := pub.ActivityVocabularyTypes{pub.FollowType}
