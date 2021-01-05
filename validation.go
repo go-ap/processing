@@ -537,6 +537,16 @@ func ValidatorFromContext(ctx context.Context) (*defaultValidator, bool) {
 func (v *defaultValidator) SetActor(p *pub.Actor) {
 	v.auth = p
 }
+func hostSplit(h string) (string, string) {
+	pieces := strings.Split(h, ":")
+	if len(pieces) == 0 {
+		return "", ""
+	} 
+	if len(pieces) == 1 {
+		return pieces[0], ""
+	}
+	return pieces[0], pieces[1]
+}
 
 func (v defaultValidator) validateLocalIRI(i pub.IRI) error {
 	u, err := i.URL()
@@ -546,13 +556,19 @@ func (v defaultValidator) validateLocalIRI(i pub.IRI) error {
 	v.addr.m.Lock()
 	defer v.addr.m.Unlock()
 	if _, ok := v.addr.addr[u.Host]; !ok {
-		addrs, err := net.LookupHost(u.Host)
-		if err != nil {
-			return errors.Annotatef(err, "%s is not a local IRI", i)
-		}
-		v.addr.addr[u.Host] = make([]net.IP, len(addrs))
-		for i, addr := range addrs {
-			v.addr.addr[u.Host][i] = net.ParseIP(addr)
+		h, _ := hostSplit(u.Host)
+		ip := net.ParseIP(h)
+		if ip != nil && !ip.IsUnspecified() {
+			v.addr.addr[u.Host] = []net.IP{ip}
+		} else {
+			addrs, err := net.LookupHost(u.Host)
+			if err != nil {
+				return errors.Annotatef(err, "%s is not a local IRI", i)
+			}
+			v.addr.addr[u.Host] = make([]net.IP, len(addrs))
+			for i, addr := range addrs {
+				v.addr.addr[u.Host][i] = net.ParseIP(addr)
+			}
 		}
 	}
 	for _, ip := range v.addr.addr[u.Host] {

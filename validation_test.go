@@ -58,12 +58,22 @@ func Test_defaultValidator_validateLocalIRI(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:    "basic localhost",
+			name:    "IP 127.0.2.1",
+			arg:     pub.IRI("https://127.0.2.1"),
+			wantErr: false,
+		},
+		{
+			name:    "IP 127.0.2.1 with port :8443",
+			arg:     pub.IRI("https://127.0.2.1:8443"),
+			wantErr: false,
+		},
+		{
+			name:    "localhost",
 			arg:     pub.IRI("https://localhost"),
 			wantErr: false,
 		},
 		{
-			name:    "basic local host",
+			name:    "example.com host",
 			arg:     pub.IRI("https://example.com"),
 			wantErr: true,
 		},
