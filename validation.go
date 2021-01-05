@@ -67,6 +67,7 @@ type ipCache struct {
 }
 
 type defaultValidator struct {
+	baseIRI pub.IRIs
 	addr    ipCache
 	auth    *pub.Actor
 	c       c.ActivityPub
@@ -549,6 +550,14 @@ func hostSplit(h string) (string, string) {
 }
 
 func (v defaultValidator) validateLocalIRI(i pub.IRI) error {
+	if len(v.baseIRI) > 0 {
+		for _, base := range v.baseIRI {
+			if !i.Contains(base, false) {
+				return errors.Newf("%s is not a local IRI", i)
+			}
+		}
+		return nil
+	}
 	u, err := i.URL()
 	if err != nil {
 		return errors.Annotatef(err, "%s is not a local IRI", i)

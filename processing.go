@@ -18,6 +18,7 @@ type _p struct {
 var emptyLogFn c.LogFn = func(s string, el ...interface{}) {}
 
 type defaultProcessor struct {
+	baseIRI pub.IRIs
 	c       c.ActivityPub
 	s       s.Saver
 	infoFn  c.LogFn
@@ -76,6 +77,14 @@ func SetStorage(s s.Repository) optionFn {
 	return func(v *_p) error {
 		v.v.s = s
 		v.p.s = s
+		return nil
+	}
+}
+
+func SetIRI(i ...pub.IRI) optionFn {
+	return func(v *_p) error {
+		v.v.baseIRI = i
+		v.p.baseIRI = i
 		return nil
 	}
 }
