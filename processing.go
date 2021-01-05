@@ -6,6 +6,7 @@ import (
 	"github.com/go-ap/errors"
 	"github.com/go-ap/handlers"
 	s "github.com/go-ap/storage"
+	"net"
 	"time"
 )
 
@@ -14,8 +15,9 @@ type _p struct {
 	v *defaultValidator
 }
 
+var emptyLogFn c.LogFn = func(s string, el ...interface{}) {}
+
 type defaultProcessor struct {
-	baseIRI pub.IRI
 	c       c.ActivityPub
 	s       s.Saver
 	infoFn  c.LogFn
@@ -24,8 +26,17 @@ type defaultProcessor struct {
 
 func New(o ...optionFn) (*defaultProcessor, *defaultValidator, error) {
 	v := &_p{
-		p: &defaultProcessor{},
-		v: &defaultValidator{},
+		p: &defaultProcessor{
+			infoFn: emptyLogFn,
+			errFn:  emptyLogFn,
+		},
+		v: &defaultValidator{
+			addr:   ipCache{
+				addr: make(map[string][]net.IP),
+			},
+			infoFn: emptyLogFn,
+			errFn:  emptyLogFn,
+		},
 	}
 	for _, fn := range o {
 		if err := fn(v); err != nil {
@@ -65,14 +76,6 @@ func SetStorage(s s.Repository) optionFn {
 	return func(v *_p) error {
 		v.v.s = s
 		v.p.s = s
-		return nil
-	}
-}
-
-func SetIRI(i pub.IRI) optionFn {
-	return func(v *_p) error {
-		v.v.baseIRI = i
-		v.p.baseIRI = i
 		return nil
 	}
 }

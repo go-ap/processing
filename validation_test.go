@@ -1,6 +1,11 @@
 package processing
 
-import "testing"
+import (
+	pub "github.com/go-ap/activitypub"
+	"github.com/go-ap/client"
+	"net"
+	"testing"
+)
 
 func TestActivityValidatorCtxt(t *testing.T) {
 	t.Skipf("TODO")
@@ -32,4 +37,49 @@ func TestGenericValidator_ValidateObject(t *testing.T) {
 
 func TestGenericValidator_ValidateTarget(t *testing.T) {
 	t.Skipf("TODO")
+}
+
+var (
+	tInfFn = func(t *testing.T) client.LogFn {
+		return func(s string, el ...interface{}) {
+			t.Logf(s, el...)
+		}
+	}
+	tErrFn = func(t *testing.T) client.LogFn {
+		return func(s string, el ...interface{}) {
+			t.Errorf(s, el...)
+		}
+	}
+)
+func Test_defaultValidator_validateLocalIRI(t *testing.T) {
+	tests := []struct {
+		name    string
+		arg    pub.IRI
+		wantErr bool
+	}{
+		{
+			name:    "basic localhost",
+			arg:     pub.IRI("https://localhost"),
+			wantErr: false,
+		},
+		{
+			name:    "basic local host",
+			arg:     pub.IRI("https://example.com"),
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v := defaultValidator{
+				addr:   ipCache{
+					addr: make(map[string][]net.IP),
+				},
+				infoFn: tInfFn(t),
+				errFn:  tErrFn(t),
+			}
+			if err := v.validateLocalIRI(tt.arg); (err != nil) != tt.wantErr {
+				t.Errorf("validateLocalIRI() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
 }

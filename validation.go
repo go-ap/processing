@@ -8,8 +8,10 @@ import (
 	"github.com/go-ap/errors"
 	"github.com/go-ap/handlers"
 	s "github.com/go-ap/storage"
+	"net"
 	"path"
 	"strings"
+	"sync"
 )
 
 type ClientActivityValidator interface {
@@ -59,8 +61,13 @@ type invalidActivity struct {
 	errors.Err
 }
 
+type ipCache struct {
+	addr map[string][]net.IP
+	m       sync.RWMutex
+}
+
 type defaultValidator struct {
-	baseIRI pub.IRI
+	addr    ipCache
 	auth    *pub.Actor
 	c       c.ActivityPub
 	s       s.Loader
@@ -395,9 +402,8 @@ func ValidateClientOffersActivity(l s.Loader, act *pub.Activity) error {
 }
 
 // IsLocalIRI shows if the received IRI belongs to the current instance
-// TODO(marius): make this not be true always
 func (v defaultValidator) IsLocalIRI(i pub.IRI) bool {
-	return i.Contains(v.baseIRI, false)
+	return v.validateLocalIRI(i) == nil
 }
 
 func (v defaultValidator) ValidateLink(i pub.IRI) error {
@@ -533,16 +539,26 @@ func (v *defaultValidator) SetActor(p *pub.Actor) {
 }
 
 func (v defaultValidator) validateLocalIRI(i pub.IRI) error {
-	u1, err := i.URL()
+	u, err := i.URL()
 	if err != nil {
-		return err
+		return errors.Annotatef(err, "%s is not a local IRI", i)
 	}
-	u2, err := v.baseIRI.URL()
-	if err != nil {
-		return err
+	v.addr.m.Lock()
+	defer v.addr.m.Unlock()
+	if _, ok := v.addr.addr[u.Host]; !ok {
+		addrs, err := net.LookupHost(u.Host)
+		if err != nil {
+			return errors.Annotatef(err, "%s is not a local IRI", i)
+		}
+		v.addr.addr[u.Host] = make([]net.IP, len(addrs))
+		for i, addr := range addrs {
+			v.addr.addr[u.Host][i] = net.ParseIP(addr)
+		}
 	}
-	if u1.Host != u2.Host {
-		return errors.Newf("%s is not a local IRI", i)
+	for _, ip := range v.addr.addr[u.Host] {
+		if ip.IsLoopback() {
+			return nil
+		}
 	}
-	return nil
+	return errors.Newf("%s is not a local IRI", i)
 }
