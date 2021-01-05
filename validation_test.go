@@ -54,7 +54,8 @@ var (
 func Test_defaultValidator_validateLocalIRI(t *testing.T) {
 	tests := []struct {
 		name    string
-		arg    pub.IRI
+		arg     pub.IRI
+		baseIRI pub.IRIs
 		wantErr bool
 	}{
 		{
@@ -77,6 +78,34 @@ func Test_defaultValidator_validateLocalIRI(t *testing.T) {
 			arg:     pub.IRI("https://example.com"),
 			wantErr: true,
 		},
+		{
+			name:    "example.com host with set baseIRIs",
+			baseIRI: pub.IRIs{
+				pub.IRI("https://example.com"),
+			},
+			arg:     pub.IRI("https://example.com"),
+			wantErr: false,
+		},
+		{
+			name:    "fedbox host with multiple baseIRIs",
+			baseIRI: pub.IRIs{
+				pub.IRI("http://localhost"),
+				pub.IRI("http://fedbox"),
+				pub.IRI("https://example.com"),
+			},
+			arg:     pub.IRI("https://fedbox"),
+			wantErr: false,
+		},
+		{
+			name:    "example.com host with multiple baseIRIs",
+			baseIRI: pub.IRIs{
+				pub.IRI("http://localhost"),
+				pub.IRI("http://fedbox"),
+				pub.IRI("https://example1.com"),
+			},
+			arg:     pub.IRI("https://example.com"),
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -84,6 +113,7 @@ func Test_defaultValidator_validateLocalIRI(t *testing.T) {
 				addr:   ipCache{
 					addr: make(map[string][]net.IP),
 				},
+				baseIRI: tt.baseIRI,
 				infoFn: tInfFn(t),
 				errFn:  tErrFn(t),
 			}

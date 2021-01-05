@@ -552,11 +552,11 @@ func hostSplit(h string) (string, string) {
 func (v defaultValidator) validateLocalIRI(i pub.IRI) error {
 	if len(v.baseIRI) > 0 {
 		for _, base := range v.baseIRI {
-			if !i.Contains(base, false) {
-				return errors.Newf("%s is not a local IRI", i)
+			if i.Contains(base, false) {
+				return nil
 			}
 		}
-		return nil
+		return errors.Newf("%s is not a local IRI", i)
 	}
 	u, err := i.URL()
 	if err != nil {
