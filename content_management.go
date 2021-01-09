@@ -136,83 +136,99 @@ func UpdateActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 		}
 	}
 
+	if err := updateUpdateActivityObject(l, act.Object, act); err != nil {
+		return act, errors.Annotatef(err, "unable to update activity's object %s", act.Object.GetLink())
+	}
 	act.Object, err = l.UpdateObject(ob)
 	return act, err
 }
 
-func updateCreateActivityObject(l s.Saver, o pub.Item, act *pub.Activity) error {
-	return pub.OnObject(o, func(o *pub.Object) error {
-		// See https://www.w3.org/TR/ActivityPub/#create-activity-outbox
-		// Copying the actor's IRI to the object's AttributedTo
-		o.AttributedTo = act.Actor.GetLink()
-
-		// Merging the activity's and the object's Audience
-		if aud := pub.ItemCollectionDeduplication(&act.Audience, &o.Audience); aud != nil {
-			o.Audience = FlattenItemCollection(aud)
-			act.Audience = FlattenItemCollection(aud)
-		}
-		// Merging the activity's and the object's To addressing
-		if to := pub.ItemCollectionDeduplication(&act.To, &o.To); to != nil {
-			o.To = FlattenItemCollection(to)
-			act.To = FlattenItemCollection(to)
-		}
-		// Merging the activity's and the object's Bto addressing
-		if bto := pub.ItemCollectionDeduplication(&act.Bto, &o.Bto); bto != nil {
-			o.Bto = FlattenItemCollection(bto)
-			act.Bto = FlattenItemCollection(bto)
-		}
-		// Merging the activity's and the object's Cc addressing
-		if cc := pub.ItemCollectionDeduplication(&act.CC, &o.CC); cc != nil {
-			o.CC = FlattenItemCollection(cc)
-			act.CC = FlattenItemCollection(cc)
-		}
-		// Merging the activity's and the object's Bcc addressing
-		if bcc := pub.ItemCollectionDeduplication(&act.BCC, &o.BCC); bcc != nil {
-			o.BCC = FlattenItemCollection(bcc)
-			act.BCC = FlattenItemCollection(bcc)
-		}
-
-		if o.InReplyTo != nil {
-			if colSaver, ok := l.(s.CollectionSaver); ok {
-				if c, ok := o.InReplyTo.(pub.ItemCollection); ok {
-					for _, repl := range c {
-						iri := handlers.Replies.IRI(repl.GetLink())
-						colSaver.AddToCollection(iri, o.GetLink())
-					}
-				} else {
-					iri := handlers.Replies.IRI(o.InReplyTo)
+func updateObjectForUpdate(l s.Saver, o *pub.Object, act *pub.Activity) error {
+	if o.InReplyTo != nil {
+		if colSaver, ok := l.(s.CollectionSaver); ok {
+			if c, ok := o.InReplyTo.(pub.ItemCollection); ok {
+				for _, repl := range c {
+					iri := handlers.Replies.IRI(repl.GetLink())
 					colSaver.AddToCollection(iri, o.GetLink())
 				}
+			} else {
+				iri := handlers.Replies.IRI(o.InReplyTo)
+				colSaver.AddToCollection(iri, o.GetLink())
 			}
 		}
-		// We're trying to automatically save tags as separate objects instead of storing them inline in the current
-		// Object.
-		if o.Tag != nil {
-			// According to the example in the Implementation Notes on the Activity Streams Vocabulary spec,
-			// tag objects are ActivityStreams Objects without a type, that's why we use an empty string valid type:
-			// https://www.w3.org/TR/activitystreams-vocabulary/#microsyntaxes
-			validTypes := pub.ActivityVocabularyTypes{pub.MentionType, pub.ObjectType, pub.ActivityVocabularyType("")}
-			pub.OnCollectionIntf(o.Tag, func(col pub.CollectionInterface) error {
-				for _, tag := range col.Collection() {
-					if typ := tag.GetType(); !validTypes.Contains(typ) {
-						continue
-					}
-					if id := tag.GetID(); len(id) > 0 {
-						continue
-					}
-					if _, err := l.GenerateID(tag, act); err == nil {
-						l.SaveObject(tag)
-					}
+	}
+	// We're trying to automatically save tags as separate objects instead of storing them inline in the current
+	// Object.
+	if o.Tag != nil {
+		// According to the example in the Implementation Notes on the Activity Streams Vocabulary spec,
+		// tag objects are ActivityStreams Objects without a type, that's why we use an empty string valid type:
+		// https://www.w3.org/TR/activitystreams-vocabulary/#microsyntaxes
+		validTypes := pub.ActivityVocabularyTypes{pub.MentionType, pub.ObjectType, pub.ActivityVocabularyType("")}
+		pub.OnCollectionIntf(o.Tag, func(col pub.CollectionInterface) error {
+			for _, tag := range col.Collection() {
+				if typ := tag.GetType(); !validTypes.Contains(typ) {
+					continue
 				}
-				return nil
-			})
-		}
+				if id := tag.GetID(); len(id) > 0 {
+					continue
+				}
+				if _, err := l.GenerateID(tag, act); err == nil {
+					l.SaveObject(tag)
+				}
+			}
+			return nil
+		})
+	}
+	return nil
+}
 
-		// TODO(marius): Move these to a ProcessObject function
-		// Set the published date
-		if o.Published.IsZero() {
-			o.Published = time.Now().UTC()
-		}
-		return nil
+func updateUpdateActivityObject(l s.Saver, o pub.Item, act *pub.Activity) error {
+	return pub.OnObject(o, func(o *pub.Object) error {
+		return updateObjectForUpdate(l, o, act)
+	})
+}
+
+func updateObjectForCreate(l s.Saver, o *pub.Object, act *pub.Activity) error {
+	// See https://www.w3.org/TR/ActivityPub/#create-activity-outbox
+	// Copying the actor's IRI to the object's AttributedTo
+	o.AttributedTo = act.Actor.GetLink()
+
+	// Merging the activity's and the object's Audience
+	if aud := pub.ItemCollectionDeduplication(&act.Audience, &o.Audience); aud != nil {
+		o.Audience = FlattenItemCollection(aud)
+		act.Audience = FlattenItemCollection(aud)
+	}
+	// Merging the activity's and the object's To addressing
+	if to := pub.ItemCollectionDeduplication(&act.To, &o.To); to != nil {
+		o.To = FlattenItemCollection(to)
+		act.To = FlattenItemCollection(to)
+	}
+	// Merging the activity's and the object's Bto addressing
+	if bto := pub.ItemCollectionDeduplication(&act.Bto, &o.Bto); bto != nil {
+		o.Bto = FlattenItemCollection(bto)
+		act.Bto = FlattenItemCollection(bto)
+	}
+	// Merging the activity's and the object's Cc addressing
+	if cc := pub.ItemCollectionDeduplication(&act.CC, &o.CC); cc != nil {
+		o.CC = FlattenItemCollection(cc)
+		act.CC = FlattenItemCollection(cc)
+	}
+	// Merging the activity's and the object's Bcc addressing
+	if bcc := pub.ItemCollectionDeduplication(&act.BCC, &o.BCC); bcc != nil {
+		o.BCC = FlattenItemCollection(bcc)
+		act.BCC = FlattenItemCollection(bcc)
+	}
+
+	// TODO(marius): Move these to a ProcessObject function
+	// Set the published date
+	if o.Published.IsZero() {
+		o.Published = time.Now().UTC()
+	}
+	return updateObjectForUpdate(l, o, act)
+}
+
+func updateCreateActivityObject(l s.Saver, o pub.Item, act *pub.Activity) error {
+	return pub.OnObject(o, func(o *pub.Object) error {
+		return updateObjectForCreate(l, o, act)
 	})
 }
