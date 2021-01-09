@@ -3,9 +3,10 @@ module github.com/go-ap/processing
 go 1.13
 
 require (
-	github.com/go-ap/activitypub v0.0.0-20201231093705-c478a2826802
-	github.com/go-ap/client v0.0.0-20201231093747-65d3179116cd
+	github.com/buger/jsonparser v1.1.1 // indirect
+	github.com/go-ap/activitypub v0.0.0-20210109173738-56bfed629b95
+	github.com/go-ap/client v0.0.0-20210109180226-efbf4fc6994e
 	github.com/go-ap/errors v0.0.0-20200702155720-f662512ba418
-	github.com/go-ap/handlers v0.0.0-20201231093954-2dccb2dd6c2e
-	github.com/go-ap/storage v0.0.0-20201231093811-fe698d84ec32
+	github.com/go-ap/handlers v0.0.0-20210109180555-373cc1ca2e0c
+	github.com/go-ap/storage v0.0.0-20210109180350-3c4a46cd40cd
 )
