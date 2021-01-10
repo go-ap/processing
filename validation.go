@@ -538,6 +538,7 @@ func ValidatorFromContext(ctx context.Context) (*defaultValidator, bool) {
 func (v *defaultValidator) SetActor(p *pub.Actor) {
 	v.auth = p
 }
+
 func hostSplit(h string) (string, string) {
 	pieces := strings.Split(h, ":")
 	if len(pieces) == 0 {
