@@ -19,7 +19,7 @@ var emptyLogFn c.LogFn = func(s string, el ...interface{}) {}
 
 type defaultProcessor struct {
 	baseIRI pub.IRIs
-	c       c.ActivityPub
+	c       c.Basic
 	s       s.Saver
 	infoFn  c.LogFn
 	errFn   c.LogFn
@@ -65,7 +65,7 @@ func SetErrorLogger(logFn c.LogFn) optionFn {
 	}
 }
 
-func SetClient(c c.ActivityPub) optionFn {
+func SetClient(c c.Basic) optionFn {
 	return func(v *_p) error {
 		v.v.c = c
 		v.p.c = c

@@ -70,7 +70,7 @@ type defaultValidator struct {
 	baseIRI pub.IRIs
 	addr    ipCache
 	auth    *pub.Actor
-	c       c.ActivityPub
+	c       c.Basic
 	s       s.Loader
 	infoFn  c.LogFn
 	errFn   c.LogFn
