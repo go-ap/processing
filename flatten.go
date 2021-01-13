@@ -22,12 +22,10 @@ func FlattenIntransitiveActivityProperties(act *pub.IntransitiveActivity) *pub.I
 	act.Origin = pub.FlattenToIRI(act.Origin)
 	act.Result = pub.FlattenToIRI(act.Result)
 	act.Instrument = pub.FlattenToIRI(act.Instrument)
-	act.AttributedTo = pub.FlattenToIRI(act.AttributedTo)
-	act.Audience = FlattenItemCollection(act.Audience)
-	act.To = FlattenItemCollection(act.To)
-	act.Bto = FlattenItemCollection(act.Bto)
-	act.CC = FlattenItemCollection(act.CC)
-	act.BCC = FlattenItemCollection(act.BCC)
+	pub.OnObject(act, func(o *pub.Object) error {
+		o = FlattenObjectProperties(o)
+		return nil
+	})
 	return act
 }
 
@@ -65,3 +63,67 @@ func FlattenOrderedCollection(col *pub.OrderedCollection) *pub.OrderedCollection
 
 	return col
 }
+
+// FlattenActorProperties flattens the Actor's properties from Object types to IRI
+func FlattenActorProperties(a *pub.Actor) *pub.Actor {
+	pub.OnObject(a, func(o *pub.Object) error {
+		o = FlattenObjectProperties(o)
+		return nil
+	})
+	return a
+}
+
+// FlattenObjectProperties flattens the Object's properties from Object types to IRI
+func FlattenObjectProperties(o *pub.Object) *pub.Object {
+	o.Replies = Flatten(o.Replies)
+	o.Shares = Flatten(o.Shares)
+	o.Likes = Flatten(o.Likes)
+	o.AttributedTo = Flatten(o.AttributedTo)
+	o.To = FlattenItemCollection(o.To)
+	o.Bto = FlattenItemCollection(o.Bto)
+	o.CC = FlattenItemCollection(o.CC)
+	o.BCC = FlattenItemCollection(o.BCC)
+	o.Audience = FlattenItemCollection(o.Audience)
+	o.Tag = FlattenItemCollection(o.Tag)
+	return o
+}
+
+// FlattenProperties flattens the Item's properties from Object types to IRI
+func FlattenProperties(it pub.Item) pub.Item {
+	if pub.ActivityTypes.Contains(it.GetType()) {
+		pub.OnActivity(it, func(a *pub.Activity) error {
+			a = FlattenActivityProperties(a)
+			return nil
+		})
+	}
+	if pub.ActorTypes.Contains(it.GetType()) { 
+		pub.OnActor(it, func(a *pub.Actor) error {
+			a = FlattenActorProperties(a)
+			return nil
+		})
+	}
+	if pub.ObjectTypes.Contains(it.GetType()) {
+		pub.OnObject(it, func(o *pub.Object) error {
+			o = FlattenObjectProperties(o)
+			return nil
+		})
+	}
+	return it
+}
+
+// Flatten checks if Item can be flatten to an IRI or array of IRIs and returns it if so
+func Flatten(it pub.Item) pub.Item {
+	if it == nil {
+		return nil
+	}
+	if it.IsCollection() {
+		if c, ok := it.(pub.CollectionInterface); ok {
+			it = FlattenItemCollection(c.Collection())
+		}
+	}
+	if it != nil && len(it.GetLink()) > 0 {
+		return it.GetLink()
+	}
+	return it
+}
+
