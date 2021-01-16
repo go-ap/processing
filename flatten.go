@@ -86,7 +86,7 @@ func FlattenObjectProperties(o *pub.Object) *pub.Object {
 	o.CC = FlattenItemCollection(o.CC)
 	o.BCC = FlattenItemCollection(o.BCC)
 	o.Audience = FlattenItemCollection(o.Audience)
-	o.Tag = FlattenItemCollection(o.Tag)
+	//o.Tag = FlattenItemCollection(o.Tag)
 	return o
 }
 
@@ -98,7 +98,7 @@ func FlattenProperties(it pub.Item) pub.Item {
 			return nil
 		})
 	}
-	if pub.ActorTypes.Contains(it.GetType()) { 
+	if pub.ActorTypes.Contains(it.GetType()) {
 		pub.OnActor(it, func(a *pub.Actor) error {
 			a = FlattenActorProperties(a)
 			return nil
@@ -128,4 +128,3 @@ func Flatten(it pub.Item) pub.Item {
 	}
 	return it
 }
-
