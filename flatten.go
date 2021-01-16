@@ -35,7 +35,9 @@ func FlattenItemCollection(col pub.ItemCollection) pub.ItemCollection {
 		return col
 	}
 	for k, it := range pub.ItemCollectionDeduplication(&col) {
-		col[k] = it.GetLink()
+		if iri := it.GetLink(); iri != "" {
+			col[k] = iri
+		}
 	}
 	return col
 }
