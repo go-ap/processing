@@ -148,6 +148,28 @@ func processIntransitiveActivity(p defaultProcessor, act *pub.IntransitiveActivi
 	return act, nil
 }
 
+func createNewTags(l s.Saver, tags pub.ItemCollection, act *pub.Activity) error {
+	if len(tags) == 0 {
+		return nil
+	}
+	// According to the example in the Implementation Notes on the Activity Streams Vocabulary spec,
+	// tag objects are ActivityStreams Objects without a type, that's why we use an empty string valid type:
+	// https://www.w3.org/TR/activitystreams-vocabulary/#microsyntaxes
+	validTypes := pub.ActivityVocabularyTypes{pub.MentionType, pub.ObjectType, pub.ActivityVocabularyType("")}
+	for _, tag := range tags {
+		if typ := tag.GetType(); !validTypes.Contains(typ) {
+			continue
+		}
+		if id := tag.GetID(); len(id) > 0 {
+			continue
+		}
+		if _, err := l.GenerateID(tag, act); err == nil {
+			l.SaveObject(tag)
+		}
+	}
+	return nil
+}
+
 func processActivity(p defaultProcessor, act *pub.Activity) (*pub.Activity, error) {
 	iri := act.GetLink()
 	if len(iri) == 0 {
@@ -187,6 +209,11 @@ func processActivity(p defaultProcessor, act *pub.Activity) (*pub.Activity, erro
 	if err != nil {
 		return act, err
 	}
+	if act.Tag != nil {
+		// Try to save tags as set on the activity
+		createNewTags(p.s, act.Tag, act)
+	}
+
 	act = FlattenActivityProperties(act)
 	if act.Published.IsZero() {
 		act.Published = time.Now().UTC()
