@@ -49,6 +49,13 @@ func New(o ...optionFn) (*defaultProcessor, *defaultValidator, error) {
 
 type optionFn func(s *_p) error
 
+func SetIDGenerator(genFn IDGenerator) optionFn {
+	return func(v *_p) error {
+		createID = genFn
+		return nil
+	}
+}
+
 func SetInfoLogger(logFn c.LogFn) optionFn {
 	return func(v *_p) error {
 		v.v.infoFn = logFn
@@ -90,8 +97,6 @@ func SetIRI(i ...pub.IRI) optionFn {
 }
 
 // ProcessActivity
-// TODO(marius): we need to create an Activity specific interface that we use as the type of the parameter, so we can
-//   receive both Transitive and Intransitive activities. In the current form we can only process transitive ones.
 func (p defaultProcessor) ProcessClientActivity(it pub.Item) (pub.Item, error) {
 	if it == nil {
 		return nil, errors.Newf("Unable to process nil activity")
@@ -121,7 +126,9 @@ func (p defaultProcessor) ProcessClientActivity(it pub.Item) (pub.Item, error) {
 func processIntransitiveActivity(p defaultProcessor, act *pub.IntransitiveActivity) (*pub.IntransitiveActivity, error) {
 	iri := act.GetLink()
 	if len(iri) == 0 {
-		p.s.GenerateID(act, nil)
+		if err := SetID(act, handlers.Outbox.IRI(act.Actor)); err != nil {
+			return act, nil
+		}
 	}
 	var err error
 	if pub.QuestionActivityTypes.Contains(act.Type) {
@@ -163,8 +170,8 @@ func createNewTags(l s.Saver, tags pub.ItemCollection, act *pub.Activity) error 
 		if id := tag.GetID(); len(id) > 0 {
 			continue
 		}
-		if _, err := l.GenerateID(tag, act); err == nil {
-			l.SaveObject(tag)
+		if err := SetID(tag, nil); err == nil {
+			l.Save(tag)
 		}
 	}
 	return nil
@@ -173,7 +180,9 @@ func createNewTags(l s.Saver, tags pub.ItemCollection, act *pub.Activity) error 
 func processActivity(p defaultProcessor, act *pub.Activity) (*pub.Activity, error) {
 	iri := act.GetLink()
 	if len(iri) == 0 {
-		p.s.GenerateID(act, nil)
+		if err := SetID(act, nil); err != nil {
+			return act, err
+		}
 	}
 	var err error
 

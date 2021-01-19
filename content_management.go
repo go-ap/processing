@@ -1,12 +1,61 @@
 package processing
 
 import (
+	"fmt"
 	pub "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
 	"github.com/go-ap/handlers"
 	s "github.com/go-ap/storage"
 	"time"
 )
+
+// IDGenerator takes an ActivityStreams object and a collection
+//  "it" is the object we want to generate the ID for.
+//  "partOf" represents the Collection where we want to store it.
+//  "by" represents the generator Activity
+type IDGenerator func (it pub.Item, partOf pub.Item, by pub.Item) (pub.ID, error)
+
+var createID IDGenerator
+
+func defaultIDGenerator (base pub.IRI) IDGenerator {
+	timeIDFn := func(t time.Time) string { return fmt.Sprintf("%d", t.UnixNano() / 1000) }
+
+	return func (it pub.Item, col pub.Item, _ pub.Item) (pub.ID, error) {
+		var colIRI pub.IRI
+
+		if col != nil && len(col.GetLink()) > 0 {
+			colIRI = col.GetLink()
+		}
+		when := time.Now()
+		pub.OnObject(it, func(o *pub.Object) error {
+			if !o.Published.IsZero() {
+				when = o.Published
+			}
+			if o.AttributedTo != nil {
+				base = o.AttributedTo.GetLink()
+			}
+			if len(colIRI) == 0 {
+				colIRI = handlers.Outbox.IRI(base)
+			}
+			return nil
+		})
+		if len(colIRI) == 0 {
+			return pub.NilID, errors.Newf("invalid collection to generate the ID")
+		}
+		return colIRI.AddPath(timeIDFn(when)), nil
+	}
+}
+
+func SetID (it pub.Item, partOf pub.Item) error {
+	if createID != nil {
+		return pub.OnObject(it, func(o *pub.Object) error {
+			var err error
+			o.ID, err = createID(it, partOf, nil)
+			return err
+		})
+	}
+	return errors.Newf("no package ID generator was set")
+}
 
 // ContentManagementActivity processes matching activities
 // The Content Management use case primarily deals with activities that involve the creation,
@@ -88,9 +137,10 @@ func addNewItemCollections(it pub.Item) (pub.Item, error) {
 // Note that it is acceptable for the object's addressing to be changed later without changing the Create's addressing
 // (for example via an Update activity).
 func CreateActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
-	iri := act.Object.GetLink()
-	if len(iri) == 0 {
-		l.GenerateID(act.Object, act)
+	if iri := act.Object.GetLink(); len(iri) == 0 {
+		if err := SetID(act.Object, handlers.Outbox.IRI(act.Actor)); err != nil {
+			return act, nil
+		}
 	}
 	err := updateCreateActivityObject(l, act.Object, act)
 	if err != nil {
