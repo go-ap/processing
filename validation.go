@@ -71,7 +71,7 @@ type defaultValidator struct {
 	addr    ipCache
 	auth    *pub.Actor
 	c       c.Basic
-	s       s.Loader
+	s       s.ReadStore
 	infoFn  c.LogFn
 	errFn   c.LogFn
 }
@@ -279,7 +279,7 @@ func (v defaultValidator) ValidateClientActivity(a pub.Item, outbox pub.IRI) err
 }
 
 // ValidateClientContentManagementActivity
-func ValidateClientContentManagementActivity(l s.Loader, act *pub.Activity) error {
+func ValidateClientContentManagementActivity(l s.ReadStore, act *pub.Activity) error {
 	if act.Object == nil {
 		return errors.NotValidf("nil object for %s activity", act.Type)
 	}
@@ -297,24 +297,14 @@ func ValidateClientContentManagementActivity(l s.Loader, act *pub.Activity) erro
 		if ob.IsLink() {
 			return nil
 		}
-		typ := ob.GetType()
 		var (
 			found pub.Item
 			err   error
-			cnt   uint
 		)
 
-		if pub.ActorTypes.Contains(typ) {
-			found, cnt, err = l.LoadActors(ob)
-		}
-		if pub.ObjectTypes.Contains(typ) {
-			found, cnt, err = l.LoadObjects(ob)
-		}
+		found, err = l.Load(ob.GetLink())
 		if err != nil {
 			return errors.Annotatef(err, "failed to load object from storage")
-		}
-		if cnt == 0 {
-			return errors.NotFoundf("unable to find %s %s in storage", ob.GetType(), ob.GetLink())
 		}
 		if found == nil {
 			return errors.NotFoundf("found nil object in storage")
@@ -327,51 +317,51 @@ func ValidateClientContentManagementActivity(l s.Loader, act *pub.Activity) erro
 }
 
 // ValidateClientCollectionManagementActivity
-func ValidateClientCollectionManagementActivity(l s.Loader, act *pub.Activity) error {
+func ValidateClientCollectionManagementActivity(l s.ReadStore, act *pub.Activity) error {
 	return nil
 }
 
 // ValidateClientReactionsActivity
-func ValidateClientReactionsActivity(l s.Loader, act *pub.Activity) error {
+func ValidateClientReactionsActivity(l s.ReadStore, act *pub.Activity) error {
 	return nil
 }
 
 // ValidateClientEventRSVPActivity
-func ValidateClientEventRSVPActivity(l s.Loader, act *pub.Activity) error {
+func ValidateClientEventRSVPActivity(l s.ReadStore, act *pub.Activity) error {
 	return nil
 }
 
 // ValidateClientGroupManagementActivity
-func ValidateClientGroupManagementActivity(l s.Loader, act *pub.Activity) error {
+func ValidateClientGroupManagementActivity(l s.ReadStore, act *pub.Activity) error {
 	return nil
 }
 
 // ValidateClientContentExperienceActivity
-func ValidateClientContentExperienceActivity(l s.Loader, act *pub.Activity) error {
+func ValidateClientContentExperienceActivity(l s.ReadStore, act *pub.Activity) error {
 	return nil
 }
 
 // ValidateClientGeoSocialEventsActivity
-func ValidateClientGeoSocialEventsActivity(l s.Loader, act *pub.Activity) error {
+func ValidateClientGeoSocialEventsActivity(l s.ReadStore, act *pub.Activity) error {
 	return nil
 }
 
 // ValidateClientNotificationActivity
-func ValidateClientNotificationActivity(l s.Loader, act *pub.Activity) error {
+func ValidateClientNotificationActivity(l s.ReadStore, act *pub.Activity) error {
 	return nil
 }
 
 // ValidateClientQuestionActivity
-func ValidateClientQuestionActivity(l s.Loader, act *pub.Activity) error {
+func ValidateClientQuestionActivity(l s.ReadStore, act *pub.Activity) error {
 	return nil
 }
 
 // ValidateClientRelationshipManagementActivity
-func ValidateClientRelationshipManagementActivity(l s.Loader, act *pub.Activity) error {
+func ValidateClientRelationshipManagementActivity(l s.ReadStore, act *pub.Activity) error {
 	switch act.Type {
 	case pub.FollowType:
-		_, cnt, _ := l.LoadActivities(s.FilterItem(act))
-		if cnt > 0 {
+		a, _ := l.Load(act.GetLink())
+		if a != nil {
 			return errors.Newf("%s already exists for this actor/object pair", act.Type)
 		}
 	case pub.AddType:
@@ -393,12 +383,12 @@ func ValidateClientRelationshipManagementActivity(l s.Loader, act *pub.Activity)
 }
 
 // ValidateClientNegatingActivity
-func ValidateClientNegatingActivity(l s.Loader, act *pub.Activity) error {
+func ValidateClientNegatingActivity(l s.ReadStore, act *pub.Activity) error {
 	return nil
 }
 
 // ValidateClientOffersActivity
-func ValidateClientOffersActivity(l s.Loader, act *pub.Activity) error {
+func ValidateClientOffersActivity(l s.ReadStore, act *pub.Activity) error {
 	return nil
 }
 
@@ -416,11 +406,11 @@ func (v defaultValidator) ValidateLink(i pub.IRI) error {
 		_, err := v.c.LoadIRI(i)
 		return err
 	} else {
-		actors, cnt, err := v.s.LoadActors(i)
+		actors, err := v.s.Load(i)
 		if err != nil {
 			return err
 		}
-		if cnt == 0 || len(actors) != int(cnt) {
+		if actors == nil {
 			return InvalidActivityActor("%s could not be found locally", i)
 		}
 	}
@@ -450,14 +440,21 @@ func (v defaultValidator) ValidateActor(a pub.Item) (pub.Item, error) {
 		if err := v.ValidateLink(a.GetLink()); err != nil {
 			return a, err
 		}
-		obj, cnt, err := v.s.LoadObjects(a.GetLink())
+		obj, err := v.s.Load(a.GetLink())
 		if err != nil {
 			return a, err
 		}
-		if cnt == 0 {
+		if obj == nil {
 			return a, errors.NotFoundf("Invalid activity object not found")
 		}
-		a = obj.First()
+		if obj.IsCollection() {
+			pub.OnCollectionIntf(obj, func(col pub.CollectionInterface) error {
+				a = col.Collection().First()
+				return nil
+			})
+		} else {
+			a = obj
+		}
 	}
 	if !pub.ActorTypes.Contains(a.GetType()) {
 		return a, InvalidActivityActor("invalid type %s", a.GetType())
@@ -486,14 +483,21 @@ func (v defaultValidator) ValidateObject(o pub.Item) (pub.Item, error) {
 		if err := v.ValidateLink(o.GetLink()); err != nil {
 			return o, err
 		}
-		obj, cnt, err := v.s.LoadObjects(o.GetLink())
+		obj, err := v.s.Load(o.GetLink())
 		if err != nil {
 			return o, err
 		}
-		if cnt == 0 {
+		if obj == nil{
 			return o, errors.NotFoundf("Invalid activity object not found")
 		}
-		o = obj.First()
+		if obj.IsCollection() {
+			pub.OnCollectionIntf(obj, func(col pub.CollectionInterface) error {
+				o = col.Collection().First()
+				return nil
+			})
+		} else {
+			o = obj
+		}
 	}
 	return o, nil
 }

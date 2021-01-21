@@ -12,7 +12,7 @@ import (
 // of interpersonal and social relationships (e.g. friend requests, management of social network, etc).
 // See 5.2 Representing Relationships Between Entities for more information:
 // https://www.w3.org/TR/activitystreams-vocabulary/#connections
-func RelationshipManagementActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
+func RelationshipManagementActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	if act.Object == nil {
 		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
 	}
@@ -46,14 +46,14 @@ func RelationshipManagementActivity(l s.Saver, act *pub.Activity) (*pub.Activity
 
 // FollowActivity
 // is used when following an actor.
-func FollowActivity(r s.Saver, act *pub.Activity) (*pub.Activity, error) {
+func FollowActivity(r s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	ob := act.Object.GetLink()
-	if colSaver, ok := r.(s.CollectionSaver); ok {
+	if colSaver, ok := r.(s.CollectionStore); ok {
 		if !handlers.ValidCollectionIRI(ob) {
 			// TODO(marius): add check if IRI represents an actor (or rely on the collection saver to break if not)
 			ob = handlers.Inbox.IRI(ob)
 		}
-		err := colSaver.AddToCollection(ob, act.GetLink())
+		err := colSaver.AddTo(ob, act.GetLink())
 		if err != nil {
 			return act, err
 		}

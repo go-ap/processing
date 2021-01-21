@@ -12,7 +12,7 @@ import (
 // The Negating Activity use case primarily deals with the ability to redact previously completed activities.
 // See 5.5 Inverse Activities and "Undo" for more information:
 // https://www.w3.org/TR/activitystreams-vocabulary/#inverse
-func NegatingActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
+func NegatingActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	if act.Object == nil {
 		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
 	}
@@ -25,15 +25,12 @@ func NegatingActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 	// TODO(marius): a lot of validation logic should be moved to the validation package
 	if act.Object.IsLink() {
 		// dereference object activity
-		if actLoader, ok := l.(s.ActivityLoader); ok {
-			obj, cnt, err := actLoader.LoadActivities(act.Object.GetLink())
+		if actLoader, ok := l.(s.ReadStore); ok {
+			obj, err := actLoader.Load(act.Object.GetLink())
 			if err != nil {
 				return act, errors.NotValidf("Unable to dereference object: %s", act.Object.GetLink())
 			}
-			if cnt != 1 {
-				return act, errors.NotValidf("Too many objects to dereference IRI: %s", act.Object.GetLink())
-			}
-			act.Object = obj.First()
+			act.Object = firstOrItem(obj)
 		}
 	}
 	// the object of the activity needs to be an activity
@@ -65,12 +62,12 @@ func NegatingActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 // incremented previously should be decremented appropriately.
 // There are some exceptions where there is an existing and explicit "inverse activity" which should be used instead.
 // Create based activities should instead use Delete, and Add activities should use Remove.
-func UndoActivity(r s.Saver, act *pub.Activity) (*pub.Activity, error) {
+func UndoActivity(r s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	var err error
 
 	iri := act.GetLink()
 	if len(iri) == 0 {
-		r.GenerateID(act, nil)
+		createID(act.Object, handlers.Outbox.IRI(act.Actor), nil)
 	}
 	err = pub.OnActivity(act.Object, func(toUndo *pub.Activity) error {
 		for _, to := range act.Bto {
@@ -106,10 +103,10 @@ func UndoActivity(r s.Saver, act *pub.Activity) (*pub.Activity, error) {
 // Removes the side effects of an existing Appreciation activity (Like or Dislike)
 // Currently this means only removal of the Liked/Disliked object from the actor's `liked` collection and
 // removal of the Like/Dislike Activity from the object's `likes` collection
-func UndoAppreciationActivity(r s.Saver, act *pub.Activity) (*pub.Activity, error) {
+func UndoAppreciationActivity(r s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	errs := make([]error, 0)
 	rem := act.GetLink()
-	if colSaver, ok := r.(s.CollectionSaver); ok {
+	if colSaver, ok := r.(s.CollectionStore); ok {
 		rec := act.Recipients()
 		for _, rec := range rec {
 			iri := rec.GetLink()
@@ -120,21 +117,21 @@ func UndoAppreciationActivity(r s.Saver, act *pub.Activity) (*pub.Activity, erro
 				// if not a valid collection, then it's an actor and we need their inbox
 				iri = handlers.Inbox.IRI(iri)
 			}
-			if err := colSaver.RemoveFromCollection(iri, rem); err != nil {
+			if err := colSaver.RemoveFrom(iri, rem); err != nil {
 				errs = append(errs, err)
 			}
 
 		}
 		outbox := handlers.Outbox.IRI(act.Actor)
-		if err := colSaver.RemoveFromCollection(outbox, rem); err != nil {
+		if err := colSaver.RemoveFrom(outbox, rem); err != nil {
 			errs = append(errs, err)
 		}
 		liked := handlers.Liked.IRI(act.Actor)
-		if err := colSaver.RemoveFromCollection(liked, act.Object.GetLink()); err != nil {
+		if err := colSaver.RemoveFrom(liked, act.Object.GetLink()); err != nil {
 			errs = append(errs, err)
 		}
 		likes := handlers.Likes.IRI(act.Object)
-		if err := colSaver.RemoveFromCollection(likes, rem); err != nil {
+		if err := colSaver.RemoveFrom(likes, rem); err != nil {
 			errs = append(errs, err)
 		}
 	}

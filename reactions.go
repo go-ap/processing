@@ -11,7 +11,7 @@ import (
 // The Reactions use case primarily deals with reactions to content.
 // This can include activities such as liking or disliking content, ignoring updates,
 // flagging content as being inappropriate, accepting or rejecting objects, etc.
-func ReactionsActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
+func ReactionsActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	var err error
 	if act.Object != nil {
 		switch act.Type {
@@ -43,7 +43,7 @@ func ReactionsActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 // AppreciationActivity
 // The Like(and Dislike) activity indicates the actor likes the object.
 // The side effect of receiving this in an outbox is that the server SHOULD add the object to the actor's liked Collection.
-func AppreciationActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
+func AppreciationActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	if act.Object == nil {
 		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
 	}
@@ -55,13 +55,13 @@ func AppreciationActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 		return act, errors.NotValidf("Activity has wrong type %s, expected %v", act.Type, good)
 	}
 
-	if colSaver, ok := l.(s.CollectionSaver); ok {
+	if colSaver, ok := l.(s.CollectionStore); ok {
 		liked := handlers.Liked.IRI(act.Actor)
-		if err := colSaver.AddToCollection(liked, act.Object.GetLink()); err != nil {
+		if err := colSaver.AddTo(liked, act.Object.GetLink()); err != nil {
 			return act, errors.Annotatef(err, "Unable to save %s to collection %s", act.Object.GetType(), liked)
 		}
 		likes := handlers.Likes.IRI(act.Object)
-		if err := colSaver.AddToCollection(likes, act.GetLink()); err != nil {
+		if err := colSaver.AddTo(likes, act.GetLink()); err != nil {
 			return act, errors.Annotatef(err, "Unable to save %s to collection %s", act.GetType(), likes)
 		}
 	}
@@ -69,9 +69,18 @@ func AppreciationActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 	return act, nil
 }
 
+func firstOrItem(it pub.Item) pub.Item {
+	if it.IsCollection() {
+		pub.OnCollectionIntf(it, func(col pub.CollectionInterface) error {
+			it = col.Collection().First()
+			return nil
+		})
+	}
+	return it
+}
 // AcceptActivity
 // The side effect of receiving this in an inbox is that the server SHOULD add the object to the actor's followers Collection.
-func AcceptActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
+func AcceptActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	if act.Object == nil {
 		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
 	}
@@ -85,15 +94,12 @@ func AcceptActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 
 	if act.Object.IsLink() {
 		// dereference object activity
-		if actLoader, ok := l.(s.ActivityLoader); ok {
-			obj, cnt, err := actLoader.LoadActivities(act.Object.GetLink())
+		if actLoader, ok := l.(s.ReadStore); ok {
+			obj, err := actLoader.Load(act.Object.GetLink())
 			if err != nil {
 				return act, errors.NotValidf("Unable to dereference object: %s", act.Object.GetLink())
 			}
-			if cnt != 1 {
-				return act, errors.NotValidf("Too many objects to dereference for IRI: %s", act.Object.GetLink())
-			}
-			act.Object = obj.First()
+			act.Object = firstOrItem(obj)
 		}
 	}
 	err := pub.OnActivity(act.Object, func(a *pub.Activity) error {
@@ -106,11 +112,11 @@ func AcceptActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 		}
 		followers := handlers.Followers.IRI(act.Actor)
 		following := handlers.Following.IRI(a.Actor)
-		if colSaver, ok := l.(s.CollectionSaver); ok {
-			if err := colSaver.AddToCollection(following, a.Object.GetLink()); err != nil {
+		if colSaver, ok := l.(s.CollectionStore); ok {
+			if err := colSaver.AddTo(following, a.Object.GetLink()); err != nil {
 				return err
 			}
-			if err := colSaver.AddToCollection(followers, a.Actor.GetLink()); err != nil {
+			if err := colSaver.AddTo(followers, a.Actor.GetLink()); err != nil {
 				return err
 			}
 		}
@@ -119,7 +125,7 @@ func AcceptActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 	return act, err
 }
 
-func RejectActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
+func RejectActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	if act.Object == nil {
 		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
 	}
@@ -131,9 +137,9 @@ func RejectActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 		return act, errors.NotValidf("Activity has wrong type %s, expected %v", act.Type, good)
 	}
 
-	if colSaver, ok := l.(s.CollectionSaver); ok {
+	if colSaver, ok := l.(s.CollectionStore); ok {
 		inbox := handlers.Inbox.IRI(act.Actor)
-		err := colSaver.RemoveFromCollection(inbox, act.Object.GetLink())
+		err := colSaver.RemoveFrom(inbox, act.Object.GetLink())
 		if err != nil {
 			return act, err
 		}
@@ -143,7 +149,7 @@ func RejectActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 
 // BlockActivity
 // The side effect of receiving this in an outbox is that the server SHOULD add the object to the actor's blocked Collection.
-func BlockActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
+func BlockActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	if act.Object == nil {
 		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
 	}
@@ -162,9 +168,9 @@ func BlockActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 	act.BCC.Remove(obIRI)
 
 	b := handlers.CollectionType("blocked")
-	if colSaver, ok := l.(s.CollectionSaver); ok {
+	if colSaver, ok := l.(s.CollectionStore); ok {
 		blocked := b.IRI(act.Actor)
-		err := colSaver.AddToCollection(blocked, obIRI)
+		err := colSaver.AddTo(blocked, obIRI)
 		if err != nil {
 			return act, err
 		}
@@ -176,7 +182,7 @@ func BlockActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 // There isn't any side effect to this activity except delivering it to the inboxes of its recipients.
 // From the list of recipients we remove the Object itself if it represents an Actor being flagged,
 // or its author if it's another type of object.
-func FlagActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
+func FlagActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	if act.Object == nil {
 		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
 	}

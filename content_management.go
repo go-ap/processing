@@ -62,7 +62,7 @@ func SetID (it pub.Item, partOf pub.Item) error {
 // modification or deletion of content.
 // This includes, for instance, activities such as "John created a new note",
 // "Sally updated an article", and "Joe deleted the photo".
-func ContentManagementActivity(l s.Saver, act *pub.Activity, col handlers.CollectionType) (*pub.Activity, error) {
+func ContentManagementActivity(l s.WriteStore, act *pub.Activity, col handlers.CollectionType) (*pub.Activity, error) {
 	var err error
 	switch act.Type {
 	case pub.CreateType:
@@ -70,7 +70,7 @@ func ContentManagementActivity(l s.Saver, act *pub.Activity, col handlers.Collec
 	case pub.UpdateType:
 		act, err = UpdateActivity(l, act)
 	case pub.DeleteType:
-		act.Object, err = l.DeleteObject(act.Object)
+		act.Object, err = l.Delete(act.Object)
 	}
 	if err != nil && !isDuplicateKey(err) {
 		//l.errFn(logrus.Fields{"IRI": act.GetLink(), "type": act.Type}, "unable to save activity's object")
@@ -136,7 +136,7 @@ func addNewItemCollections(it pub.Item) (pub.Item, error) {
 // and likewise with copying recipients from the object to the wrapping Create activity.
 // Note that it is acceptable for the object's addressing to be changed later without changing the Create's addressing
 // (for example via an Update activity).
-func CreateActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
+func CreateActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	if iri := act.Object.GetLink(); len(iri) == 0 {
 		if err := SetID(act.Object, handlers.Outbox.IRI(act.Actor)); err != nil {
 			return act, nil
@@ -150,7 +150,7 @@ func CreateActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 	if err != nil {
 		return act, errors.Annotatef(err, "unable to add object collections to object %s", act.Object.GetLink())
 	}
-	act.Object, err = l.SaveObject(act.Object)
+	act.Object, err = l.Save(act.Object)
 
 	return act, err
 }
@@ -159,51 +159,47 @@ func CreateActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 // The Update activity is used when updating an already existing object. The side effect of this is that the object
 // MUST be modified to reflect the new structure as defined in the update activity,
 // assuming the actor has permission to update this object.
-func UpdateActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
+func UpdateActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	var err error
-
 	ob := act.Object
-	var cnt uint
 
-	var found pub.ItemCollection
+	var found pub.Item
 	typ := ob.GetType()
-	if loader, ok := l.(s.ActorLoader); ok && pub.ActorTypes.Contains(typ) {
-		found, cnt, _ = loader.LoadActors(ob)
-	}
-	if loader, ok := l.(s.ObjectLoader); ok && pub.ObjectTypes.Contains(typ) {
-		found, cnt, _ = loader.LoadObjects(ob)
-	}
-	if len(ob.GetLink()) == 0 {
-		return act, err
-	}
-	if cnt == 0 || found == nil {
-		return act, errors.NotFoundf("Unable to find %s %s", ob.GetType(), ob.GetLink())
-	}
-	if it := found.First(); it != nil {
-		ob, err = CopyItemProperties(it, ob)
-		if err != nil {
-			return act, err
+	if loader, ok := l.(s.ReadStore); ok && pub.ActorTypes.Contains(typ) {
+		found, _ = loader.Load(ob.GetLink())
+		if found.IsCollection() {
+			pub.OnCollectionIntf(found, func(col pub.CollectionInterface) error {
+				found = col.Collection().First()
+				return nil
+			})
 		}
 	}
+	if found == nil {
+		return act, errors.NotFoundf("Unable to find %s %s", ob.GetType(), ob.GetLink())
+	}
+	ob, err = CopyItemProperties(found, ob)
+	if err != nil {
+			return act, err
+		}
 
 	if err := updateUpdateActivityObject(l, act.Object, act); err != nil {
 		return act, errors.Annotatef(err, "unable to update activity's object %s", act.Object.GetLink())
 	}
-	act.Object, err = l.UpdateObject(ob)
+	act.Object, err = l.Save(ob)
 	return act, err
 }
 
-func updateObjectForUpdate(l s.Saver, o *pub.Object, act *pub.Activity) error {
+func updateObjectForUpdate(l s.WriteStore, o *pub.Object, act *pub.Activity) error {
 	if o.InReplyTo != nil {
-		if colSaver, ok := l.(s.CollectionSaver); ok {
+		if colSaver, ok := l.(s.CollectionStore); ok {
 			if c, ok := o.InReplyTo.(pub.ItemCollection); ok {
 				for _, repl := range c {
 					iri := handlers.Replies.IRI(repl.GetLink())
-					colSaver.AddToCollection(iri, o.GetLink())
+					colSaver.AddTo(iri, o.GetLink())
 				}
 			} else {
 				iri := handlers.Replies.IRI(o.InReplyTo)
-				colSaver.AddToCollection(iri, o.GetLink())
+				colSaver.AddTo(iri, o.GetLink())
 			}
 		}
 	}
@@ -212,13 +208,13 @@ func updateObjectForUpdate(l s.Saver, o *pub.Object, act *pub.Activity) error {
 	return createNewTags(l, o.Tag, act)
 }
 
-func updateUpdateActivityObject(l s.Saver, o pub.Item, act *pub.Activity) error {
+func updateUpdateActivityObject(l s.WriteStore, o pub.Item, act *pub.Activity) error {
 	return pub.OnObject(o, func(o *pub.Object) error {
 		return updateObjectForUpdate(l, o, act)
 	})
 }
 
-func updateObjectForCreate(l s.Saver, o *pub.Object, act *pub.Activity) error {
+func updateObjectForCreate(l s.WriteStore, o *pub.Object, act *pub.Activity) error {
 	// See https://www.w3.org/TR/ActivityPub/#create-activity-outbox
 	// Copying the actor's IRI to the object's AttributedTo
 	o.AttributedTo = act.Actor.GetLink()
@@ -257,7 +253,7 @@ func updateObjectForCreate(l s.Saver, o *pub.Object, act *pub.Activity) error {
 	return updateObjectForUpdate(l, o, act)
 }
 
-func updateCreateActivityObject(l s.Saver, o pub.Item, act *pub.Activity) error {
+func updateCreateActivityObject(l s.WriteStore, o pub.Item, act *pub.Activity) error {
 	return pub.OnObject(o, func(o *pub.Object) error {
 		return updateObjectForCreate(l, o, act)
 	})

@@ -20,7 +20,7 @@ var emptyLogFn c.LogFn = func(s string, el ...interface{}) {}
 type defaultProcessor struct {
 	baseIRI pub.IRIs
 	c       c.Basic
-	s       s.Saver
+	s       s.WriteStore
 	infoFn  c.LogFn
 	errFn   c.LogFn
 }
@@ -80,7 +80,7 @@ func SetClient(c c.Basic) optionFn {
 	}
 }
 
-func SetStorage(s s.Repository) optionFn {
+func SetStorage(s s.Store) optionFn {
 	return func(v *_p) error {
 		v.v.s = s
 		v.p.s = s
@@ -145,17 +145,17 @@ func processIntransitiveActivity(p defaultProcessor, act *pub.IntransitiveActivi
 	}
 
 	var it pub.Item
-	it, err = p.s.SaveActivity(act)
+	it, err = p.s.Save(act)
 	if err != nil {
 		return act, err
 	}
-	if colSaver, ok := p.s.(s.CollectionSaver); ok {
+	if colSaver, ok := p.s.(s.CollectionStore); ok {
 		it, err = AddToCollections(colSaver, it)
 	}
 	return act, nil
 }
 
-func createNewTags(l s.Saver, tags pub.ItemCollection, act *pub.Activity) error {
+func createNewTags(l s.WriteStore, tags pub.ItemCollection, act *pub.Activity) error {
 	if len(tags) == 0 {
 		return nil
 	}
@@ -234,12 +234,12 @@ func processActivity(p defaultProcessor, act *pub.Activity) (*pub.Activity, erro
 		// with them as they are a regular object.
 		pub.OnObject(act, addNewObjectCollections)
 	}
-	it, err = p.s.SaveActivity(act)
+	it, err = p.s.Save(act)
 	if err != nil {
 		return act, err
 	}
 
-	if colSaver, ok := p.s.(s.CollectionSaver); ok {
+	if colSaver, ok := p.s.(s.CollectionStore); ok {
 		it, err = AddToCollections(colSaver, it)
 	}
 	return act, nil
@@ -247,18 +247,28 @@ func processActivity(p defaultProcessor, act *pub.Activity) (*pub.Activity, erro
 
 const blockedCollection = handlers.CollectionType("blocked")
 
-func isBlocked(loader s.Loader, rec, act pub.Item) bool {
+func isBlocked(loader s.ReadStore, rec, act pub.Item) bool {
 	// Check if any of the local recipients are blocking the actor
 	blockedIRI := blockedCollection.IRI(rec)
-	blockedAct, err := loader.LoadCollection(blockedIRI)
-	return err == nil && blockedAct.Contains(act)
+	blockedAct, err := loader.Load(blockedIRI)
+	if err != nil {
+		return false
+	}
+	blocked := false
+	if blockedAct.IsCollection() {
+		pub.OnCollectionIntf(blockedAct, func(c pub.CollectionInterface) error {
+			blocked = c.Contains(act)
+			return nil
+		})
+	}
+	return blocked
 }
 
 // AddToCollections handles the dissemination of the received it Activity to the local collections,
 // it is addressed to:
 //  - the author's Outbox
 //  - the recipients' Inboxes
-func AddToCollections(colSaver s.CollectionSaver, it pub.Item) (pub.Item, error) {
+func AddToCollections(colSaver s.CollectionStore, it pub.Item) (pub.Item, error) {
 	act, err := pub.ToActivity(it)
 	if err != nil {
 		return nil, err
@@ -268,7 +278,7 @@ func AddToCollections(colSaver s.CollectionSaver, it pub.Item) (pub.Item, error)
 	}
 
 	if act.Actor.GetLink() != pub.PublicNS && !act.GetLink().Contains(handlers.Outbox.IRI(act.Actor), false) {
-		err = colSaver.AddToCollection(handlers.Outbox.IRI(act.Actor), act.GetLink())
+		err = colSaver.AddTo(handlers.Outbox.IRI(act.Actor), act.GetLink())
 		if err != nil {
 			return act, err
 		}
@@ -281,21 +291,24 @@ func AddToCollections(colSaver s.CollectionSaver, it pub.Item) (pub.Item, error)
 		}
 		if handlers.ValidCollectionIRI(recIRI) {
 			// TODO(marius): this step should happen at validation time
-			if loader, ok := colSaver.(s.Loader); ok {
+			if loader, ok := colSaver.(s.ReadStore); ok {
 				// Load all members if colIRI is a valid actor collection
-				members, cnt, err := loader.LoadActors(recIRI)
-				if err != nil || cnt == 0 {
+				members, err := loader.Load(recIRI)
+				if err != nil || members == nil {
 					continue
 				}
-				for _, m := range members {
-					if !pub.ActorTypes.Contains(m.GetType()) || isBlocked(loader, m, act.Actor) {
-						continue
+				pub.OnCollectionIntf(members, func(col pub.CollectionInterface) error {
+					for _, m := range col.Collection() {
+						if !pub.ActorTypes.Contains(m.GetType()) || isBlocked(loader, m, act.Actor) {
+							continue
+						}
+						allRecipients = append(allRecipients, handlers.Inbox.IRI(m))
 					}
-					allRecipients = append(allRecipients, handlers.Inbox.IRI(m))
-				}
+					return nil
+				})
 			}
 		} else {
-			if loader, ok := colSaver.(s.Loader); ok {
+			if loader, ok := colSaver.(s.ReadStore); ok {
 				if isBlocked(loader, recIRI, act.Actor) {
 					continue
 				}
@@ -308,7 +321,7 @@ func AddToCollections(colSaver s.CollectionSaver, it pub.Item) (pub.Item, error)
 		// TODO(marius): the processing module needs a method to see if an IRI is local or not
 		//    For each recipient we need to save the incoming activity to the actor's Inbox if the actor is local
 		//    Or disseminate it using S2S if the actor is not local
-		colSaver.AddToCollection(recInb.GetLink(), act.GetLink())
+		colSaver.AddTo(recInb.GetLink(), act.GetLink())
 	}
 	return act, nil
 }
@@ -318,7 +331,7 @@ func AddToCollections(colSaver s.CollectionSaver, it pub.Item) (pub.Item, error)
 // Examples of collections include things like folders, albums, friend lists, etc.
 // This includes, for instance, activities such as "Sally added a file to Folder A",
 // "John moved the file from Folder A to Folder B", etc.
-func CollectionManagementActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
+func CollectionManagementActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	if act.Object == nil {
 		return act, errors.NotValidf("Missing object for Activity")
 	}
@@ -337,7 +350,7 @@ func CollectionManagementActivity(l s.Saver, act *pub.Activity) (*pub.Activity, 
 
 // EventRSVPActivity processes matching activities
 // The Event RSVP use case primarily deals with invitations to events and RSVP type responses.
-func EventRSVPActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
+func EventRSVPActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	if act.Object == nil {
 		return act, errors.NotValidf("Missing object for Activity")
 	}
@@ -358,7 +371,7 @@ func EventRSVPActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 // The Group Management use case primarily deals with management of groups.
 // It can include, for instance, activities such as "John added Sally to Group A", "Sally joined Group A",
 // "Joe left Group A", etc.
-func GroupManagementActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
+func GroupManagementActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	// TODO(marius):
 	return act, errors.NotImplementedf("Processing %s activity is not implemented", act.GetType())
 }
@@ -366,7 +379,7 @@ func GroupManagementActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error
 // ContentExperienceActivity processes matching activities
 // The Content Experience use case primarily deals with describing activities involving listening to,
 // reading, or viewing content. For instance, "Sally read the article", "Joe listened to the song".
-func ContentExperienceActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
+func ContentExperienceActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	// TODO(marius):
 	return act, errors.NotImplementedf("Processing %s activity is not implemented", act.GetType())
 }
@@ -374,7 +387,7 @@ func ContentExperienceActivity(l s.Saver, act *pub.Activity) (*pub.Activity, err
 // GeoSocialEventsActivity processes matching activities
 // The Geo-Social Events use case primarily deals with activities involving geo-tagging type activities. For instance,
 // it can include activities such as "Joe arrived at work", "Sally left work", and "John is travel from home to work".
-func GeoSocialEventsActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
+func GeoSocialEventsActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	// TODO(marius):
 	return act, errors.NotImplementedf("Processing %s activity is not implemented", act.GetType())
 }
@@ -382,14 +395,14 @@ func GeoSocialEventsActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error
 // GeoSocialEventsIntransitiveActivity processes matching activities
 // The Geo-Social Events use case primarily deals with activities involving geo-tagging type activities. For instance,
 // it can include activities such as "Joe arrived at work", "Sally left work", and "John is travel from home to work".
-func GeoSocialEventsIntransitiveActivity(l s.Saver, act *pub.IntransitiveActivity) (*pub.IntransitiveActivity, error) {
+func GeoSocialEventsIntransitiveActivity(l s.WriteStore, act *pub.IntransitiveActivity) (*pub.IntransitiveActivity, error) {
 	// TODO(marius):
 	return act, errors.NotImplementedf("Processing %s activity is not implemented", act.GetType())
 }
 
 // NotificationActivity processes matching activities
 // The Notification use case primarily deals with calling attention to particular objects or notifications.
-func NotificationActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
+func NotificationActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	// TODO(marius):
 	return act, errors.NotImplementedf("Processing %s activity is not implemented", act.GetType())
 }
@@ -397,7 +410,7 @@ func NotificationActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
 // QuestionActivity processes matching activities
 // The Questions use case primarily deals with representing inquiries of any type. See 5.4
 // Representing Questions for more information.
-func QuestionActivity(l s.Saver, act *pub.IntransitiveActivity) (*pub.IntransitiveActivity, error) {
+func QuestionActivity(l s.WriteStore, act *pub.IntransitiveActivity) (*pub.IntransitiveActivity, error) {
 	// TODO(marius):
 	return act, errors.NotImplementedf("Processing %s activity is not implemented", act.GetType())
 }
@@ -406,7 +419,7 @@ func QuestionActivity(l s.Saver, act *pub.IntransitiveActivity) (*pub.Intransiti
 // The Offers use case deals with activities involving offering one object to another. It can include, for instance,
 // activities such as "Company A is offering a discount on purchase of Product Z to Sally",
 // "Sally is offering to add a File to Folder A", etc.
-func OffersActivity(l s.Saver, act *pub.Activity) (*pub.Activity, error) {
+func OffersActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	// TODO(marius):
 	return act, errors.NotImplementedf("Processing %s activity is not implemented", act.GetType())
 }
