@@ -164,8 +164,7 @@ func UpdateActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	ob := act.Object
 
 	var found pub.Item
-	typ := ob.GetType()
-	if loader, ok := l.(s.ReadStore); ok && pub.ActorTypes.Contains(typ) {
+	if loader, ok := l.(s.ReadStore); ok {
 		found, _ = loader.Load(ob.GetLink())
 		if found.IsCollection() {
 			pub.OnCollectionIntf(found, func(col pub.CollectionInterface) error {
