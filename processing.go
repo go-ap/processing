@@ -10,6 +10,14 @@ import (
 	"time"
 )
 
+type Processor interface {
+	ProcessClientActivity(pub.Item) (pub.Item, error)
+}
+
+type Validator interface {
+	ValidateClientActivity(pub.Item, pub.IRI) error
+}
+
 type _p struct {
 	p *defaultProcessor
 	v *defaultValidator
@@ -178,8 +186,7 @@ func createNewTags(l s.WriteStore, tags pub.ItemCollection, act *pub.Activity) e
 }
 
 func processActivity(p defaultProcessor, act *pub.Activity) (*pub.Activity, error) {
-	iri := act.GetLink()
-	if len(iri) == 0 {
+	if iri := act.GetLink(); len(iri) == 0 {
 		if err := SetID(act, nil); err != nil {
 			return act, err
 		}
