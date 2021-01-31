@@ -25,10 +25,10 @@ type WriteStore interface {
 }
 
 type CollectionStore interface {
-	// CreateCollection creates the "col" collection.
+	// Create creates the "col" collection.
 	Create(col pub.CollectionInterface) (pub.CollectionInterface, error)
-	// AddToCollection adds "it" element to the "col" collection.
+	// AddTo adds "it" element to the "col" collection.
 	AddTo(col pub.IRI, it pub.Item) error
-	// RemoveFromCollection removes "it" item from "col" collection
+	// RemoveFrom removes "it" item from "col" collection
 	RemoveFrom(col pub.IRI, it pub.Item) error
 }
