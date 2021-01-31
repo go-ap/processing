@@ -134,7 +134,7 @@ func (p defaultProcessor) ProcessClientActivity(it pub.Item) (pub.Item, error) {
 func processIntransitiveActivity(p defaultProcessor, act *pub.IntransitiveActivity) (*pub.IntransitiveActivity, error) {
 	iri := act.GetLink()
 	if len(iri) == 0 {
-		if err := SetID(act, handlers.Outbox.IRI(act.Actor)); err != nil {
+		if err := SetID(act, handlers.Outbox.IRI(act.Actor), act); err != nil {
 			return act, nil
 		}
 	}
@@ -178,7 +178,7 @@ func createNewTags(l s.WriteStore, tags pub.ItemCollection, act *pub.Activity) e
 		if id := tag.GetID(); len(id) > 0 {
 			continue
 		}
-		if err := SetID(tag, nil); err == nil {
+		if err := SetID(tag, nil, nil); err == nil {
 			l.Save(tag)
 		}
 	}
@@ -187,7 +187,7 @@ func createNewTags(l s.WriteStore, tags pub.ItemCollection, act *pub.Activity) e
 
 func processActivity(p defaultProcessor, act *pub.Activity) (*pub.Activity, error) {
 	if iri := act.GetLink(); len(iri) == 0 {
-		if err := SetID(act, nil); err != nil {
+		if err := SetID(act, nil, nil); err != nil {
 			return act, err
 		}
 	}

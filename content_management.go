@@ -46,11 +46,11 @@ func defaultIDGenerator(base pub.IRI) IDGenerator {
 	}
 }
 
-func SetID(it pub.Item, partOf pub.Item) error {
+func SetID(it pub.Item, partOf pub.Item, act pub.Item) error {
 	if createID != nil {
 		return pub.OnObject(it, func(o *pub.Object) error {
 			var err error
-			o.ID, err = createID(it, partOf, nil)
+			o.ID, err = createID(it, partOf, act)
 			return err
 		})
 	}
@@ -138,7 +138,7 @@ func addNewItemCollections(it pub.Item) (pub.Item, error) {
 // (for example via an Update activity).
 func CreateActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	if iri := act.Object.GetLink(); len(iri) == 0 {
-		if err := SetID(act.Object, handlers.Outbox.IRI(act.Actor)); err != nil {
+		if err := SetID(act.Object, handlers.Outbox.IRI(act.Actor), act); err != nil {
 			return act, nil
 		}
 	}
