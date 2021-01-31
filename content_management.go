@@ -9,18 +9,18 @@ import (
 	"time"
 )
 
-// IDGenerator takes an ActivityStreams object and a collection
+// IDGenerator takes an ActivityStreams object, a collection to store it in, and the activity that has it as object:
 //  "it" is the object we want to generate the ID for.
-//  "partOf" represents the Collection where we want to store it.
-//  "by" represents the generator Activity
-type IDGenerator func (it pub.Item, partOf pub.Item, by pub.Item) (pub.ID, error)
+//  "partOf" represents the Collection that it is a part of.
+//  "by" represents the Activity that generated the object
+type IDGenerator func(it pub.Item, partOf pub.Item, by pub.Item) (pub.ID, error)
 
 var createID IDGenerator
 
-func defaultIDGenerator (base pub.IRI) IDGenerator {
-	timeIDFn := func(t time.Time) string { return fmt.Sprintf("%d", t.UnixNano() / 1000) }
+func defaultIDGenerator(base pub.IRI) IDGenerator {
+	timeIDFn := func(t time.Time) string { return fmt.Sprintf("%d", t.UnixNano()/1000) }
 
-	return func (it pub.Item, col pub.Item, _ pub.Item) (pub.ID, error) {
+	return func(it pub.Item, col pub.Item, _ pub.Item) (pub.ID, error) {
 		var colIRI pub.IRI
 
 		if col != nil && len(col.GetLink()) > 0 {
@@ -46,7 +46,7 @@ func defaultIDGenerator (base pub.IRI) IDGenerator {
 	}
 }
 
-func SetID (it pub.Item, partOf pub.Item) error {
+func SetID(it pub.Item, partOf pub.Item) error {
 	if createID != nil {
 		return pub.OnObject(it, func(o *pub.Object) error {
 			var err error
@@ -178,8 +178,8 @@ func UpdateActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	}
 	ob, err = CopyItemProperties(found, ob)
 	if err != nil {
-			return act, err
-		}
+		return act, err
+	}
 
 	if err := updateUpdateActivityObject(l, act.Object, act); err != nil {
 		return act, errors.Annotatef(err, "unable to update activity's object %s", act.Object.GetLink())
