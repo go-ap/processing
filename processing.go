@@ -301,7 +301,7 @@ func AddToCollections(colSaver s.CollectionStore, it pub.Item) (pub.Item, error)
 			if loader, ok := colSaver.(s.ReadStore); ok {
 				// Load all members if colIRI is a valid actor collection
 				members, err := loader.Load(recIRI)
-				if err != nil || members == nil {
+				if err != nil || pub.IsNil(members) {
 					continue
 				}
 				pub.OnCollectionIntf(members, func(col pub.CollectionInterface) error {

@@ -361,7 +361,7 @@ func ValidateClientRelationshipManagementActivity(l s.ReadStore, act *pub.Activi
 	switch act.Type {
 	case pub.FollowType:
 		a, _ := l.Load(act.GetLink())
-		if a != nil {
+		if !pub.IsNil(firstOrItem(a)) {
 			return errors.Newf("%s already exists for this actor/object pair", act.Type)
 		}
 	case pub.AddType:

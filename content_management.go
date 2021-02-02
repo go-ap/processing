@@ -173,7 +173,7 @@ func UpdateActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 			})
 		}
 	}
-	if found == nil {
+	if pub.IsNil(found) {
 		return act, errors.NotFoundf("Unable to find %s %s", ob.GetType(), ob.GetLink())
 	}
 	ob, err = CopyItemProperties(found, ob)
