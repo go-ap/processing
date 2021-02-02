@@ -70,6 +70,9 @@ func AppreciationActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, err
 }
 
 func firstOrItem(it pub.Item) pub.Item {
+	if pub.IsNil(it) {
+		return it
+	}
 	if it.IsCollection() {
 		pub.OnCollectionIntf(it, func(col pub.CollectionInterface) error {
 			it = col.Collection().First()
