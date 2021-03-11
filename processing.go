@@ -147,13 +147,13 @@ func processIntransitiveActivity(p defaultProcessor, act *pub.IntransitiveActivi
 	if err != nil {
 		return act, err
 	}
-	act = FlattenIntransitiveActivityProperties(act)
+
 	if act.Published.IsZero() {
 		act.Published = time.Now().UTC()
 	}
 
 	var it pub.Item
-	it, err = p.s.Save(act)
+	it, err = p.s.Save(FlattenProperties(act))
 	if err != nil {
 		return act, err
 	}
@@ -230,7 +230,6 @@ func processActivity(p defaultProcessor, act *pub.Activity) (*pub.Activity, erro
 		createNewTags(p.s, act.Tag, act)
 	}
 
-	act = FlattenActivityProperties(act)
 	if act.Published.IsZero() {
 		act.Published = time.Now().UTC()
 	}
@@ -241,7 +240,7 @@ func processActivity(p defaultProcessor, act *pub.Activity) (*pub.Activity, erro
 		// with them as they are a regular object.
 		pub.OnObject(act, addNewObjectCollections)
 	}
-	it, err = p.s.Save(act)
+	it, err = p.s.Save(FlattenProperties(act))
 	if err != nil {
 		return act, err
 	}
