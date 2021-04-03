@@ -153,7 +153,7 @@ func processIntransitiveActivity(p defaultProcessor, act *pub.IntransitiveActivi
 	}
 
 	var it pub.Item
-	it, err = p.s.Save(FlattenProperties(act))
+	it, err = p.s.Save(pub.FlattenProperties(act))
 	if err != nil {
 		return act, err
 	}
@@ -240,7 +240,7 @@ func processActivity(p defaultProcessor, act *pub.Activity) (*pub.Activity, erro
 		// with them as they are a regular object.
 		pub.OnObject(act, addNewObjectCollections)
 	}
-	it, err = p.s.Save(FlattenProperties(act))
+	it, err = p.s.Save(pub.FlattenProperties(act))
 	if err != nil {
 		return act, err
 	}

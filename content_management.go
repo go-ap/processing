@@ -220,28 +220,28 @@ func updateObjectForCreate(l s.WriteStore, o *pub.Object, act *pub.Activity) err
 
 	// Merging the activity's and the object's Audience
 	if aud := pub.ItemCollectionDeduplication(&act.Audience, &o.Audience); aud != nil {
-		o.Audience = FlattenItemCollection(aud)
-		act.Audience = FlattenItemCollection(aud)
+		o.Audience = pub.FlattenItemCollection(aud)
+		act.Audience = pub.FlattenItemCollection(aud)
 	}
 	// Merging the activity's and the object's To addressing
 	if to := pub.ItemCollectionDeduplication(&act.To, &o.To); to != nil {
-		o.To = FlattenItemCollection(to)
-		act.To = FlattenItemCollection(to)
+		o.To = pub.FlattenItemCollection(to)
+		act.To = pub.FlattenItemCollection(to)
 	}
 	// Merging the activity's and the object's Bto addressing
 	if bto := pub.ItemCollectionDeduplication(&act.Bto, &o.Bto); bto != nil {
-		o.Bto = FlattenItemCollection(bto)
-		act.Bto = FlattenItemCollection(bto)
+		o.Bto = pub.FlattenItemCollection(bto)
+		act.Bto = pub.FlattenItemCollection(bto)
 	}
 	// Merging the activity's and the object's Cc addressing
 	if cc := pub.ItemCollectionDeduplication(&act.CC, &o.CC); cc != nil {
-		o.CC = FlattenItemCollection(cc)
-		act.CC = FlattenItemCollection(cc)
+		o.CC = pub.FlattenItemCollection(cc)
+		act.CC = pub.FlattenItemCollection(cc)
 	}
 	// Merging the activity's and the object's Bcc addressing
 	if bcc := pub.ItemCollectionDeduplication(&act.BCC, &o.BCC); bcc != nil {
-		o.BCC = FlattenItemCollection(bcc)
-		act.BCC = FlattenItemCollection(bcc)
+		o.BCC = pub.FlattenItemCollection(bcc)
+		act.BCC = pub.FlattenItemCollection(bcc)
 	}
 
 	// TODO(marius): Move these to a ProcessObject function
