@@ -103,6 +103,17 @@ func addNewActorCollections(p *pub.Actor) error {
 	if p.Liked == nil {
 		p.Liked = getCollection(p, handlers.Liked)
 	}
+	if p.Type == pub.PersonType {
+		if p.Endpoints == nil {
+			p.Endpoints = &pub.Endpoints{}
+		}
+		if p.Endpoints.OauthAuthorizationEndpoint == nil {
+			p.Endpoints.OauthAuthorizationEndpoint = p.GetLink().AddPath("oauth", "authorize")
+		}
+		if p.Endpoints.OauthTokenEndpoint == nil {
+			p.Endpoints.OauthTokenEndpoint = p.GetLink().AddPath("oauth", "token")
+		}
+	}
 	return nil
 }
 
