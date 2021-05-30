@@ -33,7 +33,7 @@ func ReactionsActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error)
 		case pub.FlagType:
 			act, err = FlagActivity(l, act)
 		case pub.IgnoreType:
-			return act, errors.NotImplementedf("Processing reaction activity of type %s is not implemented", act.GetType())
+			act, err = IgnoreActivity(l, act)
 		}
 	}
 
@@ -150,6 +150,7 @@ func RejectActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	return act, nil
 }
 
+const BlockedCollection = handlers.CollectionType("blocked")
 // BlockActivity
 // The side effect of receiving this in an outbox is that the server SHOULD add the object to the actor's blocked Collection.
 func BlockActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
@@ -170,10 +171,8 @@ func BlockActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	act.Bto.Remove(obIRI)
 	act.BCC.Remove(obIRI)
 
-	b := handlers.CollectionType("blocked")
 	if colSaver, ok := l.(s.CollectionStore); ok {
-		blocked := b.IRI(act.Actor)
-		err := colSaver.AddTo(blocked, obIRI)
+		err := colSaver.AddTo(BlockedCollection.IRI(act.Actor), obIRI)
 		if err != nil {
 			return act, err
 		}
@@ -216,5 +215,37 @@ func FlagActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 		return nil
 	})
 
+	return act, nil
+}
+
+const IgnoredCollection = handlers.CollectionType("ignored")
+
+// IgnoreActivity
+// This relies on custom behavior for the repository, which would allow for a ignored collection,
+// where we save these
+func IgnoreActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
+	if act.Object == nil {
+		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
+	}
+	if act.Actor == nil {
+		return act, errors.NotValidf("Missing actor for %s Activity", act.Type)
+	}
+	if act.Type != pub.IgnoreType {
+		return act, errors.NotValidf("Activity has wrong type %s, expected %s", act.Type, pub.IgnoreType)
+	}
+
+	obIRI := act.Object.GetLink()
+	// Remove object from any recipients collections
+	act.To.Remove(obIRI)
+	act.CC.Remove(obIRI)
+	act.Bto.Remove(obIRI)
+	act.BCC.Remove(obIRI)
+
+	if colSaver, ok := l.(s.CollectionStore); ok {
+		err := colSaver.AddTo(IgnoredCollection.IRI(act.Actor), obIRI)
+		if err != nil {
+			return act, err
+		}
+	}
 	return act, nil
 }
