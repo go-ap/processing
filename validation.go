@@ -471,7 +471,15 @@ func (v defaultValidator) ValidateClientObject(o pub.Item) (pub.Item, error) {
 }
 
 func (v defaultValidator) ValidateServerObject(o pub.Item) (pub.Item, error) {
-	return v.ValidateObject(o)
+	var err error
+	if o, err = v.ValidateObject(o); err != nil {
+		return o, err
+	}
+
+	if err := v.ValidateLink(o.GetLink()); err != nil {
+		return o, err
+	}
+	return o, nil
 }
 
 func (v defaultValidator) ValidateObject(o pub.Item) (pub.Item, error) {
@@ -490,11 +498,7 @@ func (v defaultValidator) ValidateObject(o pub.Item) (pub.Item, error) {
 			return o, errors.NotFoundf("Invalid activity object")
 		}
 	}
-	err := pub.OnObject(o, func(ob *pub.Object) error {
-		o = ob
-		return nil
-	})
-	return o, err
+	return o, nil
 }
 
 func (v defaultValidator) ValidateTarget(t pub.Item) error {
