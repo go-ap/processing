@@ -402,19 +402,19 @@ func (v defaultValidator) IsLocalIRI(i pub.IRI) bool {
 
 func (v defaultValidator) ValidateLink(i pub.IRI) error {
 	if i.Equals(pub.PublicNS, false) {
-		return InvalidActivityActor("Public namespace is not a local actor")
+		return InvalidIRI("Public namespace is not a local IRI")
 	}
 	if !v.IsLocalIRI(i) {
 		// try to dereference this shit
 		_, err := v.c.LoadIRI(i)
 		return err
 	} else {
-		actors, err := v.s.Load(i)
+		it, err := v.s.Load(i)
 		if err != nil {
 			return err
 		}
-		if actors == nil {
-			return InvalidActivityActor("%s could not be found locally", i)
+		if it == nil {
+			return InvalidIRI("%s could not be found locally", i)
 		}
 	}
 
@@ -440,34 +440,30 @@ func (v defaultValidator) ValidateActor(a pub.Item) (pub.Item, error) {
 		return a, InvalidActivityActor("is nil")
 	}
 	if a.IsLink() {
-		if err := v.ValidateLink(a.GetLink()); err != nil {
-			return a, err
-		}
-		obj, err := v.s.Load(a.GetLink())
+		err := v.ValidateLink(a.GetLink())
 		if err != nil {
 			return a, err
 		}
-		if obj == nil {
-			return a, errors.NotFoundf("Invalid activity object not found")
+		if a, err = v.s.Load(a.GetLink()); err != nil {
+			return a, err
 		}
-		if obj.IsCollection() {
-			pub.OnCollectionIntf(obj, func(col pub.CollectionInterface) error {
-				a = col.Collection().First()
-				return nil
-			})
-		} else {
-			a = obj
+		if a == nil {
+			return a, errors.NotFoundf("Invalid activity actor")
 		}
 	}
-	if !pub.ActorTypes.Contains(a.GetType()) {
-		return a, InvalidActivityActor("invalid type %s", a.GetType())
-	}
-	if v.auth != nil {
-		if !v.auth.GetLink().Equals(a.GetLink(), false) {
-			return a, InvalidActivityActor("current activity's actor doesn't match the authenticated one")
+	err := pub.OnActor(a, func(act *pub.Actor) error {
+		if !pub.ActorTypes.Contains(act.GetType()) {
+			return InvalidActivityActor("invalid type %s", act.GetType())
 		}
-	}
-	return a, nil
+		if v.auth != nil {
+			if !v.auth.GetLink().Equals(act.GetLink(), false) {
+				return InvalidActivityActor("current activity's actor doesn't match the authenticated one")
+			}
+		}
+		a = act
+		return nil
+	})
+	return a, err
 }
 
 func (v defaultValidator) ValidateClientObject(o pub.Item) (pub.Item, error) {
@@ -483,26 +479,22 @@ func (v defaultValidator) ValidateObject(o pub.Item) (pub.Item, error) {
 		return o, InvalidActivityObject("is nil")
 	}
 	if o.IsLink() {
-		if err := v.ValidateLink(o.GetLink()); err != nil {
-			return o, err
-		}
-		obj, err := v.s.Load(o.GetLink())
+		err := v.ValidateLink(o.GetLink())
 		if err != nil {
 			return o, err
 		}
-		if obj == nil{
-			return o, errors.NotFoundf("Invalid activity object not found")
+		if o, err = v.s.Load(o.GetLink()); err != nil {
+			return o, err
 		}
-		if obj.IsCollection() {
-			pub.OnCollectionIntf(obj, func(col pub.CollectionInterface) error {
-				o = col.Collection().First()
-				return nil
-			})
-		} else {
-			o = obj
+		if o == nil{
+			return o, errors.NotFoundf("Invalid activity object")
 		}
 	}
-	return o, nil
+	err := pub.OnObject(o, func(ob *pub.Object) error {
+		o = ob
+		return nil
+	})
+	return o, err
 }
 
 func (v defaultValidator) ValidateTarget(t pub.Item) error {
@@ -593,5 +585,5 @@ func (v defaultValidator) validateLocalIRI(i pub.IRI) error {
 			return nil
 		}
 	}
-	return errors.Newf("%s is not a local IRI", i)
+	return InvalidIRI("%s is not a local IRI", i)
 }
