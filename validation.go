@@ -129,6 +129,9 @@ func (v defaultValidator) ValidateServerActivity(a pub.Item, inbox pub.IRI) erro
 	if err != nil {
 		return err
 	}
+	if len(act.ID) == 0 {
+		return InvalidActivity("invalid activity id %s", act.ID)
+	}
 
 	if inboxBelongsTo, err := handlers.Inbox.OfActor(inbox); err == nil {
 		if isBlocked(v.s, inboxBelongsTo, act.Actor) {

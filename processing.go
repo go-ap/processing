@@ -105,7 +105,33 @@ func SetIRI(i ...pub.IRI) optionFn {
 	}
 }
 
-// ProcessActivity
+// ProcessServerActivity processes an Activity received in a server to server request
+func (p defaultProcessor) ProcessServerActivity(it pub.Item) (pub.Item, error) {
+	if it == nil {
+		return nil, errors.Newf("Unable to process nil activity")
+	}
+	if pub.IntransitiveActivityTypes.Contains(it.GetType()) {
+		act, err := pub.ToIntransitiveActivity(it)
+		if err != nil {
+			return nil, err
+		}
+		if act == nil {
+			return nil, errors.Newf("Unable to process nil intransitive activity")
+		}
+
+		return processIntransitiveActivity(p, act)
+	}
+	act, err := pub.ToActivity(it)
+	if err != nil {
+		return nil, err
+	}
+	if act == nil {
+		return nil, errors.Newf("Unable to process nil intransitive activity")
+	}
+	return p.ProcessClientActivity(it)
+}
+
+// ProcessClientActivity processes an Activity received in a client to server request
 func (p defaultProcessor) ProcessClientActivity(it pub.Item) (pub.Item, error) {
 	if it == nil {
 		return nil, errors.Newf("Unable to process nil activity")
