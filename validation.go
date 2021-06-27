@@ -432,7 +432,14 @@ func (v defaultValidator) ValidateClientActor(a pub.Item) (pub.Item, error) {
 }
 
 func (v defaultValidator) ValidateServerActor(a pub.Item) (pub.Item, error) {
-	return v.ValidateActor(a)
+	var err error
+	if a, err = v.ValidateActor(a); err != nil {
+		return a, err
+	}
+	if err = v.ValidateLink(a.GetLink()); err != nil {
+		return a, err
+	}
+	return a, nil
 }
 
 func (v defaultValidator) ValidateActor(a pub.Item) (pub.Item, error) {
@@ -475,8 +482,7 @@ func (v defaultValidator) ValidateServerObject(o pub.Item) (pub.Item, error) {
 	if o, err = v.ValidateObject(o); err != nil {
 		return o, err
 	}
-
-	if err := v.ValidateLink(o.GetLink()); err != nil {
+	if err = v.ValidateLink(o.GetLink()); err != nil {
 		return o, err
 	}
 	return o, nil
