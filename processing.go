@@ -1,14 +1,20 @@
 package processing
 
 import (
+	"crypto"
+	"crypto/rsa"
+	"fmt"
 	"net"
+	"net/http"
 	"time"
 
 	pub "github.com/go-ap/activitypub"
 	c "github.com/go-ap/client"
 	"github.com/go-ap/errors"
 	"github.com/go-ap/handlers"
+	"github.com/go-ap/httpsig"
 	s "github.com/go-ap/storage"
+	"golang.org/x/crypto/ed25519"
 )
 
 type Processor interface {
@@ -279,6 +285,20 @@ func isBlocked(loader s.ReadStore, rec, act pub.Item) bool {
 	return blocked
 }
 
+type KeyLoader interface {
+	LoadKey (pub.IRI) (crypto.PrivateKey, error)
+}
+
+func keyType(key crypto.PrivateKey) (httpsig.Algorithm, error) {
+	switch key.(type) {
+	case *rsa.PrivateKey:
+		return httpsig.RSASHA256, nil
+	case ed25519.PrivateKey:
+		return httpsig.Ed25519, nil
+	}
+	return nil, errors.Errorf("Unknown private key type[%T] %v", key, key)
+}
+
 // AddToCollections handles the dissemination of the received it Activity to the local collections,
 // it is addressed to:
 //  - the author's Outbox - if the author is local
@@ -343,6 +363,24 @@ func AddToCollections(p defaultProcessor, colSaver s.CollectionStore, it pub.Ite
 		//    Or disseminate it using S2S if the actor is not local
 		if p.v.IsLocalIRI(recInb.GetLink()) {
 			err = colSaver.AddTo(recInb.GetLink(), act.GetLink())
+		} else if keyLoader, ok := colSaver.(KeyLoader); ok {
+			// TODO(marius): Move this function to either the go-ap/auth package, or in FedBOX itself.
+			//   We should probably change the signature for client.RequestSignFn to accept an Actor/IRI as a param.
+			p.c.SignFn(func(r *http.Request) error {
+				key, err := keyLoader.LoadKey(act.Actor.GetLink())
+				if err != nil {
+					return err
+				}
+				typ, err := keyType(key)
+				if err != nil {
+					return err
+				}
+
+				signHdrs := []string{"(request-target)", "host", "date"}
+				keyId := fmt.Sprintf("%s#main-key", act.Actor.GetID())
+				return httpsig.NewSigner(keyId, key, typ, signHdrs).Sign(r)
+			})
+			_, _, err = p.c.ToCollection(recInb.GetLink(), act)
 		}
 	}
 	return act, err
