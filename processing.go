@@ -28,6 +28,7 @@ var emptyLogFn c.LogFn = func(s string, el ...interface{}) {}
 
 type defaultProcessor struct {
 	baseIRI pub.IRIs
+	v       defaultValidator
 	c       c.Basic
 	s       s.WriteStore
 	infoFn  c.LogFn
@@ -53,6 +54,7 @@ func New(o ...optionFn) (*defaultProcessor, *defaultValidator, error) {
 			return v.p, v.v, err
 		}
 	}
+	v.p.v = *v.v
 	return v.p, v.v, nil
 }
 
@@ -110,24 +112,6 @@ func (p defaultProcessor) ProcessServerActivity(it pub.Item) (pub.Item, error) {
 	if it == nil {
 		return nil, errors.Newf("Unable to process nil activity")
 	}
-	if pub.IntransitiveActivityTypes.Contains(it.GetType()) {
-		act, err := pub.ToIntransitiveActivity(it)
-		if err != nil {
-			return nil, err
-		}
-		if act == nil {
-			return nil, errors.Newf("Unable to process nil intransitive activity")
-		}
-
-		return processIntransitiveActivity(p, act)
-	}
-	act, err := pub.ToActivity(it)
-	if err != nil {
-		return nil, err
-	}
-	if act == nil {
-		return nil, errors.Newf("Unable to process nil intransitive activity")
-	}
 	return p.ProcessClientActivity(it)
 }
 
@@ -147,15 +131,13 @@ func (p defaultProcessor) ProcessClientActivity(it pub.Item) (pub.Item, error) {
 
 		return processIntransitiveActivity(p, act)
 	}
-	act, err := pub.ToActivity(it)
-	if err != nil {
-		return nil, err
-	}
-	if act == nil {
-		return nil, errors.Newf("Unable to process nil intransitive activity")
-	}
-
-	return processActivity(p, act)
+	var activity *pub.Activity
+	err := pub.OnActivity(it, func(act *pub.Activity) error {
+		var err error
+		activity, err = processActivity(p, act)
+		return err
+	})
+	return activity, err
 }
 
 func processIntransitiveActivity(p defaultProcessor, act *pub.IntransitiveActivity) (*pub.IntransitiveActivity, error) {
@@ -185,7 +167,7 @@ func processIntransitiveActivity(p defaultProcessor, act *pub.IntransitiveActivi
 		return act, err
 	}
 	if colSaver, ok := p.s.(s.CollectionStore); ok {
-		it, err = AddToCollections(colSaver, it)
+		it, err = AddToCollections(p, colSaver, it)
 	}
 	return act, nil
 }
@@ -273,7 +255,7 @@ func processActivity(p defaultProcessor, act *pub.Activity) (*pub.Activity, erro
 	}
 
 	if colSaver, ok := p.s.(s.CollectionStore); ok {
-		it, err = AddToCollections(colSaver, it)
+		it, err = AddToCollections(p, colSaver, it)
 	}
 	return act, nil
 }
@@ -299,9 +281,9 @@ func isBlocked(loader s.ReadStore, rec, act pub.Item) bool {
 
 // AddToCollections handles the dissemination of the received it Activity to the local collections,
 // it is addressed to:
-//  - the author's Outbox
-//  - the recipients' Inboxes
-func AddToCollections(colSaver s.CollectionStore, it pub.Item) (pub.Item, error) {
+//  - the author's Outbox - if the author is local
+//  - the recipients' Inboxes - if they are local
+func AddToCollections(p defaultProcessor, colSaver s.CollectionStore, it pub.Item) (pub.Item, error) {
 	act, err := pub.ToActivity(it)
 	if err != nil {
 		return nil, err
@@ -310,16 +292,21 @@ func AddToCollections(colSaver s.CollectionStore, it pub.Item) (pub.Item, error)
 		return nil, errors.Newf("Unable to process nil activity")
 	}
 
-	if act.Actor.GetLink() != pub.PublicNS && !act.GetLink().Contains(handlers.Outbox.IRI(act.Actor), false) {
-		err = colSaver.AddTo(handlers.Outbox.IRI(act.Actor), act.GetLink())
-		if err != nil {
-			return act, err
-		}
-	}
+	actIRI := act.Actor.GetLink()
+	outbox := handlers.Outbox.IRI(actIRI)
+
 	allRecipients := make(pub.ItemCollection, 0)
+
+	if !actIRI.Equals(pub.PublicNS, true) && !act.GetLink().Contains(outbox, false) && p.v.IsLocalIRI(actIRI) {
+		allRecipients = append(allRecipients, outbox)
+	}
 	for _, rec := range act.Recipients() {
 		recIRI := rec.GetLink()
 		if recIRI == pub.PublicNS {
+			// NOTE(marius): if the activity is addressed to the Public NS, we store it to the local service's inbox
+			if len(p.baseIRI) > 0 {
+				allRecipients = append(allRecipients, handlers.Inbox.IRI(p.baseIRI[0]))
+			}
 			continue
 		}
 		if handlers.ValidCollectionIRI(recIRI) {
@@ -354,9 +341,11 @@ func AddToCollections(colSaver s.CollectionStore, it pub.Item) (pub.Item, error)
 		// TODO(marius): the processing module needs a method to see if an IRI is local or not
 		//    For each recipient we need to save the incoming activity to the actor's Inbox if the actor is local
 		//    Or disseminate it using S2S if the actor is not local
-		colSaver.AddTo(recInb.GetLink(), act.GetLink())
+		if p.v.IsLocalIRI(recInb.GetLink()) {
+			err = colSaver.AddTo(recInb.GetLink(), act.GetLink())
+		}
 	}
-	return act, nil
+	return act, err
 }
 
 // CollectionManagementActivity processes matching activities
