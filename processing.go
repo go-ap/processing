@@ -269,7 +269,7 @@ func processActivity(p defaultProcessor, act *pub.Activity) (*pub.Activity, erro
 const blockedCollection = handlers.CollectionType("blocked")
 
 func isBlocked(loader s.ReadStore, rec, act pub.Item) bool {
-	// Check if any of the local recipients are blocking the actor
+	// Check if any of the local recipients are blocking the actor, we assume rec is local
 	blockedIRI := blockedCollection.IRI(rec)
 	blockedAct, err := loader.Load(blockedIRI)
 	if err != nil {
@@ -339,7 +339,7 @@ func AddToCollections(p defaultProcessor, colSaver s.CollectionStore, it pub.Ite
 				}
 				pub.OnCollectionIntf(members, func(col pub.CollectionInterface) error {
 					for _, m := range col.Collection() {
-						if !pub.ActorTypes.Contains(m.GetType()) || isBlocked(loader, m, act.Actor) {
+						if !pub.ActorTypes.Contains(m.GetType()) || (p.v.IsLocalIRI(m.GetLink()) && isBlocked(loader, m, act.Actor)) {
 							continue
 						}
 						allRecipients = append(allRecipients, handlers.Inbox.IRI(m))
@@ -349,7 +349,7 @@ func AddToCollections(p defaultProcessor, colSaver s.CollectionStore, it pub.Ite
 			}
 		} else {
 			if loader, ok := colSaver.(s.ReadStore); ok {
-				if isBlocked(loader, recIRI, act.Actor) {
+				if p.v.IsLocalIRI(recIRI) && isBlocked(loader, recIRI, act.Actor) {
 					continue
 				}
 			}

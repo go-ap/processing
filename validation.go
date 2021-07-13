@@ -134,7 +134,7 @@ func (v defaultValidator) ValidateServerActivity(a pub.Item, inbox pub.IRI) erro
 	}
 
 	if inboxBelongsTo, err := handlers.Inbox.OfActor(inbox); err == nil {
-		if isBlocked(v.s, inboxBelongsTo, act.Actor) {
+		if v.IsLocalIRI(inboxBelongsTo) && isBlocked(v.s, inboxBelongsTo, act.Actor) {
 			return errors.NotFoundf("")
 		}
 	}
