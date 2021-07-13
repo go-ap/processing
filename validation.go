@@ -447,12 +447,21 @@ func (v defaultValidator) ValidateActor(a pub.Item) (pub.Item, error) {
 		return a, InvalidActivityActor("is nil")
 	}
 	if a.IsLink() {
-		err := v.ValidateLink(a.GetLink())
+		iri := a.GetLink()
+		err := v.ValidateLink(iri)
 		if err != nil {
 			return a, err
 		}
-		if a, err = v.s.Load(a.GetLink()); err != nil {
-			return a, err
+		// TODO(marius): this pattern shows up in multiple places: verify if it's local and load object accordingly
+		//   I should probably abstract this
+		if v.IsLocalIRI(iri) {
+			if a, err = v.s.Load(iri); err != nil {
+				return a, err
+			}
+		} else {
+			if a, err = v.c.LoadIRI(iri); err != nil {
+				return a, err
+			}
 		}
 		if a == nil {
 			return a, errors.NotFoundf("Invalid activity actor")
@@ -493,12 +502,21 @@ func (v defaultValidator) ValidateObject(o pub.Item) (pub.Item, error) {
 		return o, InvalidActivityObject("is nil")
 	}
 	if o.IsLink() {
-		err := v.ValidateLink(o.GetLink())
+		iri := o.GetLink()
+		err := v.ValidateLink(iri)
 		if err != nil {
 			return o, err
 		}
-		if o, err = v.s.Load(o.GetLink()); err != nil {
-			return o, err
+		// TODO(marius): this pattern shows up in multiple places: verify if it's local and load object accordingly
+		//   I should probably abstract this
+		if v.IsLocalIRI(iri) {
+			if o, err = v.s.Load(iri); err != nil {
+				return o, err
+			}
+		} else {
+			if o, err = v.c.LoadIRI(iri); err != nil {
+				return o, err
+			}
 		}
 		if o == nil{
 			return o, errors.NotFoundf("Invalid activity object")

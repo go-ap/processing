@@ -57,7 +57,7 @@ func SetID(it pub.Item, partOf pub.Item, act pub.Item) error {
 	return errors.Newf("no package ID generator was set")
 }
 
-// ContentManagementActivity processes matching activities
+// ContentManagementActivity processes matching activities.
 // The Content Management use case primarily deals with activities that involve the creation,
 // modification or deletion of content.
 // This includes, for instance, activities such as "John created a new note",
