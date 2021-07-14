@@ -362,6 +362,7 @@ func AddToCollections(p defaultProcessor, colSaver s.CollectionStore, it pub.Ite
 		//    For each recipient we need to save the incoming activity to the actor's Inbox if the actor is local
 		//    Or disseminate it using S2S if the actor is not local
 		if p.v.IsLocalIRI(recInb.GetLink()) {
+			p.infoFn("Saving to local actor's collection %s", recInb.GetLink())
 			err = colSaver.AddTo(recInb.GetLink(), act.GetLink())
 		} else if keyLoader, ok := colSaver.(KeyLoader); ok {
 			// TODO(marius): Move this function to either the go-ap/auth package, or in FedBOX itself.
@@ -378,8 +379,10 @@ func AddToCollections(p defaultProcessor, colSaver s.CollectionStore, it pub.Ite
 
 				signHdrs := []string{"(request-target)", "host", "date"}
 				keyId := fmt.Sprintf("%s#main-key", act.Actor.GetID())
+				p.infoFn("Signing with key %s", keyId)
 				return httpsig.NewSigner(keyId, key, typ, signHdrs).Sign(r)
 			})
+			p.infoFn("Pushing to remote actor's collection %s", recInb.GetLink())
 			_, _, err = p.c.ToCollection(recInb.GetLink(), act)
 		}
 	}
