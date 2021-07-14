@@ -364,7 +364,11 @@ func AddToCollections(p defaultProcessor, colSaver s.CollectionStore, it pub.Ite
 		if p.v.IsLocalIRI(recInb.GetLink()) {
 			p.infoFn("Saving to local actor's collection %s", recInb.GetLink())
 			err = colSaver.AddTo(recInb.GetLink(), act.GetLink())
-		} else if keyLoader, ok := colSaver.(KeyLoader); ok {
+		} else if p.v.IsLocalIRI(act.ID){
+			keyLoader, ok := colSaver.(KeyLoader)
+			if !ok {
+				continue
+			}
 			// TODO(marius): Move this function to either the go-ap/auth package, or in FedBOX itself.
 			//   We should probably change the signature for client.RequestSignFn to accept an Actor/IRI as a param.
 			p.c.SignFn(func(r *http.Request) error {
