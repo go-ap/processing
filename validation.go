@@ -404,20 +404,17 @@ func (v defaultValidator) ValidateLink(i pub.IRI) error {
 	if i.Equals(pub.PublicNS, false) {
 		return InvalidIRI("Public namespace is not a local IRI")
 	}
+	var loadFn func(pub.IRI) (pub.Item, error) = v.s.Load
 	if !v.IsLocalIRI(i) {
-		// try to dereference this shit
-		_, err := v.c.LoadIRI(i)
-		return err
-	} else {
-		it, err := v.s.Load(i)
-		if err != nil {
-			return err
-		}
-		if it == nil {
-			return InvalidIRI("%s could not be found locally", i)
-		}
+		loadFn = v.c.LoadIRI
 	}
-
+	it, err := loadFn(i)
+	if err != nil {
+		return err
+	}
+	if pub.IsNil(it) {
+		return InvalidIRI("%s could not be found locally", i)
+	}
 	return nil
 }
 
@@ -452,18 +449,15 @@ func (v defaultValidator) ValidateActor(a pub.Item) (pub.Item, error) {
 		if err != nil {
 			return a, err
 		}
-		// TODO(marius): this pattern shows up in multiple places: verify if it's local and load object accordingly
-		//   I should probably abstract this
-		if v.IsLocalIRI(iri) {
-			if a, err = v.s.Load(iri); err != nil {
-				return a, err
-			}
-		} else {
-			if a, err = v.c.LoadIRI(iri); err != nil {
-				return a, err
-			}
+		var loadFn func(pub.IRI) (pub.Item, error) = v.s.Load
+		if !v.IsLocalIRI(iri) {
+			loadFn = v.c.LoadIRI
 		}
-		if a == nil {
+		if a, err = loadFn(iri); err != nil {
+			return a, err
+		}
+	} else {
+		if pub.IsNil(a) {
 			return a, errors.NotFoundf("Invalid activity actor")
 		}
 	}
@@ -507,18 +501,14 @@ func (v defaultValidator) ValidateObject(o pub.Item) (pub.Item, error) {
 		if err != nil {
 			return o, err
 		}
-		// TODO(marius): this pattern shows up in multiple places: verify if it's local and load object accordingly
-		//   I should probably abstract this
-		if v.IsLocalIRI(iri) {
-			if o, err = v.s.Load(iri); err != nil {
-				return o, err
-			}
-		} else {
-			if o, err = v.c.LoadIRI(iri); err != nil {
-				return o, err
-			}
+		var loadFn func(pub.IRI) (pub.Item, error) = v.s.Load
+		if !v.IsLocalIRI(iri) {
+			loadFn = v.c.LoadIRI
 		}
-		if o == nil{
+		if o, err = loadFn(iri); err != nil {
+			return o, err
+		}
+		if pub.IsNil(o) {
 			return o, errors.NotFoundf("Invalid activity object")
 		}
 	}
