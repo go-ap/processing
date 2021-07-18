@@ -5,6 +5,7 @@ import (
 	"github.com/go-ap/errors"
 	"github.com/go-ap/handlers"
 	s "github.com/go-ap/storage"
+	"strings"
 )
 
 // ReactionsActivity processes matching activities
@@ -40,6 +41,18 @@ func ReactionsActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error)
 	return act, err
 }
 
+type multi struct {
+	errors []error
+}
+
+func (m multi) Error() string {
+	b := strings.Builder{}
+	for _, err := range m.errors {
+		b.WriteString(err.Error())
+	}
+	return b.String()
+}
+
 // AppreciationActivity
 // The Like(and Dislike) activity indicates the actor likes the object.
 // The side effect of receiving this in an outbox is that the server SHOULD add the object to the actor's liked Collection.
@@ -56,13 +69,43 @@ func AppreciationActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, err
 	}
 
 	if colSaver, ok := l.(s.CollectionStore); ok {
-		liked := handlers.Liked.IRI(act.Actor)
-		if err := colSaver.AddTo(liked, act.Object.GetLink()); err != nil {
-			return act, errors.Annotatef(err, "Unable to save %s to collection %s", act.Object.GetType(), liked)
+		colErrors := multi{}
+		saveToCollections := func(actors, objects pub.ItemCollection) error {
+			for _, object := range objects {
+				for _, actor := range actors {
+					liked := handlers.Liked.IRI(actor)
+					if err := colSaver.AddTo(liked, object.GetLink()); err != nil {
+						colErrors.errors = append(colErrors.errors, errors.Annotatef(err, "Unable to save %s to collection %s", object.GetType(), liked))
+					}
+				}
+				likes := handlers.Likes.IRI(object)
+				if err := colSaver.AddTo(likes, act.GetLink()); err != nil {
+					colErrors.errors = append(colErrors.errors, errors.Annotatef(err, "Unable to save %s to collection %s", act.GetType(), likes))
+				}
+			}
+			return nil
 		}
-		likes := handlers.Likes.IRI(act.Object)
-		if err := colSaver.AddTo(likes, act.GetLink()); err != nil {
-			return act, errors.Annotatef(err, "Unable to save %s to collection %s", act.GetType(), likes)
+		var actors, objects pub.ItemCollection
+		if pub.IsItemCollection(act.Actor) {
+			pub.OnItemCollection(act.Actor, func(c *pub.ItemCollection) error {
+				actors = *c
+				return nil
+			})
+		} else {
+			actors = make(pub.ItemCollection, 1)
+			actors[0] = act.Actor
+		}
+		if pub.IsItemCollection(act.Object) {
+			pub.OnItemCollection(act.Object, func(c *pub.ItemCollection) error {
+				objects = *c
+				return nil
+			})
+		} else {
+			objects = make(pub.ItemCollection, 1)
+			objects[0] = act.Object
+		}
+		if err := saveToCollections(actors, objects); err != nil {
+			return act, err
 		}
 	}
 
