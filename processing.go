@@ -261,7 +261,9 @@ func processActivity(p defaultProcessor, act *pub.Activity) (*pub.Activity, erro
 	}
 
 	if colSaver, ok := p.s.(s.CollectionStore); ok {
-		it, err = AddToCollections(p, colSaver, it)
+		if it, err = AddToCollections(p, colSaver, it); err != nil {
+			return act, err
+		}
 	}
 	return act, nil
 }
@@ -287,6 +289,10 @@ func isBlocked(loader s.ReadStore, rec, act pub.Item) bool {
 
 type KeyLoader interface {
 	LoadKey (pub.IRI) (crypto.PrivateKey, error)
+}
+
+type KeySaver interface {
+	GenKey(pub.IRI) error
 }
 
 func keyType(key crypto.PrivateKey) (httpsig.Algorithm, error) {
