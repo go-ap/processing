@@ -53,7 +53,3 @@ func TestNotificationActivity(t *testing.T) {
 func TestOffersActivity(t *testing.T) {
 	t.Skipf("TODO")
 }
-
-func TestProcessActivity(t *testing.T) {
-	t.Skipf("TODO")
-}
