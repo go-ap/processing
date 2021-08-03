@@ -3,15 +3,16 @@ package processing
 import (
 	"context"
 	"fmt"
+	"net"
+	"path"
+	"strings"
+	"sync"
+
 	pub "github.com/go-ap/activitypub"
 	c "github.com/go-ap/client"
 	"github.com/go-ap/errors"
 	"github.com/go-ap/handlers"
 	s "github.com/go-ap/storage"
-	"net"
-	"path"
-	"strings"
-	"sync"
 )
 
 type ClientActivityValidator interface {
