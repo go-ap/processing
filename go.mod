@@ -4,7 +4,7 @@ go 1.13
 
 require (
 	github.com/go-ap/activitypub v0.0.0-20210721173251-e7844f6e2bba
-	github.com/go-ap/client v0.0.0-20210731171030-e56817c2f34e
+	github.com/go-ap/client v0.0.0-20210804135459-f4ea26d90115
 	github.com/go-ap/errors v0.0.0-20210527074045-78cc5b9dcc94
 	github.com/go-ap/handlers v0.0.0-20210731170504-f9cc94ae3980
 	github.com/go-ap/httpsig v0.0.0-20210701073735-ee6f491a954c
