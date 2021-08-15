@@ -64,7 +64,7 @@ type invalidActivity struct {
 
 type ipCache struct {
 	addr map[string][]net.IP
-	m       sync.RWMutex
+	m    sync.RWMutex
 }
 
 type defaultValidator struct {
@@ -462,19 +462,15 @@ func (v defaultValidator) ValidateActor(a pub.Item) (pub.Item, error) {
 			return a, errors.NotFoundf("Invalid activity actor")
 		}
 	}
-	err := pub.OnActor(a, func(act *pub.Actor) error {
+	return a, pub.OnActor(a, func(act *pub.Actor) error {
 		if !pub.ActorTypes.Contains(act.GetType()) {
 			return InvalidActivityActor("invalid type %s", act.GetType())
 		}
-		if v.auth != nil {
-			if !v.auth.GetLink().Equals(act.GetLink(), false) {
-				return InvalidActivityActor("current activity's actor doesn't match the authenticated one")
-			}
+		if v.auth != nil && v.auth.GetLink().Equals(act.GetLink(), false) {
+			return nil
 		}
-		a = act
-		return nil
+		return InvalidActivityActor("current activity's actor doesn't match the authenticated one")
 	})
-	return a, err
 }
 
 func (v defaultValidator) ValidateClientObject(o pub.Item) (pub.Item, error) {
@@ -561,7 +557,7 @@ func hostSplit(h string) (string, string) {
 	pieces := strings.Split(h, ":")
 	if len(pieces) == 0 {
 		return "", ""
-	} 
+	}
 	if len(pieces) == 1 {
 		return pieces[0], ""
 	}

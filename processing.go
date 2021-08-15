@@ -29,7 +29,7 @@ var emptyLogFn c.LogFn = func(s string, el ...interface{}) {}
 
 type defaultProcessor struct {
 	baseIRI pub.IRIs
-	v       defaultValidator
+	v       *defaultValidator
 	c       c.Basic
 	s       s.WriteStore
 	infoFn  c.LogFn
@@ -55,7 +55,7 @@ func New(o ...optionFn) (*defaultProcessor, *defaultValidator, error) {
 			return v.p, v.v, err
 		}
 	}
-	v.p.v = *v.v
+	v.p.v = v.v
 	return v.p, v.v, nil
 }
 
