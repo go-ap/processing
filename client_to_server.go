@@ -116,12 +116,17 @@ func processClientActivity(p defaultProcessor, act *pub.Activity) (*pub.Activity
 	}
 
 	var it pub.Item
-	if act.Content != nil {
+	if act.Content != nil || act.Summary != nil {
 		// For activities that have a content value, we create the collections that allow actors to interact
 		// with them as they are a regular object.
 		pub.OnObject(act, addNewObjectCollections)
 	}
-	it, err = p.s.Save(pub.FlattenProperties(act))
+
+	// Making a local copy of the activity in order to not lose information that could be required
+	// later in the call system.
+	toSave := *act
+
+	it, err = p.s.Save(pub.FlattenProperties(&toSave))
 	if err != nil {
 		return act, err
 	}
