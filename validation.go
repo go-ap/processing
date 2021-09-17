@@ -430,14 +430,32 @@ func (v defaultValidator) ValidateClientActor(a pub.Item) (pub.Item, error) {
 }
 
 func (v defaultValidator) ValidateServerActor(a pub.Item) (pub.Item, error) {
+	if a == nil {
+		return a, InvalidActivityActor("is nil")
+	}
 	var err error
-	if a, err = v.ValidateActor(a); err != nil {
-		return a, err
+	if a.IsLink() {
+		a, err = v.c.LoadIRI(a.GetLink())
+		if err != nil {
+			return a, err
+		}
+		if a == nil {
+			return a, errors.NotFoundf("Invalid activity actor")
+		}
 	}
-	if err = v.ValidateLink(a.GetLink()); err != nil {
-		return a, err
-	}
-	return a, nil
+	err = pub.OnActor(a, func(act *pub.Actor) error {
+		if !pub.ActorTypes.Contains(act.GetType()) {
+			return InvalidActivityActor("invalid type %s", act.GetType())
+		}
+		if v.auth != nil {
+			if !v.auth.GetLink().Equals(act.GetLink(), false) {
+				return InvalidActivityActor("current activity's actor doesn't match the authenticated one")
+			}
+		}
+		a = act
+		return nil
+	})
+	return a, err
 }
 
 func (v defaultValidator) ValidateActor(a pub.Item) (pub.Item, error) {
