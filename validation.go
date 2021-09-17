@@ -126,35 +126,35 @@ func (v defaultValidator) ValidateServerActivity(a pub.Item, inbox pub.IRI) erro
 	if !pub.ActivityTypes.Contains(a.GetType()) {
 		return InvalidActivity("invalid type %s", a.GetType())
 	}
-	act, err := pub.ToActivity(a)
-	if err != nil {
-		return err
-	}
-	if len(act.ID) == 0 {
-		return InvalidActivity("invalid activity id %s", act.ID)
-	}
+	return pub.OnActivity(a, func(act *pub.Activity) error {
+		if len(act.ID) == 0 {
+			return InvalidActivity("invalid activity id %s", act.ID)
+		}
 
-	if inboxBelongsTo, err := handlers.Inbox.OfActor(inbox); err == nil {
-		if v.IsLocalIRI(inboxBelongsTo) && isBlocked(v.s, inboxBelongsTo, act.Actor) {
+		inboxBelongsTo, err := handlers.Inbox.OfActor(inbox)
+		if err != nil {
+			return err
+		}
+		if isBlocked(v.s, inboxBelongsTo, act.Actor) {
 			return errors.NotFoundf("")
 		}
-	}
-	if act.Actor, err = v.ValidateServerActor(act.Actor); err != nil {
-		if missingActor.Is(err) && v.auth != nil {
-			act.Actor = v.auth
-		} else {
+		if act.Actor, err = v.ValidateServerActor(act.Actor); err != nil {
+			if missingActor.Is(err) && v.auth != nil {
+				act.Actor = v.auth
+			} else {
+				return err
+			}
+		}
+		if act.Object, err = v.ValidateServerObject(act.Object); err != nil {
 			return err
 		}
-	}
-	if act.Object, err = v.ValidateServerObject(act.Object); err != nil {
-		return err
-	}
-	if act.Target != nil {
-		if act.Target, err = v.ValidateServerObject(act.Target); err != nil {
-			return err
+		if act.Target != nil {
+			if act.Target, err = v.ValidateServerObject(act.Target); err != nil {
+				return err
+			}
 		}
-	}
-	return nil
+		return nil
+	})
 }
 
 func IsOutbox(i pub.IRI) bool {
