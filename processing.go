@@ -108,7 +108,7 @@ func SetIRI(i ...pub.IRI) optionFn {
 	}
 }
 
-func createNewTags(l s.WriteStore, tags pub.ItemCollection, act *pub.Activity) error {
+func createNewTags(l s.WriteStore, tags pub.ItemCollection) error {
 	if len(tags) == 0 {
 		return nil
 	}

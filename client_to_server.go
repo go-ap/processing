@@ -78,6 +78,7 @@ func processClientActivity(p defaultProcessor, act *pub.Activity) (*pub.Activity
 		return act, errors.BadRequestf("Invalid %s: object is nil", act.Type)
 	}
 
+	// TODO(marius): this does not work correctly if act.Object is an ItemCollection
 	obType := act.Object.GetType()
 	// First we process the activity to effect whatever changes we need to on the activity properties.
 	if pub.ContentManagementActivityTypes.Contains(act.Type) && obType != pub.RelationshipType {
@@ -108,7 +109,7 @@ func processClientActivity(p defaultProcessor, act *pub.Activity) (*pub.Activity
 	}
 	if act.Tag != nil {
 		// Try to save tags as set on the activity
-		createNewTags(p.s, act.Tag, act)
+		createNewTags(p.s, act.Tag)
 	}
 
 	if act.Published.IsZero() {

@@ -175,32 +175,58 @@ func UpdateActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	var err error
 	ob := act.Object
 
-	var found pub.Item
 	if loader, ok := l.(s.ReadStore); ok {
-		found, _ = loader.Load(ob.GetLink())
-		if found.IsCollection() {
-			pub.OnCollectionIntf(found, func(col pub.CollectionInterface) error {
-				found = col.Collection().First()
+		if pub.IsItemCollection(ob) {
+			foundCol := make(pub.ItemCollection, 0)
+			pub.OnCollectionIntf(ob, func(col pub.CollectionInterface) error {
+				for _, it := range col.Collection() {
+					old, err := loader.Load(it.GetLink())
+					if err != nil {
+						continue
+					}
+					if old, err = updateSingleItem(l, old, it); err != nil {
+						continue
+					}
+					foundCol = append(foundCol, old)
+				}
+				act.Object = foundCol
 				return nil
 			})
+		} else {
+			old, err := loader.Load(ob.GetLink())
+			if err != nil {
+				return act, err
+			}
+			if old, err = updateSingleItem(l, old, ob); err != nil {
+				return act, err
+			}
+			act.Object = old
 		}
 	}
-	if pub.IsNil(found) {
-		return act, errors.NotFoundf("Unable to find %s %s", ob.GetType(), ob.GetLink())
-	}
-	ob, err = pub.CopyItemProperties(found, ob)
-	if err != nil {
-		return act, err
-	}
-
-	if err := updateUpdateActivityObject(l, act.Object, act); err != nil {
-		return act, errors.Annotatef(err, "unable to update activity's object %s", act.Object.GetLink())
-	}
-	act.Object, err = l.Save(ob)
 	return act, err
 }
 
-func updateObjectForUpdate(l s.WriteStore, o *pub.Object, act *pub.Activity) error {
+func updateSingleItem (l s.WriteStore, found pub.Item, with pub.Item) (pub.Item, error) {
+	var err error
+	if pub.IsNil(found) {
+		return found, errors.NotFoundf("Unable to find %s %s", with.GetType(), with.GetLink())
+	}
+	if found.IsCollection() {
+		return found, errors.Errorf("IRI %s does not point to a single object", with.GetLink())
+	}
+
+	found, err = pub.CopyItemProperties(found, with)
+	if err != nil {
+		return found, err
+	}
+
+	if err = updateUpdateActivityObject(l, found); err != nil {
+		return with, errors.Annotatef(err, "unable to update activity's object %s", found.GetLink())
+	}
+	return l.Save(found)
+}
+
+func updateObjectForUpdate(l s.WriteStore, o *pub.Object) error {
 	if o.InReplyTo != nil {
 		if colSaver, ok := l.(s.CollectionStore); ok {
 			if c, ok := o.InReplyTo.(pub.ItemCollection); ok {
@@ -216,12 +242,12 @@ func updateObjectForUpdate(l s.WriteStore, o *pub.Object, act *pub.Activity) err
 	}
 	// We're trying to automatically save tags as separate objects instead of storing them inline in the current
 	// Object.
-	return createNewTags(l, o.Tag, act)
+	return createNewTags(l, o.Tag)
 }
 
-func updateUpdateActivityObject(l s.WriteStore, o pub.Item, act *pub.Activity) error {
+func updateUpdateActivityObject(l s.WriteStore, o pub.Item) error {
 	return pub.OnObject(o, func(o *pub.Object) error {
-		return updateObjectForUpdate(l, o, act)
+		return updateObjectForUpdate(l, o)
 	})
 }
 
@@ -261,7 +287,7 @@ func updateObjectForCreate(l s.WriteStore, o *pub.Object, act *pub.Activity) err
 	if o.Published.IsZero() {
 		o.Published = time.Now().UTC()
 	}
-	return updateObjectForUpdate(l, o, act)
+	return updateObjectForUpdate(l, o)
 }
 
 func updateCreateActivityObject(l s.WriteStore, o pub.Item, act *pub.Activity) error {
