@@ -1,11 +1,12 @@
 package processing
 
 import (
+	"strings"
+
 	pub "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
 	"github.com/go-ap/handlers"
 	s "github.com/go-ap/storage"
-	"strings"
 )
 
 // NegatingActivity processes matching activities
@@ -114,13 +115,12 @@ func UndoAppreciationActivity(r s.WriteStore, act *pub.Activity) (*pub.Activity,
 				continue
 			}
 			if !handlers.ValidCollectionIRI(iri) {
-				// if not a valid collection, then it's an actor and we need their inbox
+				// if not a valid collection, then the current iri represents an actor, and we need their inbox
 				iri = handlers.Inbox.IRI(iri)
 			}
 			if err := colSaver.RemoveFrom(iri, rem); err != nil {
 				errs = append(errs, err)
 			}
-
 		}
 		outbox := handlers.Outbox.IRI(act.Actor)
 		if err := colSaver.RemoveFrom(outbox, rem); err != nil {
