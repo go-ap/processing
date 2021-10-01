@@ -18,10 +18,10 @@ type ReadStore interface {
 // WriteStore saves ActivityStreams objects.
 type WriteStore interface {
 	// Save saves the incoming ActivityStreams Object, and returns it together with any properties
-	// populated by the method's side effects. (eg, Published property can point to the current time, etc).
+	// populated by the method's side effects. (eg, Published property can point to the current time, etc.).
 	Save(pub.Item) (pub.Item, error)
-	// Delete deletes the incoming ActivityStreams Object, and returns the resulting Tombstone.
-	Delete(pub.Item) (pub.Item, error)
+	// Delete deletes completely from storage the ActivityStreams Object
+	Delete(pub.Item) error
 }
 
 // CollectionStore allows operations on ActivityStreams collections
