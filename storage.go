@@ -5,8 +5,8 @@ import (
 )
 
 type Store interface {
-	WriteStore
 	ReadStore
+	WriteStore
 }
 
 // ReadStore
@@ -15,7 +15,7 @@ type ReadStore interface {
 	Load(pub.IRI) (pub.Item, error)
 }
 
-// Store saves ActivityStreams objects.
+// WriteStore saves ActivityStreams objects.
 type WriteStore interface {
 	// Save saves the incoming ActivityStreams Object, and returns it together with any properties
 	// populated by the method's side effects. (eg, Published property can point to the current time, etc).
@@ -24,6 +24,7 @@ type WriteStore interface {
 	Delete(pub.Item) (pub.Item, error)
 }
 
+// CollectionStore allows operations on ActivityStreams collections
 type CollectionStore interface {
 	// Create creates the "col" collection.
 	Create(col pub.CollectionInterface) (pub.CollectionInterface, error)
