@@ -175,7 +175,7 @@ func Test_updateObjectForUpdate(t *testing.T) {
 	t.Skipf("TODO")
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := updateObjectForUpdate(tt.args.l, tt.args.o, tt.args.act); (err != nil) != tt.wantErr {
+			if err := updateObjectForUpdate(tt.args.l, tt.args.o); (err != nil) != tt.wantErr {
 				t.Errorf("updateObjectForUpdate() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
@@ -198,7 +198,7 @@ func Test_updateUpdateActivityObject(t *testing.T) {
 	t.Skipf("TODO")
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := updateUpdateActivityObject(tt.args.l, tt.args.o, tt.args.act); (err != nil) != tt.wantErr {
+			if err := updateUpdateActivityObject(tt.args.l, tt.args.o); (err != nil) != tt.wantErr {
 				t.Errorf("updateUpdateActivityObject() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
