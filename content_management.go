@@ -299,7 +299,31 @@ func updateCreateActivityObject(l s.WriteStore, o pub.Item, act *pub.Activity) e
 // DeleteActivity
 // The Delete activity @TODO (load doc from ActivityStreams Vocabulary)
 func DeleteActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
-	// TODO(marius): we need to modify this by creating a tombstone here, and then updating it
-	// so the storage layer doesn't really have to worry about it.
-	return act, errors.NotImplementedf("fixme, implement DeleteActivity")
+	var err error
+	ob := act.Object
+
+	var found pub.Item
+	if loader, ok := l.(s.ReadStore); ok {
+		if found, err = loader.Load(ob.GetLink()); err != nil {
+			return act, err
+		}
+	}
+	if pub.IsNil(found) {
+		return act, errors.NotFoundf("Unable to find %s %s", ob.GetType(), ob.GetLink())
+	}
+	if found.IsCollection() {
+		return act, errors.Errorf("IRI %s does not point to a single object", ob.GetLink())
+	}
+	t := pub.Tombstone{
+		ID:   act.Object.GetLink(),
+		Type: pub.TombstoneType,
+		To: pub.ItemCollection{pub.PublicNS},
+		Deleted: time.Now().UTC(),
+	}
+	if found.GetType() != pub.TombstoneType {
+		t.FormerType = found.GetType()
+	}
+
+	act.Object, err = l.Save(t)
+	return act, err
 }
