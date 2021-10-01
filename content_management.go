@@ -2,11 +2,12 @@ package processing
 
 import (
 	"fmt"
+	"time"
+
 	pub "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
 	"github.com/go-ap/handlers"
 	s "github.com/go-ap/storage"
-	"time"
 )
 
 // IDGenerator takes an ActivityStreams object, a collection to store it in, and the activity that has it as object:
@@ -70,7 +71,7 @@ func ContentManagementActivity(l s.WriteStore, act *pub.Activity, col handlers.C
 	case pub.UpdateType:
 		act, err = UpdateActivity(l, act)
 	case pub.DeleteType:
-		act.Object, err = l.Delete(act.Object)
+		act, err = DeleteActivity(l, act)
 	}
 	if err != nil && !isDuplicateKey(err) {
 		//l.errFn(logrus.Fields{"IRI": act.GetLink(), "type": act.Type}, "unable to save activity's object")
@@ -267,4 +268,12 @@ func updateCreateActivityObject(l s.WriteStore, o pub.Item, act *pub.Activity) e
 	return pub.OnObject(o, func(o *pub.Object) error {
 		return updateObjectForCreate(l, o, act)
 	})
+}
+
+// DeleteActivity
+// The Delete activity @TODO (load doc from ActivityStreams Vocabulary)
+func DeleteActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
+	// TODO(marius): we need to modify this by creating a tombstone here, and then updating it
+	// so the storage layer doesn't really have to worry about it.
+	return act, errors.NotImplementedf("fixme, implement DeleteActivity")
 }
