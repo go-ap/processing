@@ -97,6 +97,11 @@ func UndoActivity(r s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 		}
 		return nil
 	})
+	if err != nil {
+		return act, err
+	}
+
+	err = r.Delete(act.Object)
 	return act, err
 }
 
@@ -107,31 +112,27 @@ func UndoActivity(r s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 func UndoAppreciationActivity(r s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	errs := make([]error, 0)
 	rem := act.GetLink()
-	if colSaver, ok := r.(s.CollectionStore); ok {
-		rec := act.Recipients()
-		for _, rec := range rec {
-			iri := rec.GetLink()
-			if iri == pub.PublicNS {
-				continue
-			}
-			if !handlers.ValidCollectionIRI(iri) {
-				// if not a valid collection, then the current iri represents an actor, and we need their inbox
-				iri = handlers.Inbox.IRI(iri)
-			}
-			if err := colSaver.RemoveFrom(iri, rem); err != nil {
-				errs = append(errs, err)
-			}
+	colSaver, ok := r.(s.CollectionStore)
+	if !ok {
+		return act, nil
+	}
+	allRec := act.Recipients()
+	removeFromCols := make(pub.IRIs, 0)
+	removeFromCols = append(removeFromCols, handlers.Outbox.IRI(act.Actor))
+	removeFromCols = append(removeFromCols, handlers.Liked.IRI(act.Actor))
+	removeFromCols = append(removeFromCols, handlers.Likes.IRI(act.Object))
+	for _, rec := range allRec {
+		iri := rec.GetLink()
+		if iri == pub.PublicNS {
+			continue
 		}
-		outbox := handlers.Outbox.IRI(act.Actor)
-		if err := colSaver.RemoveFrom(outbox, rem); err != nil {
-			errs = append(errs, err)
+		if !handlers.ValidCollectionIRI(iri) {
+			// if not a valid collection, then the current iri represents an actor, and we need their inbox
+			removeFromCols = append(removeFromCols, handlers.Inbox.IRI(iri))
 		}
-		liked := handlers.Liked.IRI(act.Actor)
-		if err := colSaver.RemoveFrom(liked, act.Object.GetLink()); err != nil {
-			errs = append(errs, err)
-		}
-		likes := handlers.Likes.IRI(act.Object)
-		if err := colSaver.RemoveFrom(likes, rem); err != nil {
+	}
+	for _, iri := range removeFromCols {
+		if err := colSaver.RemoveFrom(iri, rem); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -140,8 +141,7 @@ func UndoAppreciationActivity(r s.WriteStore, act *pub.Activity) (*pub.Activity,
 		for i, e := range errs {
 			msgs[i] = e.Error()
 		}
-		err := errors.Newf("%s", strings.Join(msgs, ", "))
-		return act, err
+		return act, errors.Newf("%s", strings.Join(msgs, ", "))
 	}
 	return act, nil
 }
