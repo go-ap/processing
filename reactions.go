@@ -63,7 +63,7 @@ func AppreciationActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, err
 	if act.Actor == nil {
 		return act, errors.NotValidf("Missing actor for %s Activity", act.Type)
 	}
-	good := pub.ActivityVocabularyTypes{pub.LikeType}
+	good := pub.ActivityVocabularyTypes{pub.LikeType, pub.DislikeType}
 	if !good.Contains(act.Type) {
 		return act, errors.NotValidf("Activity has wrong type %s, expected %v", act.Type, good)
 	}
