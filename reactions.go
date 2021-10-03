@@ -68,47 +68,60 @@ func AppreciationActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, err
 		return act, errors.NotValidf("Activity has wrong type %s, expected %v", act.Type, good)
 	}
 
-	if colSaver, ok := l.(s.CollectionStore); ok {
-		colErrors := multi{}
-		saveToCollections := func(actors, objects pub.ItemCollection) error {
-			for _, object := range objects {
-				for _, actor := range actors {
-					liked := handlers.Liked.IRI(actor)
-					if err := colSaver.AddTo(liked, object.GetLink()); err != nil {
-						colErrors.errors = append(colErrors.errors, errors.Annotatef(err, "Unable to save %s to collection %s", object.GetType(), liked))
-					}
-				}
-				likes := handlers.Likes.IRI(object)
-				if err := colSaver.AddTo(likes, act.GetLink()); err != nil {
-					colErrors.errors = append(colErrors.errors, errors.Annotatef(err, "Unable to save %s to collection %s", act.GetType(), likes))
-				}
-			}
-			return nil
-		}
-		var actors, objects pub.ItemCollection
-		if pub.IsItemCollection(act.Actor) {
-			pub.OnItemCollection(act.Actor, func(c *pub.ItemCollection) error {
-				actors = *c
-				return nil
-			})
-		} else {
-			actors = make(pub.ItemCollection, 1)
-			actors[0] = act.Actor
-		}
-		if pub.IsItemCollection(act.Object) {
-			pub.OnItemCollection(act.Object, func(c *pub.ItemCollection) error {
-				objects = *c
-				return nil
-			})
-		} else {
-			objects = make(pub.ItemCollection, 1)
-			objects[0] = act.Object
-		}
-		if err := saveToCollections(actors, objects); err != nil {
-			return act, err
-		}
+	colSaver, ok := l.(s.CollectionStore)
+	if !ok {
+		return act, nil
 	}
 
+	saveToCollections := func(colSaver s.CollectionStore, actors, objects pub.ItemCollection) error {
+		colErrors := multi{}
+		colToAdd := make(map[pub.IRI][]pub.IRI)
+		for _, object := range objects {
+			for _, actor := range actors {
+				liked := handlers.Liked.IRI(actor)
+				colToAdd[liked] = append(colToAdd[liked], object.GetLink())
+			}
+			likes := handlers.Likes.IRI(object)
+			colToAdd[likes] = append(colToAdd[likes], act.GetLink())
+		}
+		for col, iris := range colToAdd {
+			for _, iri := range iris {
+				if err := colSaver.AddTo(col, iri); err != nil {
+					colErrors.errors = append(colErrors.errors, errors.Annotatef(err, "Unable to save %s to collection %s", iris, col))
+				}
+			}
+		}
+		if len(colErrors.errors) > 0 {
+			return colErrors
+		}
+		return nil
+	}
+	var actors, objects pub.ItemCollection
+	if pub.IsItemCollection(act.Actor) {
+		pub.OnItemCollection(act.Actor, func(c *pub.ItemCollection) error {
+			actors = *c
+			return nil
+		})
+	} else {
+		actors = make(pub.ItemCollection, 1)
+		actors[0] = act.Actor
+	}
+	if pub.IsItemCollection(act.Object) {
+		pub.OnItemCollection(act.Object, func(c *pub.ItemCollection) error {
+			objects = *c
+			return nil
+		})
+	} else {
+		objects = make(pub.ItemCollection, 1)
+		objects[0] = act.Object
+	}
+
+	// NOTE(marius): we're only saving to the Liked and Likes collections for Likes in order to conform to the spec.
+	if act.GetType() == pub.LikeType {
+		// TODO(marius): do something sensible with these errors, they shouldn't stop execution,
+		//               but they are still good to know
+		_ = saveToCollections(colSaver, actors, objects)
+	}
 	return act, nil
 }
 
@@ -124,6 +137,7 @@ func firstOrItem(it pub.Item) pub.Item {
 	}
 	return it
 }
+
 // AcceptActivity
 // The side effect of receiving this in an inbox is that the server SHOULD add the object to the actor's followers Collection.
 func AcceptActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
@@ -194,6 +208,7 @@ func RejectActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 }
 
 const BlockedCollection = handlers.CollectionType("blocked")
+
 // BlockActivity
 // The side effect of receiving this in an outbox is that the server SHOULD add the object to the actor's blocked Collection.
 func BlockActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
@@ -264,7 +279,7 @@ func FlagActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 const IgnoredCollection = handlers.CollectionType("ignored")
 
 // IgnoreActivity
-// This relies on custom behavior for the repository, which would allow for a ignored collection,
+// This relies on custom behavior for the repository, which would allow for an ignored collection,
 // where we save these
 func IgnoreActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	if act.Object == nil {

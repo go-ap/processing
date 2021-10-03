@@ -83,6 +83,7 @@ func UndoActivity(r s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 		}
 		switch toUndo.GetType() {
 		case pub.DislikeType:
+			// TODO(marius): Dislikes should not trigger a removal from Likes/Liked collections
 			fallthrough
 		case pub.LikeType:
 			UndoAppreciationActivity(r, toUndo)
