@@ -43,7 +43,7 @@ func New(o ...optionFn) (*defaultProcessor, *defaultValidator, error) {
 			errFn:  emptyLogFn,
 		},
 		v: &defaultValidator{
-			addr:   ipCache{
+			addr: ipCache{
 				addr: make(map[string][]net.IP),
 			},
 			infoFn: emptyLogFn,
@@ -150,7 +150,7 @@ func isBlocked(loader s.ReadStore, rec, act pub.Item) bool {
 }
 
 type KeyLoader interface {
-	LoadKey (pub.IRI) (crypto.PrivateKey, error)
+	LoadKey(pub.IRI) (crypto.PrivateKey, error)
 }
 
 type KeySaver interface {
@@ -232,7 +232,7 @@ func AddToCollections(p defaultProcessor, colSaver s.CollectionStore, it pub.Ite
 		if p.v.IsLocalIRI(recInb.GetLink()) {
 			p.infoFn("Saving to local actor's collection %s", recInb.GetLink())
 			err = colSaver.AddTo(recInb.GetLink(), act.GetLink())
-		} else if p.v.IsLocalIRI(act.ID){
+		} else if p.v.IsLocalIRI(act.ID) {
 			keyLoader, ok := colSaver.(KeyLoader)
 			if !ok {
 				continue
@@ -255,7 +255,9 @@ func AddToCollections(p defaultProcessor, colSaver s.CollectionStore, it pub.Ite
 				return httpsig.NewSigner(keyId, key, typ, signHdrs).Sign(r)
 			})
 			p.infoFn("Pushing to remote actor's collection %s", recInb.GetLink())
-			_, _, err = p.c.ToCollection(recInb.GetLink(), act)
+			if _, _, err := p.c.ToCollection(recInb.GetLink(), act); err != nil {
+				p.errFn("Failed: %s", err.Error())
+			}
 		}
 	}
 	return act, err
