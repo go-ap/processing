@@ -2,4 +2,4 @@ module github.com/go-ap/storage
 
 go 1.13
 
-require github.com/go-ap/activitypub v0.0.0-20220123155513-fbee7c142639
+require github.com/go-ap/activitypub v0.0.0-20220126142439-8f025c2e363e
