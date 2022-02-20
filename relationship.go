@@ -7,6 +7,7 @@ import (
 )
 
 // RelationshipManagementActivity processes matching activities
+// https://www.w3.org/TR/activitystreams-vocabulary/#h-motivations-relationships
 // The Relationship Management use case primarily deals with representing activities involving the management
 // of interpersonal and social relationships (e.g. friend requests, management of social network, etc).
 // See 5.2 Representing Relationships Between Entities for more information:
