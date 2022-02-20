@@ -10,6 +10,7 @@ import (
 )
 
 // NegatingActivity processes matching activities
+// https://www.w3.org/TR/activitystreams-vocabulary/#h-motivations-undo
 // The Negating Activity use case primarily deals with the ability to redact previously completed activities.
 // See 5.5 Inverse Activities and "Undo" for more information:
 // https://www.w3.org/TR/activitystreams-vocabulary/#inverse
@@ -56,6 +57,7 @@ func NegatingActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) 
 }
 
 // UndoActivity
+// https://www.w3.org/TR/activitypub/#undo-activity-outbox
 // The Undo activity is used to undo a previous activity. See the Activity Vocabulary documentation on
 // Inverse Activities and "Undo". For example, Undo may be used to undo a previous Like, Follow, or Block.
 // The undo activity and the activity being undone MUST both have the same actor.
@@ -63,6 +65,10 @@ func NegatingActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) 
 // incremented previously should be decremented appropriately.
 // There are some exceptions where there is an existing and explicit "inverse activity" which should be used instead.
 // Create based activities should instead use Delete, and Add activities should use Remove.
+// https://www.w3.org/TR/activitypub/#undo-activity-inbox
+// The Undo activity is used to undo the side effects of previous activities. See the ActivityStreams documentation
+// on Inverse Activities and "Undo". The scope and restrictions of the Undo activity are the same as for the Undo
+// activity in the context of client to server interactions, but applied to a federated context.
 func UndoActivity(r s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	var err error
 
