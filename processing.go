@@ -228,13 +228,24 @@ func AddToCollections(p defaultProcessor, colSaver s.CollectionStore, it pub.Ite
 			}
 		}
 	}
+	return disseminateToCollections(p, act, allRecipients)
+}
+
+func disseminateToCollections(p defaultProcessor, act *pub.Activity, allRecipients pub.ItemCollection) (*pub.Activity, error) {
+	colSaver, ok := p.s.(s.CollectionStore)
+	if !ok {
+		// TODO(marius): not returning an error might be the wrong move here
+		return act, nil
+	}
 	for _, recInb := range pub.ItemCollectionDeduplication(&allRecipients) {
 		// TODO(marius): the processing module needs a method to see if an IRI is local or not
 		//    For each recipient we need to save the incoming activity to the actor's Inbox if the actor is local
 		//    Or disseminate it using S2S if the actor is not local
 		if p.v.IsLocalIRI(recInb.GetLink()) {
 			p.infoFn("Saving to local actor's collection %s", recInb.GetLink())
-			err = colSaver.AddTo(recInb.GetLink(), act.GetLink())
+			if err := colSaver.AddTo(recInb.GetLink(), act.GetLink()); err != nil {
+				return act, err
+			}
 		} else if p.v.IsLocalIRI(act.ID) {
 			keyLoader, ok := colSaver.(KeyLoader)
 			if !ok {
@@ -263,7 +274,7 @@ func AddToCollections(p defaultProcessor, colSaver s.CollectionStore, it pub.Ite
 			}
 		}
 	}
-	return act, err
+	return act, nil
 }
 
 // CollectionManagementActivity processes matching activities

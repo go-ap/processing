@@ -4,7 +4,6 @@ import (
 	pub "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
 	"github.com/go-ap/handlers"
-	s "github.com/go-ap/storage"
 )
 
 // RelationshipManagementActivity processes matching activities
@@ -48,16 +47,10 @@ func RelationshipManagementActivity(p defaultProcessor, act *pub.Activity) (*pub
 // is used when following an actor.
 func FollowActivity(p defaultProcessor, act *pub.Activity) (*pub.Activity, error) {
 	ob := act.Object.GetLink()
-	if colSaver, ok := p.s.(s.CollectionStore); ok {
-		if !handlers.ValidCollectionIRI(ob) {
-			// TODO(marius): add check if IRI represents an actor (or rely on the collection saver to break if not)
-			ob = handlers.Inbox.IRI(ob)
-		}
-		if p.v.IsLocalIRI(ob) {
-			if err := colSaver.AddTo(ob, act.GetLink()); err != nil {
-				return act, err
-			}
-		}
+	if !handlers.ValidCollectionIRI(ob) {
+		// TODO(marius): add check if IRI represents an actor (or rely on the collection saver to break if not)
+		ob = handlers.Inbox.IRI(ob)
 	}
-	return act, nil
+	collections := pub.ItemCollection{ob}
+	return disseminateToCollections(p, act, collections)
 }
