@@ -221,8 +221,11 @@ func AddToCollections(p defaultProcessor, colSaver s.CollectionStore, it pub.Ite
 					continue
 				}
 			}
-			// TODO(marius): add check if IRI represents an actor (or rely on the collection saver to break if not)
-			allRecipients = append(allRecipients, handlers.Inbox.IRI(recIRI))
+			inb := handlers.Inbox.IRI(recIRI)
+			if !allRecipients.Contains(inb) {
+				// TODO(marius): add check if IRI represents an actor (or rely on the collection saver to break if not)
+				allRecipients = append(allRecipients, inb)
+			}
 		}
 	}
 	for _, recInb := range pub.ItemCollectionDeduplication(&allRecipients) {

@@ -12,7 +12,7 @@ import (
 // of interpersonal and social relationships (e.g. friend requests, management of social network, etc).
 // See 5.2 Representing Relationships Between Entities for more information:
 // https://www.w3.org/TR/activitystreams-vocabulary/#connections
-func RelationshipManagementActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
+func RelationshipManagementActivity(p defaultProcessor, act *pub.Activity) (*pub.Activity, error) {
 	if act.Object == nil {
 		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
 	}
@@ -21,7 +21,7 @@ func RelationshipManagementActivity(l s.WriteStore, act *pub.Activity) (*pub.Act
 	}
 	switch act.Type {
 	case pub.FollowType:
-		return FollowActivity(l, act)
+		return FollowActivity(p, act)
 	case pub.BlockType:
 		fallthrough
 	case pub.AcceptType:
@@ -46,16 +46,17 @@ func RelationshipManagementActivity(l s.WriteStore, act *pub.Activity) (*pub.Act
 
 // FollowActivity
 // is used when following an actor.
-func FollowActivity(r s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
+func FollowActivity(p defaultProcessor, act *pub.Activity) (*pub.Activity, error) {
 	ob := act.Object.GetLink()
-	if colSaver, ok := r.(s.CollectionStore); ok {
+	if colSaver, ok := p.s.(s.CollectionStore); ok {
 		if !handlers.ValidCollectionIRI(ob) {
 			// TODO(marius): add check if IRI represents an actor (or rely on the collection saver to break if not)
 			ob = handlers.Inbox.IRI(ob)
 		}
-		err := colSaver.AddTo(ob, act.GetLink())
-		if err != nil {
-			return act, err
+		if p.v.IsLocalIRI(ob) {
+			if err := colSaver.AddTo(ob, act.GetLink()); err != nil {
+				return act, err
+			}
 		}
 	}
 	return act, nil

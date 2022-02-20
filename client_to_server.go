@@ -98,7 +98,7 @@ func processClientActivity(p defaultProcessor, act *pub.Activity) (*pub.Activity
 	} else if pub.NotificationActivityTypes.Contains(act.Type) {
 		act, err = NotificationActivity(p.s, act)
 	} else if pub.RelationshipManagementActivityTypes.Contains(act.Type) {
-		act, err = RelationshipManagementActivity(p.s, act)
+		act, err = RelationshipManagementActivity(p, act)
 	} else if pub.NegatingActivityTypes.Contains(act.Type) {
 		act, err = NegatingActivity(p.s, act)
 	} else if pub.OffersActivityTypes.Contains(act.Type) {
