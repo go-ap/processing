@@ -140,6 +140,7 @@ func addNewItemCollections(it pub.Item) (pub.Item, error) {
 }
 
 // CreateActivity
+// https://www.w3.org/TR/activitypub/#create-activity-outbox
 // The Create activity is used when posting a new object. This has the side effect that the object embedded within the
 // Activity (in the object property) is created.
 // When a Create activity is posted, the actor of the activity SHOULD be copied onto the object's attributedTo field.
@@ -148,6 +149,10 @@ func addNewItemCollections(it pub.Item) (pub.Item, error) {
 // and likewise with copying recipients from the object to the wrapping Create activity.
 // Note that it is acceptable for the object's addressing to be changed later without changing the Create's addressing
 // (for example via an Update activity).
+// https://www.w3.org/TR/activitypub/#create-activity-inbox
+// Receiving a Create activity in an inbox has surprisingly few side effects; the activity should appear in the actor's
+// inbox and it is likely that the server will want to locally store a representation of this activity and its
+// accompanying object. However, this mostly happens in general with processing activities delivered to an inbox anyway.
 func CreateActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	if iri := act.Object.GetLink(); len(iri) == 0 {
 		if err := SetID(act.Object, handlers.Outbox.IRI(act.Actor), act); err != nil {
@@ -168,9 +173,16 @@ func CreateActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 }
 
 // UpdateActivity
+// https://www.w3.org/TR/activitypub/#update-activity-outbox
 // The Update activity is used when updating an already existing object. The side effect of this is that the object
 // MUST be modified to reflect the new structure as defined in the update activity,
 // assuming the actor has permission to update this object.
+// https://www.w3.org/TR/activitypub/#update-activity-inbox
+// For server to server interactions, an Update activity means that the receiving server SHOULD update its copy of the
+// object of the same id to the copy supplied in the Update activity. Unlike the client to server handling of the Update
+// activity, this is not a partial update but a complete replacement of the object.
+// The receiving server MUST take care to be sure that the Update is authorized to modify its object. At minimum,
+// this may be done by ensuring that the Update and its object are of same origin.
 func UpdateActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	var err error
 	ob := act.Object
@@ -206,7 +218,7 @@ func UpdateActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	return act, err
 }
 
-func updateSingleItem (l s.WriteStore, found pub.Item, with pub.Item) (pub.Item, error) {
+func updateSingleItem(l s.WriteStore, found pub.Item, with pub.Item) (pub.Item, error) {
 	var err error
 	if pub.IsNil(found) {
 		return found, errors.NotFoundf("Unable to find %s %s", with.GetType(), with.GetLink())
@@ -297,7 +309,17 @@ func updateCreateActivityObject(l s.WriteStore, o pub.Item, act *pub.Activity) e
 }
 
 // DeleteActivity
-// The Delete activity @TODO (load doc from ActivityStreams Vocabulary)
+// https://www.w3.org/TR/activitypub/#delete-activity-outbox
+// The Delete activity is used to delete an already existing object. The side effect of this is that the server MAY
+// replace the object with a Tombstone of the object that will be displayed in activities which reference the deleted
+// object. If the deleted object is requested the server SHOULD respond with either the HTTP 410 Gone status code
+// if a Tombstone object is presented as the response body, otherwise respond with a HTTP 404 Not Found.
+// https://www.w3.org/TR/activitypub/#delete-activity-inbox
+// The side effect of receiving this is that (assuming the object is owned by the sending actor / server) the server
+// receiving the delete activity SHOULD remove its representation of the object with the same id, and MAY replace that
+// representation with a Tombstone object.
+// Note: that after an activity has been transmitted from an origin server to a remote server, there is nothing in the
+// ActivityPub protocol that can enforce remote deletion of an object's representation.
 func DeleteActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	var err error
 	ob := act.Object
@@ -315,9 +337,9 @@ func DeleteActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 		return act, errors.Errorf("IRI %s does not point to a single object", ob.GetLink())
 	}
 	t := pub.Tombstone{
-		ID:   act.Object.GetLink(),
-		Type: pub.TombstoneType,
-		To: pub.ItemCollection{pub.PublicNS},
+		ID:      act.Object.GetLink(),
+		Type:    pub.TombstoneType,
+		To:      pub.ItemCollection{pub.PublicNS},
 		Deleted: time.Now().UTC(),
 	}
 	if found.GetType() != pub.TombstoneType {
