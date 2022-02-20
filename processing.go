@@ -157,6 +157,30 @@ type KeySaver interface {
 	GenKey(pub.IRI) error
 }
 
+func s2sSignFn(p defaultProcessor, act *pub.Activity) func(r *http.Request) error {
+	keyLoader, ok := p.s.(KeyLoader)
+	if !ok {
+		return func(r *http.Request) error {
+			return nil
+		}
+	}
+	return func(r *http.Request) error {
+		key, err := keyLoader.LoadKey(act.Actor.GetLink())
+		if err != nil {
+			return err
+		}
+		typ, err := keyType(key)
+		if err != nil {
+			return err
+		}
+
+		signHdrs := []string{"(request-target)", "host", "date"}
+		keyId := fmt.Sprintf("%s#main-key", act.Actor.GetID())
+		p.infoFn("Signing with key %s", keyId)
+		return httpsig.NewSigner(keyId, key, typ, signHdrs).Sign(r)
+	}
+}
+
 func keyType(key crypto.PrivateKey) (httpsig.Algorithm, error) {
 	switch key.(type) {
 	case *rsa.PrivateKey:
@@ -247,27 +271,9 @@ func disseminateToCollections(p defaultProcessor, act *pub.Activity, allRecipien
 				return act, err
 			}
 		} else if p.v.IsLocalIRI(act.ID) {
-			keyLoader, ok := colSaver.(KeyLoader)
-			if !ok {
-				continue
-			}
 			// TODO(marius): Move this function to either the go-ap/auth package, or in FedBOX itself.
 			//   We should probably change the signature for client.RequestSignFn to accept an Actor/IRI as a param.
-			p.c.SignFn(func(r *http.Request) error {
-				key, err := keyLoader.LoadKey(act.Actor.GetLink())
-				if err != nil {
-					return err
-				}
-				typ, err := keyType(key)
-				if err != nil {
-					return err
-				}
-
-				signHdrs := []string{"(request-target)", "host", "date"}
-				keyId := fmt.Sprintf("%s#main-key", act.Actor.GetID())
-				p.infoFn("Signing with key %s", keyId)
-				return httpsig.NewSigner(keyId, key, typ, signHdrs).Sign(r)
-			})
+			p.c.SignFn(s2sSignFn(p, act))
 			p.infoFn("Pushing to remote actor's collection %s", recInb.GetLink())
 			if _, _, err := p.c.ToCollection(recInb.GetLink(), act); err != nil {
 				p.errFn("Failed: %s", err.Error())
