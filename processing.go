@@ -256,31 +256,38 @@ func AddToCollections(p defaultProcessor, colSaver s.CollectionStore, it pub.Ite
 }
 
 func disseminateToCollections(p defaultProcessor, act *pub.Activity, allRecipients pub.ItemCollection) (*pub.Activity, error) {
-	colSaver, ok := p.s.(s.CollectionStore)
-	if !ok {
-		// TODO(marius): not returning an error might be the wrong move here
-		return act, nil
-	}
 	for _, recInb := range pub.ItemCollectionDeduplication(&allRecipients) {
-		// TODO(marius): the processing module needs a method to see if an IRI is local or not
-		//    For each recipient we need to save the incoming activity to the actor's Inbox if the actor is local
-		//    Or disseminate it using S2S if the actor is not local
-		if p.v.IsLocalIRI(recInb.GetLink()) {
-			p.infoFn("Saving to local actor's collection %s", recInb.GetLink())
-			if err := colSaver.AddTo(recInb.GetLink(), act.GetLink()); err != nil {
-				return act, err
-			}
-		} else if p.v.IsLocalIRI(act.ID) {
-			// TODO(marius): Move this function to either the go-ap/auth package, or in FedBOX itself.
-			//   We should probably change the signature for client.RequestSignFn to accept an Actor/IRI as a param.
-			p.c.SignFn(s2sSignFn(p, act))
-			p.infoFn("Pushing to remote actor's collection %s", recInb.GetLink())
-			if _, _, err := p.c.ToCollection(recInb.GetLink(), act); err != nil {
-				p.errFn("Failed: %s", err.Error())
-			}
+		if err := disseminateToCollection(p, recInb.GetLink(), act); err != nil {
+			p.errFn("Failed: %s", err.Error())
 		}
 	}
 	return act, nil
+}
+
+func disseminateToCollection(p defaultProcessor, col pub.IRI, act *pub.Activity) error {
+	colSaver, ok := p.s.(s.CollectionStore)
+	if !ok {
+		// TODO(marius): not returning an error might be the wrong move here
+		return nil
+	}
+	// TODO(marius): the processing module needs a method to see if an IRI is local or not
+	//    For each recipient we need to save the incoming activity to the actor's Inbox if the actor is local
+	//    Or disseminate it using S2S if the actor is not local
+	if p.v.IsLocalIRI(col) {
+		p.infoFn("Saving to local actor's collection %s", col)
+		if err := colSaver.AddTo(col, act.GetLink()); err != nil {
+			return err
+		}
+	} else if p.v.IsLocalIRI(act.ID) {
+		// TODO(marius): Move this function to either the go-ap/auth package, or in FedBOX itself.
+		//   We should probably change the signature for client.RequestSignFn to accept an Actor/IRI as a param.
+		p.c.SignFn(s2sSignFn(p, act))
+		p.infoFn("Pushing to remote actor's collection %s", col)
+		if _, _, err := p.c.ToCollection(col, act); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // CollectionManagementActivity processes matching activities

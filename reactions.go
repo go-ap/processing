@@ -12,29 +12,29 @@ import (
 // The Reactions use case primarily deals with reactions to content.
 // This can include activities such as liking or disliking content, ignoring updates,
 // flagging content as being inappropriate, accepting or rejecting objects, etc.
-func ReactionsActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
+func ReactionsActivity(p defaultProcessor, act *pub.Activity) (*pub.Activity, error) {
 	var err error
 	if act.Object != nil {
 		switch act.Type {
 		case pub.DislikeType:
 			fallthrough
 		case pub.LikeType:
-			act, err = AppreciationActivity(l, act)
+			act, err = AppreciationActivity(p.s, act)
 		case pub.RejectType:
 			fallthrough
 		case pub.TentativeRejectType:
 			// I think nothing happens here.
-			act, err = RejectActivity(l, act)
+			act, err = RejectActivity(p.s, act)
 		case pub.TentativeAcceptType:
 			fallthrough
 		case pub.AcceptType:
-			act, err = AcceptActivity(l, act)
+			act, err = AcceptActivity(p, act)
 		case pub.BlockType:
-			act, err = BlockActivity(l, act)
+			act, err = BlockActivity(p.s, act)
 		case pub.FlagType:
-			act, err = FlagActivity(l, act)
+			act, err = FlagActivity(p.s, act)
 		case pub.IgnoreType:
-			act, err = IgnoreActivity(l, act)
+			act, err = IgnoreActivity(p.s, act)
 		}
 	}
 
@@ -140,7 +140,7 @@ func firstOrItem(it pub.Item) pub.Item {
 
 // AcceptActivity
 // The side effect of receiving this in an inbox is that the server SHOULD add the object to the actor's followers Collection.
-func AcceptActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
+func AcceptActivity(p defaultProcessor, act *pub.Activity) (*pub.Activity, error) {
 	if act.Object == nil {
 		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
 	}
@@ -154,7 +154,7 @@ func AcceptActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 
 	if act.Object.IsLink() {
 		// dereference object activity
-		if actLoader, ok := l.(s.ReadStore); ok {
+		if actLoader, ok := p.s.(s.ReadStore); ok {
 			obj, err := actLoader.Load(act.Object.GetLink())
 			if err != nil {
 				return act, errors.NotValidf("Unable to dereference object: %s", act.Object.GetLink())
@@ -166,23 +166,34 @@ func AcceptActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 		if !act.Actor.GetLink().Equals(a.Object.GetLink(), false) {
 			return errors.NotValidf("The %s activity has a different actor than its object: %s, expected %s", act.Type, act.Actor.GetLink(), a.Actor.GetLink())
 		}
-		good := pub.ActivityVocabularyTypes{pub.FollowType}
-		if !good.Contains(a.Type) {
-			return errors.NotValidf("Object Activity has wrong type %s, expected %v", a.Type, good)
-		}
-		followers := handlers.Followers.IRI(act.Actor)
-		following := handlers.Following.IRI(a.Actor)
-		if colSaver, ok := l.(s.CollectionStore); ok {
-			if err := colSaver.AddTo(following, a.Object.GetLink()); err != nil {
-				return err
-			}
-			if err := colSaver.AddTo(followers, a.Actor.GetLink()); err != nil {
-				return err
-			}
-		}
-		return nil
+		return finalizeFollowActivity(p, a)
 	})
 	return act, err
+}
+
+func finalizeFollowActivity(p defaultProcessor, a *pub.Activity) error {
+	good := pub.ActivityVocabularyTypes{pub.FollowType}
+	if !good.Contains(a.Type) {
+		return errors.NotValidf("Object Activity has wrong type %s, expected %v", a.Type, good)
+	}
+	colSaver, ok := p.s.(s.CollectionStore)
+	if !ok {
+		// NOTE(marius): Invalid storage backend, unable to save to local collection
+		return nil
+	}
+	followers := handlers.Followers.IRI(a.Object)
+	if p.v.IsLocalIRI(followers) {
+		if err := colSaver.AddTo(followers, a.Actor.GetLink()); err != nil {
+			return err
+		}
+	}
+	following := handlers.Following.IRI(a.Actor)
+	if p.v.IsLocalIRI(following) {
+		if err := colSaver.AddTo(following, a.Object.GetLink()); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func RejectActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {

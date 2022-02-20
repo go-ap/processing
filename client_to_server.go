@@ -86,7 +86,7 @@ func processClientActivity(p defaultProcessor, act *pub.Activity) (*pub.Activity
 	} else if pub.CollectionManagementActivityTypes.Contains(act.Type) {
 		act, err = CollectionManagementActivity(p.s, act)
 	} else if pub.ReactionsActivityTypes.Contains(act.Type) {
-		act, err = ReactionsActivity(p.s, act)
+		act, err = ReactionsActivity(p, act)
 	} else if pub.EventRSVPActivityTypes.Contains(act.Type) {
 		act, err = EventRSVPActivity(p.s, act)
 	} else if pub.GroupManagementActivityTypes.Contains(act.Type) {
