@@ -204,14 +204,16 @@ func AddToCollections(p defaultProcessor, colSaver s.CollectionStore, it pub.Ite
 		return nil, errors.Newf("Unable to process nil activity")
 	}
 
-	actIRI := act.Actor.GetLink()
-	outbox := handlers.Outbox.IRI(actIRI)
-
 	allRecipients := make(pub.ItemCollection, 0)
+	if act.Actor != nil {
+		actIRI := act.Actor.GetLink()
+		outbox := handlers.Outbox.IRI(actIRI)
 
-	if !actIRI.Equals(pub.PublicNS, true) && !act.GetLink().Contains(outbox, false) && p.v.IsLocalIRI(actIRI) {
-		allRecipients = append(allRecipients, outbox)
+		if !actIRI.Equals(pub.PublicNS, true) && !act.GetLink().Contains(outbox, false) && p.v.IsLocalIRI(actIRI) {
+			allRecipients = append(allRecipients, outbox)
+		}
 	}
+
 	for _, rec := range act.Recipients() {
 		recIRI := rec.GetLink()
 		if recIRI == pub.PublicNS {

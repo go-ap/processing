@@ -273,30 +273,32 @@ func updateUpdateActivityObject(l s.WriteStore, o pub.Item) error {
 
 func updateObjectForCreate(l s.WriteStore, o *pub.Object, act *pub.Activity) error {
 	// See https://www.w3.org/TR/ActivityPub/#create-activity-outbox
-	// Copying the actor's IRI to the object's AttributedTo
-	o.AttributedTo = act.Actor.GetLink()
+	// Copying the actor's IRI to the object's "AttributedTo"
+	if pub.IsNil(o.AttributedTo) && !pub.IsNil(act.Actor) {
+		o.AttributedTo = act.Actor.GetLink()
+	}
 
-	// Merging the activity's and the object's Audience
+	// Merging the activity's and the object's "Audience"
 	if aud := pub.ItemCollectionDeduplication(&act.Audience, &o.Audience); aud != nil {
 		o.Audience = pub.FlattenItemCollection(aud)
 		act.Audience = pub.FlattenItemCollection(aud)
 	}
-	// Merging the activity's and the object's To addressing
+	// Merging the activity's and the object's "To" addressing
 	if to := pub.ItemCollectionDeduplication(&act.To, &o.To); to != nil {
 		o.To = pub.FlattenItemCollection(to)
 		act.To = pub.FlattenItemCollection(to)
 	}
-	// Merging the activity's and the object's Bto addressing
+	// Merging the activity's and the object's "Bto" addressing
 	if bto := pub.ItemCollectionDeduplication(&act.Bto, &o.Bto); bto != nil {
 		o.Bto = pub.FlattenItemCollection(bto)
 		act.Bto = pub.FlattenItemCollection(bto)
 	}
-	// Merging the activity's and the object's Cc addressing
+	// Merging the activity's and the object's "Cc" addressing
 	if cc := pub.ItemCollectionDeduplication(&act.CC, &o.CC); cc != nil {
 		o.CC = pub.FlattenItemCollection(cc)
 		act.CC = pub.FlattenItemCollection(cc)
 	}
-	// Merging the activity's and the object's Bcc addressing
+	// Merging the activity's and the object's "Bcc" addressing
 	if bcc := pub.ItemCollectionDeduplication(&act.BCC, &o.BCC); bcc != nil {
 		o.BCC = pub.FlattenItemCollection(bcc)
 		act.BCC = pub.FlattenItemCollection(bcc)
