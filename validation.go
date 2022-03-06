@@ -230,7 +230,8 @@ func (v defaultValidator) ValidateClientActivity(a pub.Item, outbox pub.IRI) err
 	if a.IsLink() {
 		return v.ValidateLink(a.GetLink())
 	}
-	if !pub.ActivityTypes.Contains(a.GetType()) {
+	validActivityTypes := append(pub.ActivityTypes, pub.IntransitiveActivityTypes...)
+	if !validActivityTypes.Contains(a.GetType()) {
 		return InvalidActivity("invalid type %s", a.GetType())
 	}
 	return pub.OnActivity(a, func(act *pub.Activity) error {
@@ -242,11 +243,13 @@ func (v defaultValidator) ValidateClientActivity(a pub.Item, outbox pub.IRI) err
 				return err
 			}
 		}
-		// @todo(marius): this needs to be extended by a ValidateActivityClientObject
-		//   because the first step would be to test the object in the context of the activity
-		//   The ValidateActivityClientObject could then validate just the object itself.
-		if act.Object, err = v.ValidateClientObject(act.Object); err != nil {
-			return err
+		if !pub.IntransitiveActivityTypes.Contains(a.GetType()) {
+			// @TODO(marius): this needs to be extended by a ValidateActivityClientObject
+			//   because the first step would be to test the object in the context of the activity
+			//   The ValidateActivityClientObject could then validate just the object itself.
+			if act.Object, err = v.ValidateClientObject(act.Object); err != nil {
+				return err
+			}
 		}
 		if act.Target != nil {
 			if act.Target, err = v.ValidateClientObject(act.Target); err != nil {
