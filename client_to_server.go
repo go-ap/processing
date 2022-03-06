@@ -21,11 +21,7 @@ func (p defaultProcessor) ProcessClientActivity(it pub.Item) (pub.Item, error) {
 		return nil, errors.Newf("Unable to process nil activity")
 	}
 	if pub.IntransitiveActivityTypes.Contains(it.GetType()) {
-		return it, pub.OnIntransitiveActivity(it, func(act *pub.IntransitiveActivity) error {
-			var err error
-			it, err = processClientIntransitiveActivity(p, act)
-			return err
-		})
+		return processClientIntransitiveActivity(p, it)
 	}
 	return it, pub.OnActivity(it, func(act *pub.Activity) error {
 		var err error
@@ -34,40 +30,53 @@ func (p defaultProcessor) ProcessClientActivity(it pub.Item) (pub.Item, error) {
 	})
 }
 
-func processClientIntransitiveActivity(p defaultProcessor, act *pub.IntransitiveActivity) (*pub.IntransitiveActivity, error) {
-	iri := act.GetLink()
-	if len(iri) == 0 {
-		if err := SetID(act, handlers.Outbox.IRI(act.Actor), act); err != nil {
-			return act, nil
+func processClientIntransitiveActivity(p defaultProcessor, it pub.Item) (pub.Item, error) {
+	if len(it.GetLink()) == 0 {
+		if err := SetID(it, nil, nil); err != nil {
+			return it, err
 		}
 	}
-	var err error
-	if pub.QuestionActivityTypes.Contains(act.Type) {
-		act, err = QuestionActivity(p.s, act)
-	} else if pub.GeoSocialEventsActivityTypes.Contains(act.Type) {
-		act, err = GeoSocialEventsIntransitiveActivity(p.s, act)
+	typ := it.GetType()
+	if pub.QuestionActivityTypes.Contains(typ) {
+		err := pub.OnQuestion(it, func(q *pub.Question) error {
+			var err error
+			q, err = QuestionActivity(p.s, q)
+			return err
+		})
+		if err != nil {
+			return it, err
+		}
 	}
+	err := pub.OnIntransitiveActivity(it, func(act *pub.IntransitiveActivity) error {
+		var err error
+		if pub.GeoSocialEventsActivityTypes.Contains(typ) {
+			act, err = GeoSocialEventsIntransitiveActivity(p.s, act)
+		}
+		if err != nil {
+			return err
+		}
+		if act.Published.IsZero() {
+			act.Published = time.Now().UTC()
+		}
+		return nil
+	})
 	if err != nil {
-		return act, err
+		return it, err
 	}
 
-	if act.Published.IsZero() {
-		act.Published = time.Now().UTC()
-	}
-
-	var it pub.Item
-	it, err = p.s.Save(pub.FlattenProperties(act))
-	if err != nil {
-		return act, err
+	if it, err = p.s.Save(pub.FlattenProperties(it)); err != nil {
+		return it, err
 	}
 	if colSaver, ok := p.s.(s.CollectionStore); ok {
-		it, err = AddToCollections(p, colSaver, it)
+		if it, err = AddToCollections(p, colSaver, it); err != nil {
+			p.infoFn("error: %s", err)
+		}
 	}
-	return act, nil
+	return it, nil
 }
 
 func processClientActivity(p defaultProcessor, act *pub.Activity) (*pub.Activity, error) {
-	if iri := act.GetLink(); len(iri) == 0 {
+	if len(act.GetLink()) == 0 {
 		if err := SetID(act, nil, nil); err != nil {
 			return act, err
 		}

@@ -376,7 +376,7 @@ func NotificationActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, err
 // QuestionActivity processes matching activities
 // The Questions use case primarily deals with representing inquiries of any type. See 5.4
 // Representing Questions for more information.
-func QuestionActivity(l s.WriteStore, act *pub.IntransitiveActivity) (*pub.IntransitiveActivity, error) {
+func QuestionActivity(l s.WriteStore, act *pub.Question) (*pub.Question, error) {
 	// TODO(marius):
 	return act, errors.NotImplementedf("Processing %s activity is not implemented", act.GetType())
 }

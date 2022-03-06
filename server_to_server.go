@@ -35,6 +35,6 @@ func processServerActivity(p defaultProcessor, act *pub.Activity) (*pub.Activity
 	return processClientActivity(p, act)
 }
 
-func processServerIntransitiveActivity(p defaultProcessor, act *pub.IntransitiveActivity) (*pub.IntransitiveActivity, error) {
-	return processClientIntransitiveActivity(p, act)
+func processServerIntransitiveActivity(p defaultProcessor, it pub.Item) (pub.Item, error) {
+	return processClientIntransitiveActivity(p, it)
 }
