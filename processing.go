@@ -373,17 +373,6 @@ func NotificationActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, err
 	return act, errors.NotImplementedf("Processing %s activity is not implemented", act.GetType())
 }
 
-// QuestionActivity processes matching activities
-//
-// https://www.w3.org/TR/activitystreams-vocabulary/#h-motivations-questions
-//
-// The Questions use case primarily deals with representing inquiries of any type.
-// See 5.4 Representing Questions for more information: https://www.w3.org/TR/activitystreams-vocabulary/#questions
-func QuestionActivity(l s.WriteStore, act *pub.Question) (*pub.Question, error) {
-	// TODO(marius): A Question activity needs to save the objects in the anyOf or oneOf(?) to storage
-	return act, nil
-}
-
 // OffersActivity processes matching activities
 //
 // The Offers use case deals with activities involving offering one object to another. It can include, for instance,
