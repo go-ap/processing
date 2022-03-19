@@ -1,10 +1,11 @@
 package processing
 
 import (
+	"net/netip"
+	"testing"
+
 	pub "github.com/go-ap/activitypub"
 	"github.com/go-ap/client"
-	"net"
-	"testing"
 )
 
 func TestActivityValidatorCtxt(t *testing.T) {
@@ -51,6 +52,7 @@ var (
 		}
 	}
 )
+
 func Test_defaultValidator_validateLocalIRI(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -79,7 +81,7 @@ func Test_defaultValidator_validateLocalIRI(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "example.com host with set baseIRIs",
+			name: "example.com host with set baseIRIs",
 			baseIRI: pub.IRIs{
 				pub.IRI("https://example.com"),
 			},
@@ -87,7 +89,7 @@ func Test_defaultValidator_validateLocalIRI(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "fedbox host with multiple baseIRIs",
+			name: "fedbox host with multiple baseIRIs",
 			baseIRI: pub.IRIs{
 				pub.IRI("http://localhost"),
 				pub.IRI("http://fedbox"),
@@ -97,7 +99,7 @@ func Test_defaultValidator_validateLocalIRI(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "example.com host with multiple baseIRIs",
+			name: "example.com host with multiple baseIRIs",
 			baseIRI: pub.IRIs{
 				pub.IRI("http://localhost"),
 				pub.IRI("http://fedbox"),
@@ -110,12 +112,12 @@ func Test_defaultValidator_validateLocalIRI(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			v := defaultValidator{
-				addr:   ipCache{
-					addr: make(map[string][]net.IP),
+				addr: ipCache{
+					addr: make(map[string][]netip.Addr),
 				},
 				baseIRI: tt.baseIRI,
-				infoFn: tInfFn(t),
-				errFn:  tErrFn(t),
+				infoFn:  tInfFn(t),
+				errFn:   tErrFn(t),
 			}
 			if err := v.validateLocalIRI(tt.arg); (err != nil) != tt.wantErr {
 				t.Errorf("validateLocalIRI() error = %v, wantErr %v", err, tt.wantErr)

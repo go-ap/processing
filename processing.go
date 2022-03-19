@@ -4,8 +4,8 @@ import (
 	"crypto"
 	"crypto/rsa"
 	"fmt"
-	"net"
 	"net/http"
+	"net/netip"
 
 	pub "github.com/go-ap/activitypub"
 	c "github.com/go-ap/client"
@@ -43,9 +43,7 @@ func New(o ...optionFn) (*defaultProcessor, *defaultValidator, error) {
 			errFn:  emptyLogFn,
 		},
 		v: &defaultValidator{
-			addr: ipCache{
-				addr: make(map[string][]net.IP),
-			},
+			addr:   ipCache{addr: make(map[string][]netip.Addr)},
 			infoFn: emptyLogFn,
 			errFn:  emptyLogFn,
 		},

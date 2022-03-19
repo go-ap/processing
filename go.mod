@@ -1,6 +1,6 @@
 module github.com/go-ap/processing
 
-go 1.13
+go 1.18
 
 require (
 	github.com/go-ap/activitypub v0.0.0-20220316105155-826f263bfec3

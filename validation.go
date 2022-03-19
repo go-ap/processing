@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/netip"
 	"path"
 	"strings"
 	"sync"
@@ -63,7 +64,7 @@ type invalidActivity struct {
 }
 
 type ipCache struct {
-	addr map[string][]net.IP
+	addr map[string][]netip.Addr
 	m    sync.RWMutex
 }
 
@@ -602,17 +603,19 @@ func (v defaultValidator) validateLocalIRI(i pub.IRI) error {
 	defer v.addr.m.Unlock()
 	if _, ok := v.addr.addr[u.Host]; !ok {
 		h, _ := hostSplit(u.Host)
-		ip := net.ParseIP(h)
-		if ip != nil && !ip.IsUnspecified() {
-			v.addr.addr[u.Host] = []net.IP{ip}
+
+		if ip, err := netip.ParseAddr(h); err == nil && !ip.IsUnspecified() {
+			v.addr.addr[u.Host] = []netip.Addr{ip}
 		} else {
 			addrs, err := net.LookupHost(u.Host)
 			if err != nil {
 				return errors.Annotatef(err, "%s is not a local IRI", i)
 			}
-			v.addr.addr[u.Host] = make([]net.IP, len(addrs))
+			v.addr.addr[u.Host] = make([]netip.Addr, len(addrs))
 			for i, addr := range addrs {
-				v.addr.addr[u.Host][i] = net.ParseIP(addr)
+				if ip, err = netip.ParseAddr(addr); err == nil && !ip.IsUnspecified() {
+					v.addr.addr[u.Host][i] = ip
+				}
 			}
 		}
 	}
