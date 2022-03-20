@@ -354,28 +354,73 @@ func DeleteActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	var err error
 	ob := act.Object
 
-	var found pub.Item
+	var toRemove pub.ItemCollection
 	if loader, ok := l.(s.ReadStore); ok {
-		if found, err = loader.Load(ob.GetLink()); err != nil {
-			return act, err
+		if pub.IsItemCollection(ob) {
+			err = pub.OnItemCollection(ob, func(col *pub.ItemCollection) error {
+				for _, it := range col.Collection() {
+					if err := replaceItemWithTombstone(loader, it, &toRemove); err != nil {
+						return errors.Annotatef(err, "unable to replace with tombstone object %s", it.GetLink())
+					}
+				}
+				return nil
+			})
+		} else {
+			err = replaceItemWithTombstone(loader, ob, &toRemove)
 		}
 	}
-	if pub.IsNil(found) {
-		return act, errors.NotFoundf("Unable to find %s %s", ob.GetType(), ob.GetLink())
-	}
-	if found.IsCollection() {
-		return act, errors.Errorf("IRI %s does not point to a single object", ob.GetLink())
-	}
-	t := pub.Tombstone{
-		ID:      act.Object.GetLink(),
-		Type:    pub.TombstoneType,
-		To:      pub.ItemCollection{pub.PublicNS},
-		Deleted: time.Now().UTC(),
-	}
-	if found.GetType() != pub.TombstoneType {
-		t.FormerType = found.GetType()
+	if err != nil {
+		return act, errors.Annotatef(err, "unable to create tombstone for object %s", ob)
 	}
 
-	act.Object, err = l.Save(t)
-	return act, err
+	if len(toRemove) == 0 {
+		return act, nil
+	}
+	result := make(pub.ItemCollection, 0)
+	for _, r := range toRemove {
+		r, err = l.Save(r)
+		if err != nil {
+			return act, errors.Annotatef(err, "unable to save tombstone for object %s", r)
+		}
+		result = append(result, r)
+	}
+	act.Object = result.Normalize()
+	return act, nil
+}
+
+func replaceItemWithTombstone(loader s.ReadStore, it pub.Item, toRemove *pub.ItemCollection) error {
+	toRem, err := loader.Load(it.GetLink())
+	if err != nil {
+		return err
+	}
+	if err := pub.OnObject(toRem, loadTombstoneForDelete(loader, toRemove)); err != nil {
+		return err
+	}
+	return nil
+}
+
+func loadTombstoneForDelete(loader s.ReadStore, toRemove *pub.ItemCollection) func(*pub.Object) error {
+	return func(ob *pub.Object) error {
+		found, err := loader.Load(ob.GetLink())
+		if err != nil {
+			return err
+		}
+		if pub.IsNil(found) {
+			return errors.NotFoundf("Unable to find %s %s", ob.GetType(), ob.GetLink())
+		}
+		pub.OnObject(found, func(fob *pub.Object) error {
+			t := pub.Tombstone{
+				ID:      fob.GetLink(),
+				Type:    pub.TombstoneType,
+				To:      pub.ItemCollection{pub.PublicNS},
+				Deleted: time.Now().UTC(),
+			}
+			if fob.GetType() != pub.TombstoneType {
+				t.FormerType = fob.GetType()
+			}
+			*toRemove = append(*toRemove, t)
+			return nil
+		})
+		return nil
+	}
 }
