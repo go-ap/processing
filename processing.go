@@ -60,10 +60,13 @@ func New(o ...optionFn) (*defaultProcessor, *defaultValidator, error) {
 type optionFn func(s *_p) error
 
 func SetIDGenerator(genFn IDGenerator) optionFn {
-	return func(v *_p) error {
-		createID = genFn
-		return nil
-	}
+	createID = genFn
+	return func(v *_p) error { return nil }
+}
+
+func SetActorKeyGenerator(genFn pub.WithActorFn) optionFn {
+	createKey = genFn
+	return func(_ *_p) error { return nil }
 }
 
 func SetInfoLogger(logFn c.LogFn) optionFn {

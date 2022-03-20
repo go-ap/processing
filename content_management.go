@@ -10,13 +10,22 @@ import (
 	s "github.com/go-ap/storage"
 )
 
-// IDGenerator takes an ActivityStreams object, a collection to store it in, and the activity that has it as object:
-//  "it" is the object we want to generate the ID for.
-//  "partOf" represents the Collection that it is a part of.
-//  "by" represents the Activity that generated the object
-type IDGenerator func(it pub.Item, partOf pub.Item, by pub.Item) (pub.ID, error)
+type (
+	// IDGenerator takes an ActivityStreams object, a collection to store it in, and the activity that has it as object:
+	//  "it" is the object we want to generate the ID for.
+	//  "partOf" represents the Collection that it is a part of.
+	//  "by" represents the Activity that generated the object
+	IDGenerator func(it pub.Item, partOf pub.Item, by pub.Item) (pub.ID, error)
+)
 
-var createID IDGenerator
+var (
+	createID  IDGenerator
+	createKey pub.WithActorFn = defaultKeyGenerator()
+)
+
+func defaultKeyGenerator() pub.WithActorFn {
+	return func(_ *pub.Actor) error { return nil }
+}
 
 func defaultIDGenerator(base pub.IRI) IDGenerator {
 	timeIDFn := func(t time.Time) string { return fmt.Sprintf("%d", t.UnixNano()/1000) }
@@ -161,6 +170,11 @@ func CreateActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	if iri := act.Object.GetLink(); len(iri) == 0 {
 		if err := SetID(act.Object, handlers.Outbox.IRI(act.Actor), act); err != nil {
 			return act, nil
+		}
+	}
+	if pub.ActorTypes.Contains(act.Object.GetType()) {
+		if err := pub.OnActor(act.Object, createKey); err != nil {
+			return act, errors.Annotatef(err, "unable to generate private/public key pair for object %s", act.Object.GetLink())
 		}
 	}
 	err := updateCreateActivityObject(l, act.Object, act)
