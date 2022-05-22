@@ -62,7 +62,7 @@ func RelationshipManagementActivity(p defaultProcessor, act *pub.Activity) (*pub
 // Servers MAY choose to not explicitly send a Reject in response to a Follow, though implementors ought to be aware
 // that the server sending the request could be left in an intermediate state. For example, a server might not send
 // a Reject to protect a user's privacy.
-// In the case of receiving an Accept referencing this Follow as the object, the server SHOULD add the actor to the
+// In the case of receiving an "Accept" referencing this Follow as the object, the server SHOULD add the actor to the
 // object actor's Followers Collection. In the case of a Reject, the server MUST NOT add the actor to the object
 // actor's Followers Collection.
 //

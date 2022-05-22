@@ -368,9 +368,10 @@ func ValidateClientQuestionActivity(l s.ReadStore, act *pub.Activity) error {
 func ValidateClientRelationshipManagementActivity(l s.ReadStore, act *pub.Activity) error {
 	switch act.Type {
 	case pub.FollowType:
-		a, _ := l.Load(act.GetLink())
-		if !pub.IsNil(firstOrItem(a)) {
-			return errors.Conflictf("%s already exists for this actor/object pair", act.Type)
+		if iri := act.GetLink(); len(iri) > 0 {
+			if a, _ := l.Load(iri); !pub.IsNil(firstOrItem(a)) {
+				return errors.Conflictf("%s already exists for this actor/object pair", act.Type)
+			}
 		}
 	case pub.AddType:
 	case pub.BlockType:
