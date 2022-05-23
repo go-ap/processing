@@ -4,9 +4,9 @@ go 1.18
 
 require (
 	github.com/go-ap/activitypub v0.0.0-20220420091113-4837641dc83b
-	github.com/go-ap/client v0.0.0-20220523184839-262b0ef6e176
+	github.com/go-ap/client v0.0.0-20220523203640-157b58394dd3
 	github.com/go-ap/errors v0.0.0-20220522120501-423698972a61
-	github.com/go-ap/handlers v0.0.0-20220523184723-6921b4d323c1
+	github.com/go-ap/handlers v0.0.0-20220523203531-d3c7b08d2b10
 	github.com/go-ap/httpsig v0.0.0-20210714162115-62a09257db51
 	github.com/go-ap/storage v0.0.0-20220420091247-5a9edd34862b
 	golang.org/x/crypto v0.0.0-20210711020723-a769d52b0f97

@@ -2,12 +2,13 @@ package processing
 
 import (
 	"fmt"
-	pub "github.com/go-ap/activitypub"
-	"github.com/go-ap/handlers"
-	s "github.com/go-ap/storage"
 	"reflect"
 	"testing"
 	"time"
+
+	pub "github.com/go-ap/activitypub"
+	"github.com/go-ap/handlers"
+	s "github.com/go-ap/storage"
 )
 
 func TestContentManagementActivity(t *testing.T) {
@@ -230,19 +231,19 @@ func Test_defaultIDGenerator(t *testing.T) {
 				handlers.Inbox.IRI(defaultActor),
 				nil,
 			},
-			want: handlers.Inbox.IRI(defaultActor).AddPath(fmt.Sprintf("%d", publishedAt.UnixNano() / 1000)),
+			want: handlers.Inbox.IRI(defaultActor).AddPath(fmt.Sprintf("%d", publishedAt.UnixNano()/1000)),
 		},
 		{
 			name: "empty collection",
 			args: args{
 				&pub.Object{
 					AttributedTo: defaultActor,
-					Published: publishedAt,
+					Published:    publishedAt,
 				},
 				nil,
 				nil,
 			},
-			want: handlers.Outbox.IRI(defaultActor).AddPath(fmt.Sprintf("%d", publishedAt.UnixNano() / 1000)),
+			want: handlers.Outbox.IRI(defaultActor.GetLink()).AddPath(fmt.Sprintf("%d", publishedAt.UnixNano()/1000)),
 		},
 	}
 	for _, tt := range tests {
