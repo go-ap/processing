@@ -2,7 +2,7 @@ module github.com/go-ap/storage
 
 go 1.18
 
-require github.com/go-ap/activitypub v0.0.0-20220524134736-7c011e3a7417
+require github.com/go-ap/activitypub v0.0.0-20220525115518-7414b7fad2cf
 
 require (
 	git.sr.ht/~mariusor/go-xsd-duration v0.0.0-20200411073322-f0bcc40f0bf2 // indirect
