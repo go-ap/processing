@@ -246,12 +246,12 @@ func updateSingleItem(l s.WriteStore, found pub.Item, with pub.Item) (pub.Item, 
 		return found, errors.NotFoundf("Unable to find %s %s", with.GetType(), with.GetLink())
 	}
 	if found.IsCollection() {
-		return found, errors.Errorf("IRI %s does not point to a single object", with.GetLink())
+		return found, errors.Conflictf("IRI %s does not point to a single object", with.GetLink())
 	}
 
 	found, err = pub.CopyItemProperties(found, with)
 	if err != nil {
-		return found, err
+		return found, errors.NewConflict(err, "unable to copy item")
 	}
 
 	if err = updateUpdateActivityObject(l, found); err != nil {
