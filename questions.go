@@ -2,7 +2,6 @@ package processing
 
 import (
 	pub "github.com/go-ap/activitypub"
-	s "github.com/go-ap/storage"
 )
 
 // QuestionActivity processes matching activities
@@ -11,7 +10,7 @@ import (
 //
 // The Questions use case primarily deals with representing inquiries of any type.
 // See 5.4 Representing Questions for more information: https://www.w3.org/TR/activitystreams-vocabulary/#questions
-func QuestionActivity(l s.WriteStore, q *pub.Question) (*pub.Question, error) {
+func QuestionActivity(l WriteStore, q *pub.Question) (*pub.Question, error) {
 	// NOTE(marius): this behaviour is not in accordance to the spec.
 	// Saving the question items as individual objects makes sense to me,
 	// but it's not mention in either of the documents we're basing this implementation on.
@@ -25,7 +24,7 @@ func QuestionActivity(l s.WriteStore, q *pub.Question) (*pub.Question, error) {
 	return q, nil
 }
 
-func saveQuestionAnswers(l s.WriteStore, q *pub.Question) func(col *pub.ItemCollection) error {
+func saveQuestionAnswers(l WriteStore, q *pub.Question) func(col *pub.ItemCollection) error {
 	return func(col *pub.ItemCollection) error {
 		var err error
 		for _, ans := range col.Collection() {

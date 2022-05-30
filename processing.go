@@ -11,7 +11,6 @@ import (
 	c "github.com/go-ap/client"
 	"github.com/go-ap/errors"
 	"github.com/go-ap/httpsig"
-	s "github.com/go-ap/storage"
 	"golang.org/x/crypto/ed25519"
 )
 
@@ -30,7 +29,7 @@ type defaultProcessor struct {
 	baseIRI pub.IRIs
 	v       *defaultValidator
 	c       c.Basic
-	s       s.WriteStore
+	s       WriteStore
 	infoFn  c.LogFn
 	errFn   c.LogFn
 }
@@ -92,7 +91,7 @@ func SetClient(c c.Basic) optionFn {
 	}
 }
 
-func SetStorage(s s.Store) optionFn {
+func SetStorage(s Store) optionFn {
 	return func(v *_p) error {
 		v.v.s = s
 		v.p.s = s
@@ -108,7 +107,7 @@ func SetIRI(i ...pub.IRI) optionFn {
 	}
 }
 
-func createNewTags(l s.WriteStore, tags pub.ItemCollection) error {
+func createNewTags(l WriteStore, tags pub.ItemCollection) error {
 	if len(tags) == 0 {
 		return nil
 	}
@@ -130,7 +129,7 @@ func createNewTags(l s.WriteStore, tags pub.ItemCollection) error {
 	return nil
 }
 
-func isBlocked(loader s.ReadStore, rec, act pub.Item) bool {
+func isBlocked(loader ReadStore, rec, act pub.Item) bool {
 	// Check if any of the local recipients are blocking the actor, we assume rec is local
 	blockedIRI := BlockedCollection.IRI(rec)
 	blockedAct, err := loader.Load(blockedIRI)
@@ -193,7 +192,7 @@ func keyType(key crypto.PrivateKey) (httpsig.Algorithm, error) {
 // it is addressed to:
 //  - the author's Outbox - if the author is local
 //  - the recipients' Inboxes - if they are local
-func AddToCollections(p defaultProcessor, colSaver s.CollectionStore, it pub.Item) (pub.Item, error) {
+func AddToCollections(p defaultProcessor, colSaver CollectionStore, it pub.Item) (pub.Item, error) {
 	act, err := pub.ToActivity(it)
 	if err != nil {
 		return nil, err
@@ -223,7 +222,7 @@ func AddToCollections(p defaultProcessor, colSaver s.CollectionStore, it pub.Ite
 		}
 		if pub.ValidCollectionIRI(recIRI) {
 			// TODO(marius): this step should happen at validation time
-			if loader, ok := colSaver.(s.ReadStore); ok {
+			if loader, ok := colSaver.(ReadStore); ok {
 				// Load all members if colIRI is a valid actor collection
 				members, err := loader.Load(recIRI)
 				if err != nil || pub.IsNil(members) {
@@ -240,7 +239,7 @@ func AddToCollections(p defaultProcessor, colSaver s.CollectionStore, it pub.Ite
 				})
 			}
 		} else {
-			if loader, ok := colSaver.(s.ReadStore); ok {
+			if loader, ok := colSaver.(ReadStore); ok {
 				if p.v.IsLocalIRI(recIRI) && isBlocked(loader, recIRI, act.Actor) {
 					continue
 				}
@@ -265,7 +264,7 @@ func disseminateToCollections(p defaultProcessor, act *pub.Activity, allRecipien
 }
 
 func disseminateToCollection(p defaultProcessor, col pub.IRI, act *pub.Activity) error {
-	colSaver, ok := p.s.(s.CollectionStore)
+	colSaver, ok := p.s.(CollectionStore)
 	if !ok {
 		// TODO(marius): not returning an error might be the wrong move here
 		return nil
@@ -295,7 +294,7 @@ func disseminateToCollection(p defaultProcessor, col pub.IRI, act *pub.Activity)
 // Examples of collections include things like folders, albums, friend lists, etc.
 // This includes, for instance, activities such as "Sally added a file to Folder A",
 // "John moved the file from Folder A to Folder B", etc.
-func CollectionManagementActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
+func CollectionManagementActivity(l WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	if act.Object == nil {
 		return act, errors.NotValidf("Missing object for Activity")
 	}
@@ -314,7 +313,7 @@ func CollectionManagementActivity(l s.WriteStore, act *pub.Activity) (*pub.Activ
 
 // EventRSVPActivity processes matching activities
 // The Event RSVP use case primarily deals with invitations to events and RSVP type responses.
-func EventRSVPActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
+func EventRSVPActivity(l WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	if act.Object == nil {
 		return act, errors.NotValidf("Missing object for Activity")
 	}
@@ -335,7 +334,7 @@ func EventRSVPActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error)
 // The Group Management use case primarily deals with management of groups.
 // It can include, for instance, activities such as "John added Sally to Group A", "Sally joined Group A",
 // "Joe left Group A", etc.
-func GroupManagementActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
+func GroupManagementActivity(l WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	// TODO(marius):
 	return act, errors.NotImplementedf("Processing %s activity is not implemented", act.GetType())
 }
@@ -343,7 +342,7 @@ func GroupManagementActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, 
 // ContentExperienceActivity processes matching activities
 // The Content Experience use case primarily deals with describing activities involving listening to,
 // reading, or viewing content. For instance, "Sally read the article", "Joe listened to the song".
-func ContentExperienceActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
+func ContentExperienceActivity(l WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	// TODO(marius):
 	return act, errors.NotImplementedf("Processing %s activity is not implemented", act.GetType())
 }
@@ -351,7 +350,7 @@ func ContentExperienceActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity
 // GeoSocialEventsActivity processes matching activities
 // The Geo-Social Events use case primarily deals with activities involving geo-tagging type activities. For instance,
 // it can include activities such as "Joe arrived at work", "Sally left work", and "John is travel from home to work".
-func GeoSocialEventsActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
+func GeoSocialEventsActivity(l WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	// TODO(marius):
 	return act, errors.NotImplementedf("Processing %s activity is not implemented", act.GetType())
 }
@@ -359,14 +358,14 @@ func GeoSocialEventsActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, 
 // GeoSocialEventsIntransitiveActivity processes matching activities
 // The Geo-Social Events use case primarily deals with activities involving geo-tagging type activities. For instance,
 // it can include activities such as "Joe arrived at work", "Sally left work", and "John is travel from home to work".
-func GeoSocialEventsIntransitiveActivity(l s.WriteStore, act *pub.IntransitiveActivity) (*pub.IntransitiveActivity, error) {
+func GeoSocialEventsIntransitiveActivity(l WriteStore, act *pub.IntransitiveActivity) (*pub.IntransitiveActivity, error) {
 	// TODO(marius):
 	return act, errors.NotImplementedf("Processing %s activity is not implemented", act.GetType())
 }
 
 // NotificationActivity processes matching activities
 // The Notification use case primarily deals with calling attention to particular objects or notifications.
-func NotificationActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
+func NotificationActivity(l WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	// TODO(marius):
 	return act, errors.NotImplementedf("Processing %s activity is not implemented", act.GetType())
 }
@@ -376,7 +375,7 @@ func NotificationActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, err
 // The Offers use case deals with activities involving offering one object to another. It can include, for instance,
 // activities such as "Company A is offering a discount on purchase of Product Z to Sally",
 // "Sally is offering to add a File to Folder A", etc.
-func OffersActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
+func OffersActivity(l WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	// TODO(marius):
 	return act, errors.NotImplementedf("Processing %s activity is not implemented", act.GetType())
 }

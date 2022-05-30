@@ -1,10 +1,10 @@
 package processing
 
 import (
+	"strings"
+
 	pub "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
-	s "github.com/go-ap/storage"
-	"strings"
 )
 
 // ReactionsActivity processes matching activities
@@ -55,7 +55,7 @@ func (m multi) Error() string {
 // AppreciationActivity
 // The Like(and Dislike) activity indicates the actor likes the object.
 // The side effect of receiving this in an outbox is that the server SHOULD add the object to the actor's liked Collection.
-func AppreciationActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
+func AppreciationActivity(l WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	if act.Object == nil {
 		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
 	}
@@ -67,12 +67,12 @@ func AppreciationActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, err
 		return act, errors.NotValidf("Activity has wrong type %s, expected %v", act.Type, good)
 	}
 
-	colSaver, ok := l.(s.CollectionStore)
+	colSaver, ok := l.(CollectionStore)
 	if !ok {
 		return act, nil
 	}
 
-	saveToCollections := func(colSaver s.CollectionStore, actors, objects pub.ItemCollection) error {
+	saveToCollections := func(colSaver CollectionStore, actors, objects pub.ItemCollection) error {
 		colErrors := multi{}
 		colToAdd := make(map[pub.IRI][]pub.IRI)
 		for _, object := range objects {
@@ -153,7 +153,7 @@ func AcceptActivity(p defaultProcessor, act *pub.Activity) (*pub.Activity, error
 
 	if act.Object.IsLink() {
 		// dereference object activity
-		if actLoader, ok := p.s.(s.ReadStore); ok {
+		if actLoader, ok := p.s.(ReadStore); ok {
 			obj, err := actLoader.Load(act.Object.GetLink())
 			if err != nil {
 				return act, errors.NotValidf("Unable to dereference object: %s", act.Object.GetLink())
@@ -175,7 +175,7 @@ func finalizeFollowActivity(p defaultProcessor, a *pub.Activity) error {
 	if !good.Contains(a.Type) {
 		return errors.NotValidf("Object Activity has wrong type %s, expected %v", a.Type, good)
 	}
-	colSaver, ok := p.s.(s.CollectionStore)
+	colSaver, ok := p.s.(CollectionStore)
 	if !ok {
 		// NOTE(marius): Invalid storage backend, unable to save to local collection
 		return nil
@@ -195,7 +195,7 @@ func finalizeFollowActivity(p defaultProcessor, a *pub.Activity) error {
 	return nil
 }
 
-func RejectActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
+func RejectActivity(l WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	if act.Object == nil {
 		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
 	}
@@ -207,7 +207,7 @@ func RejectActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 		return act, errors.NotValidf("Activity has wrong type %s, expected %v", act.Type, good)
 	}
 
-	if colSaver, ok := l.(s.CollectionStore); ok {
+	if colSaver, ok := l.(CollectionStore); ok {
 		inbox := pub.Inbox.IRI(act.Actor)
 		err := colSaver.RemoveFrom(inbox, act.Object.GetLink())
 		if err != nil {
@@ -221,7 +221,7 @@ const BlockedCollection = pub.CollectionPath("blocked")
 
 // BlockActivity
 // The side effect of receiving this in an outbox is that the server SHOULD add the object to the actor's blocked Collection.
-func BlockActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
+func BlockActivity(l WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	if act.Object == nil {
 		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
 	}
@@ -239,7 +239,7 @@ func BlockActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	act.Bto.Remove(obIRI)
 	act.BCC.Remove(obIRI)
 
-	if colSaver, ok := l.(s.CollectionStore); ok {
+	if colSaver, ok := l.(CollectionStore); ok {
 		err := colSaver.AddTo(BlockedCollection.IRI(act.Actor), obIRI)
 		if err != nil {
 			return act, err
@@ -252,7 +252,7 @@ func BlockActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 // There isn't any side effect to this activity except delivering it to the inboxes of its recipients.
 // From the list of recipients we remove the Object itself if it represents an Actor being flagged,
 // or its author if it's another type of object.
-func FlagActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
+func FlagActivity(l WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	if act.Object == nil {
 		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
 	}
@@ -291,7 +291,7 @@ const IgnoredCollection = pub.CollectionPath("ignored")
 // IgnoreActivity
 // This relies on custom behavior for the repository, which would allow for an ignored collection,
 // where we save these
-func IgnoreActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
+func IgnoreActivity(l WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	if act.Object == nil {
 		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
 	}
@@ -309,7 +309,7 @@ func IgnoreActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	act.Bto.Remove(obIRI)
 	act.BCC.Remove(obIRI)
 
-	if colSaver, ok := l.(s.CollectionStore); ok {
+	if colSaver, ok := l.(CollectionStore); ok {
 		err := colSaver.AddTo(IgnoredCollection.IRI(act.Actor), obIRI)
 		if err != nil {
 			return act, err

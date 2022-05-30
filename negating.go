@@ -5,7 +5,6 @@ import (
 
 	pub "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
-	s "github.com/go-ap/storage"
 )
 
 // NegatingActivity processes matching activities
@@ -15,7 +14,7 @@ import (
 // The Negating Activity use case primarily deals with the ability to redact previously completed activities.
 // See 5.5 Inverse Activities and "Undo" for more information:
 // https://www.w3.org/TR/activitystreams-vocabulary/#inverse
-func NegatingActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
+func NegatingActivity(l WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	if act.Object == nil {
 		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
 	}
@@ -28,7 +27,7 @@ func NegatingActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) 
 	// TODO(marius): a lot of validation logic should be moved to the validation package
 	if act.Object.IsLink() {
 		// dereference object activity
-		if actLoader, ok := l.(s.ReadStore); ok {
+		if actLoader, ok := l.(ReadStore); ok {
 			obj, err := actLoader.Load(act.Object.GetLink())
 			if err != nil {
 				return act, errors.NotValidf("Unable to dereference object: %s", act.Object.GetLink())
@@ -74,7 +73,7 @@ func NegatingActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) 
 // The Undo activity is used to undo the side effects of previous activities. See the ActivityStreams documentation
 // on Inverse Activities and "Undo". The scope and restrictions of the Undo activity are the same as for the Undo
 // activity in the context of client to server interactions, but applied to a federated context.
-func UndoActivity(r s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
+func UndoActivity(r WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	var err error
 
 	iri := act.GetLink()
@@ -122,10 +121,10 @@ func UndoActivity(r s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 // Removes the side effects of an existing Appreciation activity (Like or Dislike)
 // Currently this means only removal of the Liked/Disliked object from the actor's `liked` collection and
 // removal of the Like/Dislike Activity from the object's `likes` collection
-func UndoAppreciationActivity(r s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
+func UndoAppreciationActivity(r WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	errs := make([]error, 0)
 	rem := act.GetLink()
-	colSaver, ok := r.(s.CollectionStore)
+	colSaver, ok := r.(CollectionStore)
 	if !ok {
 		return act, nil
 	}

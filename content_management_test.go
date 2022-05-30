@@ -7,7 +7,6 @@ import (
 	"time"
 
 	pub "github.com/go-ap/activitypub"
-	s "github.com/go-ap/storage"
 )
 
 func TestContentManagementActivity(t *testing.T) {
@@ -115,7 +114,7 @@ func Test_getCollection(t *testing.T) {
 
 func Test_updateCreateActivityObject(t *testing.T) {
 	type args struct {
-		l   s.WriteStore
+		l   WriteStore
 		o   pub.Item
 		act *pub.Activity
 	}
@@ -138,7 +137,7 @@ func Test_updateCreateActivityObject(t *testing.T) {
 
 func Test_updateObjectForCreate(t *testing.T) {
 	type args struct {
-		l   s.WriteStore
+		l   WriteStore
 		o   *pub.Object
 		act *pub.Activity
 	}
@@ -161,7 +160,7 @@ func Test_updateObjectForCreate(t *testing.T) {
 
 func Test_updateObjectForUpdate(t *testing.T) {
 	type args struct {
-		l   s.WriteStore
+		l   WriteStore
 		o   *pub.Object
 		act *pub.Activity
 	}
@@ -184,7 +183,7 @@ func Test_updateObjectForUpdate(t *testing.T) {
 
 func Test_updateUpdateActivityObject(t *testing.T) {
 	type args struct {
-		l   s.WriteStore
+		l   WriteStore
 		o   pub.Item
 		act *pub.Activity
 	}
