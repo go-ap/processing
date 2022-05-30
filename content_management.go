@@ -6,7 +6,6 @@ import (
 
 	pub "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
-	"github.com/go-ap/handlers"
 	s "github.com/go-ap/storage"
 )
 
@@ -45,7 +44,7 @@ func defaultIDGenerator(base pub.IRI) IDGenerator {
 				base = o.AttributedTo.GetLink()
 			}
 			if len(colIRI) == 0 {
-				colIRI = handlers.Outbox.IRI(base)
+				colIRI = pub.Outbox.IRI(base)
 			}
 			return nil
 		})
@@ -72,7 +71,7 @@ func SetID(it pub.Item, partOf pub.Item, act pub.Item) error {
 // modification or deletion of content.
 // This includes, for instance, activities such as "John created a new note",
 // "Sally updated an article", and "Joe deleted the photo".
-func ContentManagementActivity(l s.WriteStore, act *pub.Activity, col handlers.CollectionType) (*pub.Activity, error) {
+func ContentManagementActivity(l s.WriteStore, act *pub.Activity, col pub.CollectionPath) (*pub.Activity, error) {
 	var err error
 	switch act.Type {
 	case pub.CreateType:
@@ -90,7 +89,7 @@ func ContentManagementActivity(l s.WriteStore, act *pub.Activity, col handlers.C
 	return act, err
 }
 
-func getCollection(it pub.Item, c handlers.CollectionType) pub.CollectionInterface {
+func getCollection(it pub.Item, c pub.CollectionPath) pub.CollectionInterface {
 	return &pub.OrderedCollection{
 		ID:   c.IRI(it).GetLink(),
 		Type: pub.OrderedCollectionType,
@@ -99,19 +98,19 @@ func getCollection(it pub.Item, c handlers.CollectionType) pub.CollectionInterfa
 
 func addNewActorCollections(p *pub.Actor) error {
 	if p.Inbox == nil {
-		p.Inbox = getCollection(p, handlers.Inbox)
+		p.Inbox = getCollection(p, pub.Inbox)
 	}
 	if p.Outbox == nil {
-		p.Outbox = getCollection(p, handlers.Outbox)
+		p.Outbox = getCollection(p, pub.Outbox)
 	}
 	if p.Followers == nil {
-		p.Followers = getCollection(p, handlers.Followers)
+		p.Followers = getCollection(p, pub.Followers)
 	}
 	if p.Following == nil {
-		p.Following = getCollection(p, handlers.Following)
+		p.Following = getCollection(p, pub.Following)
 	}
 	if p.Liked == nil {
-		p.Liked = getCollection(p, handlers.Liked)
+		p.Liked = getCollection(p, pub.Liked)
 	}
 	if p.Type == pub.PersonType {
 		if p.Endpoints == nil {
@@ -129,13 +128,13 @@ func addNewActorCollections(p *pub.Actor) error {
 
 func addNewObjectCollections(o *pub.Object) error {
 	if o.Replies == nil {
-		o.Replies = getCollection(o, handlers.Replies)
+		o.Replies = getCollection(o, pub.Replies)
 	}
 	if o.Likes == nil {
-		o.Likes = getCollection(o, handlers.Likes)
+		o.Likes = getCollection(o, pub.Likes)
 	}
 	if o.Shares == nil {
-		o.Shares = getCollection(o, handlers.Shares)
+		o.Shares = getCollection(o, pub.Shares)
 	}
 	return nil
 }
@@ -168,7 +167,7 @@ func addNewItemCollections(it pub.Item) (pub.Item, error) {
 // accompanying object. However, this mostly happens in general with processing activities delivered to an inbox anyway.
 func CreateActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	if iri := act.Object.GetLink(); len(iri) == 0 {
-		if err := SetID(act.Object, handlers.Outbox.IRI(act.Actor), act); err != nil {
+		if err := SetID(act.Object, pub.Outbox.IRI(act.Actor), act); err != nil {
 			return act, nil
 		}
 	}
@@ -265,11 +264,11 @@ func updateObjectForUpdate(l s.WriteStore, o *pub.Object) error {
 		if colSaver, ok := l.(s.CollectionStore); ok {
 			if c, ok := o.InReplyTo.(pub.ItemCollection); ok {
 				for _, repl := range c {
-					iri := handlers.Replies.IRI(repl.GetLink())
+					iri := pub.Replies.IRI(repl.GetLink())
 					colSaver.AddTo(iri, o.GetLink())
 				}
 			} else {
-				iri := handlers.Replies.IRI(o.InReplyTo)
+				iri := pub.Replies.IRI(o.InReplyTo)
 				colSaver.AddTo(iri, o.GetLink())
 			}
 		}

@@ -10,7 +10,6 @@ import (
 	pub "github.com/go-ap/activitypub"
 	c "github.com/go-ap/client"
 	"github.com/go-ap/errors"
-	"github.com/go-ap/handlers"
 	"github.com/go-ap/httpsig"
 	s "github.com/go-ap/storage"
 	"golang.org/x/crypto/ed25519"
@@ -131,11 +130,9 @@ func createNewTags(l s.WriteStore, tags pub.ItemCollection) error {
 	return nil
 }
 
-const blockedCollection = handlers.CollectionType("blocked")
-
 func isBlocked(loader s.ReadStore, rec, act pub.Item) bool {
 	// Check if any of the local recipients are blocking the actor, we assume rec is local
-	blockedIRI := blockedCollection.IRI(rec)
+	blockedIRI := BlockedCollection.IRI(rec)
 	blockedAct, err := loader.Load(blockedIRI)
 	if err != nil {
 		return false
@@ -208,7 +205,7 @@ func AddToCollections(p defaultProcessor, colSaver s.CollectionStore, it pub.Ite
 	allRecipients := make(pub.ItemCollection, 0)
 	if act.Actor != nil {
 		actIRI := act.Actor.GetLink()
-		outbox := handlers.Outbox.IRI(actIRI)
+		outbox := pub.Outbox.IRI(actIRI)
 
 		if !actIRI.Equals(pub.PublicNS, true) && !act.GetLink().Contains(outbox, false) && p.v.IsLocalIRI(actIRI) {
 			allRecipients = append(allRecipients, outbox)
@@ -220,11 +217,11 @@ func AddToCollections(p defaultProcessor, colSaver s.CollectionStore, it pub.Ite
 		if recIRI == pub.PublicNS {
 			// NOTE(marius): if the activity is addressed to the Public NS, we store it to the local service's inbox
 			if len(p.baseIRI) > 0 {
-				allRecipients = append(allRecipients, handlers.Inbox.IRI(p.baseIRI[0]))
+				allRecipients = append(allRecipients, pub.Inbox.IRI(p.baseIRI[0]))
 			}
 			continue
 		}
-		if handlers.ValidCollectionIRI(recIRI) {
+		if pub.ValidCollectionIRI(recIRI) {
 			// TODO(marius): this step should happen at validation time
 			if loader, ok := colSaver.(s.ReadStore); ok {
 				// Load all members if colIRI is a valid actor collection
@@ -237,7 +234,7 @@ func AddToCollections(p defaultProcessor, colSaver s.CollectionStore, it pub.Ite
 						if !pub.ActorTypes.Contains(m.GetType()) || (p.v.IsLocalIRI(m.GetLink()) && isBlocked(loader, m, act.Actor)) {
 							continue
 						}
-						allRecipients = append(allRecipients, handlers.Inbox.IRI(m))
+						allRecipients = append(allRecipients, pub.Inbox.IRI(m))
 					}
 					return nil
 				})
@@ -248,7 +245,7 @@ func AddToCollections(p defaultProcessor, colSaver s.CollectionStore, it pub.Ite
 					continue
 				}
 			}
-			inb := handlers.Inbox.IRI(recIRI)
+			inb := pub.Inbox.IRI(recIRI)
 			if !allRecipients.Contains(inb) {
 				// TODO(marius): add check if IRI represents an actor (or rely on the collection saver to break if not)
 				allRecipients = append(allRecipients, inb)

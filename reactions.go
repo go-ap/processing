@@ -3,7 +3,6 @@ package processing
 import (
 	pub "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
-	"github.com/go-ap/handlers"
 	s "github.com/go-ap/storage"
 	"strings"
 )
@@ -78,10 +77,10 @@ func AppreciationActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, err
 		colToAdd := make(map[pub.IRI][]pub.IRI)
 		for _, object := range objects {
 			for _, actor := range actors {
-				liked := handlers.Liked.IRI(actor)
+				liked := pub.Liked.IRI(actor)
 				colToAdd[liked] = append(colToAdd[liked], object.GetLink())
 			}
-			likes := handlers.Likes.IRI(object)
+			likes := pub.Likes.IRI(object)
 			colToAdd[likes] = append(colToAdd[likes], act.GetLink())
 		}
 		for col, iris := range colToAdd {
@@ -181,13 +180,13 @@ func finalizeFollowActivity(p defaultProcessor, a *pub.Activity) error {
 		// NOTE(marius): Invalid storage backend, unable to save to local collection
 		return nil
 	}
-	followers := handlers.Followers.IRI(a.Object)
+	followers := pub.Followers.IRI(a.Object)
 	if p.v.IsLocalIRI(followers) {
 		if err := colSaver.AddTo(followers, a.Actor.GetLink()); err != nil {
 			return err
 		}
 	}
-	following := handlers.Following.IRI(a.Actor)
+	following := pub.Following.IRI(a.Actor)
 	if p.v.IsLocalIRI(following) {
 		if err := colSaver.AddTo(following, a.Object.GetLink()); err != nil {
 			return err
@@ -209,7 +208,7 @@ func RejectActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	}
 
 	if colSaver, ok := l.(s.CollectionStore); ok {
-		inbox := handlers.Inbox.IRI(act.Actor)
+		inbox := pub.Inbox.IRI(act.Actor)
 		err := colSaver.RemoveFrom(inbox, act.Object.GetLink())
 		if err != nil {
 			return act, err
@@ -218,7 +217,7 @@ func RejectActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	return act, nil
 }
 
-const BlockedCollection = handlers.CollectionType("blocked")
+const BlockedCollection = pub.CollectionPath("blocked")
 
 // BlockActivity
 // The side effect of receiving this in an outbox is that the server SHOULD add the object to the actor's blocked Collection.
@@ -287,7 +286,7 @@ func FlagActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	return act, nil
 }
 
-const IgnoredCollection = handlers.CollectionType("ignored")
+const IgnoredCollection = pub.CollectionPath("ignored")
 
 // IgnoreActivity
 // This relies on custom behavior for the repository, which would allow for an ignored collection,

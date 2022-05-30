@@ -3,7 +3,6 @@ package processing
 import (
 	pub "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
-	"github.com/go-ap/handlers"
 )
 
 // RelationshipManagementActivity processes matching activities
@@ -74,9 +73,9 @@ func RelationshipManagementActivity(p defaultProcessor, act *pub.Activity) (*pub
 // actors are left to the discretion of the delivering server.
 func FollowActivity(p defaultProcessor, act *pub.Activity) (*pub.Activity, error) {
 	ob := act.Object.GetLink()
-	if !handlers.ValidCollectionIRI(ob) {
+	if !pub.ValidCollectionIRI(ob) {
 		// TODO(marius): add check if IRI represents an actor (or rely on the collection saver to break if not)
-		ob = handlers.Inbox.IRI(ob)
+		ob = pub.Inbox.IRI(ob)
 	}
 	collections := pub.ItemCollection{ob}
 	return disseminateToCollections(p, act, collections)

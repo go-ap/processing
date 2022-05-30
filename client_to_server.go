@@ -5,7 +5,6 @@ import (
 
 	pub "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
-	"github.com/go-ap/handlers"
 	s "github.com/go-ap/storage"
 )
 
@@ -91,7 +90,7 @@ func processClientActivity(p defaultProcessor, act *pub.Activity) (*pub.Activity
 	obType := act.Object.GetType()
 	// First we process the activity to effect whatever changes we need to on the activity properties.
 	if pub.ContentManagementActivityTypes.Contains(act.Type) && obType != pub.RelationshipType {
-		act, err = ContentManagementActivity(p.s, act, handlers.Outbox)
+		act, err = ContentManagementActivity(p.s, act, pub.Outbox)
 	} else if pub.CollectionManagementActivityTypes.Contains(act.Type) {
 		act, err = CollectionManagementActivity(p.s, act)
 	} else if pub.ReactionsActivityTypes.Contains(act.Type) {

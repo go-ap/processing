@@ -12,7 +12,6 @@ import (
 	pub "github.com/go-ap/activitypub"
 	c "github.com/go-ap/client"
 	"github.com/go-ap/errors"
-	"github.com/go-ap/handlers"
 	s "github.com/go-ap/storage"
 )
 
@@ -132,7 +131,7 @@ func (v defaultValidator) ValidateServerActivity(a pub.Item, inbox pub.IRI) erro
 			return InvalidActivity("invalid activity id %s", act.ID)
 		}
 
-		inboxBelongsTo, err := handlers.Inbox.OfActor(inbox)
+		inboxBelongsTo, err := pub.Inbox.OfActor(inbox)
 		if err != nil {
 			return err
 		}
@@ -159,11 +158,11 @@ func (v defaultValidator) ValidateServerActivity(a pub.Item, inbox pub.IRI) erro
 }
 
 func IsOutbox(i pub.IRI) bool {
-	return strings.ToLower(path.Base(i.String())) == strings.ToLower(string(handlers.Outbox))
+	return strings.ToLower(path.Base(i.String())) == strings.ToLower(string(pub.Outbox))
 }
 
 func IsInbox(i pub.IRI) bool {
-	return strings.ToLower(path.Base(i.String())) == strings.ToLower(string(handlers.Inbox))
+	return strings.ToLower(path.Base(i.String())) == strings.ToLower(string(pub.Inbox))
 }
 
 // IRIBelongsToActor checks if the search iri represents any of the collections associated with the actor.
@@ -171,30 +170,30 @@ func IRIBelongsToActor(iri pub.IRI, actor *pub.Actor) bool {
 	if actor == nil {
 		return false
 	}
-	if handlers.Inbox.IRI(actor).Equals(iri, false) {
+	if pub.Inbox.IRI(actor).Equals(iri, false) {
 		return true
 	}
-	if handlers.Outbox.IRI(actor).Equals(iri, false) {
+	if pub.Outbox.IRI(actor).Equals(iri, false) {
 		return true
 	}
 	// The following should not really come into question at any point.
 	// This function should be used for checking inbox/outbox/sharedInbox IRIS
-	if handlers.Following.IRI(actor).Equals(iri, false) {
+	if pub.Following.IRI(actor).Equals(iri, false) {
 		return true
 	}
-	if handlers.Followers.IRI(actor).Equals(iri, false) {
+	if pub.Followers.IRI(actor).Equals(iri, false) {
 		return true
 	}
-	if handlers.Replies.IRI(actor).Equals(iri, false) {
+	if pub.Replies.IRI(actor).Equals(iri, false) {
 		return true
 	}
-	if handlers.Liked.IRI(actor).Equals(iri, false) {
+	if pub.Liked.IRI(actor).Equals(iri, false) {
 		return true
 	}
-	if handlers.Shares.IRI(actor).Equals(iri, false) {
+	if pub.Shares.IRI(actor).Equals(iri, false) {
 		return true
 	}
-	if handlers.Likes.IRI(actor).Equals(iri, false) {
+	if pub.Likes.IRI(actor).Equals(iri, false) {
 		return true
 	}
 	if actor.Endpoints != nil && actor.Endpoints.SharedInbox.GetLink().Equals(iri, false) {

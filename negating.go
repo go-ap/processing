@@ -5,7 +5,6 @@ import (
 
 	pub "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
-	"github.com/go-ap/handlers"
 	s "github.com/go-ap/storage"
 )
 
@@ -80,7 +79,7 @@ func UndoActivity(r s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 
 	iri := act.GetLink()
 	if len(iri) == 0 {
-		createID(act.Object, handlers.Outbox.IRI(act.Actor), nil)
+		createID(act.Object, pub.Outbox.IRI(act.Actor), nil)
 	}
 	err = pub.OnActivity(act.Object, func(toUndo *pub.Activity) error {
 		for _, to := range act.Bto {
@@ -132,17 +131,17 @@ func UndoAppreciationActivity(r s.WriteStore, act *pub.Activity) (*pub.Activity,
 	}
 	allRec := act.Recipients()
 	removeFromCols := make(pub.IRIs, 0)
-	removeFromCols = append(removeFromCols, handlers.Outbox.IRI(act.Actor))
-	removeFromCols = append(removeFromCols, handlers.Liked.IRI(act.Actor))
-	removeFromCols = append(removeFromCols, handlers.Likes.IRI(act.Object))
+	removeFromCols = append(removeFromCols, pub.Outbox.IRI(act.Actor))
+	removeFromCols = append(removeFromCols, pub.Liked.IRI(act.Actor))
+	removeFromCols = append(removeFromCols, pub.Likes.IRI(act.Object))
 	for _, rec := range allRec {
 		iri := rec.GetLink()
 		if iri == pub.PublicNS {
 			continue
 		}
-		if !handlers.ValidCollectionIRI(iri) {
+		if !pub.ValidCollectionIRI(iri) {
 			// if not a valid collection, then the current iri represents an actor, and we need their inbox
-			removeFromCols = append(removeFromCols, handlers.Inbox.IRI(iri))
+			removeFromCols = append(removeFromCols, pub.Inbox.IRI(iri))
 		}
 	}
 	for _, iri := range removeFromCols {

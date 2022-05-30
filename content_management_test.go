@@ -7,7 +7,6 @@ import (
 	"time"
 
 	pub "github.com/go-ap/activitypub"
-	"github.com/go-ap/handlers"
 	s "github.com/go-ap/storage"
 )
 
@@ -95,7 +94,7 @@ func Test_addNewObjectCollections(t *testing.T) {
 func Test_getCollection(t *testing.T) {
 	type args struct {
 		it pub.Item
-		c  handlers.CollectionType
+		c  pub.CollectionPath
 	}
 	tests := []struct {
 		name string
@@ -228,10 +227,10 @@ func Test_defaultIDGenerator(t *testing.T) {
 				&pub.Object{
 					Published: publishedAt,
 				},
-				handlers.Inbox.IRI(defaultActor),
+				pub.Inbox.IRI(defaultActor),
 				nil,
 			},
-			want: handlers.Inbox.IRI(defaultActor).AddPath(fmt.Sprintf("%d", publishedAt.UnixNano()/1000)),
+			want: pub.Inbox.IRI(defaultActor).AddPath(fmt.Sprintf("%d", publishedAt.UnixNano()/1000)),
 		},
 		{
 			name: "empty collection",
@@ -243,7 +242,7 @@ func Test_defaultIDGenerator(t *testing.T) {
 				nil,
 				nil,
 			},
-			want: handlers.Outbox.IRI(defaultActor.GetLink()).AddPath(fmt.Sprintf("%d", publishedAt.UnixNano()/1000)),
+			want: pub.Outbox.IRI(defaultActor.GetLink()).AddPath(fmt.Sprintf("%d", publishedAt.UnixNano()/1000)),
 		},
 	}
 	for _, tt := range tests {
