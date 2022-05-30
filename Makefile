@@ -2,7 +2,7 @@ GO ?= go
 TEST := $(GO) test
 TEST_FLAGS ?= -v
 TEST_TARGET ?= ./...
-GO111MODULE=on
+GO111MODULE = on
 PROJECT_NAME := $(shell basename $(PWD))
 
 .PHONY: test coverage clean download

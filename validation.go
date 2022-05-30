@@ -12,7 +12,6 @@ import (
 	pub "github.com/go-ap/activitypub"
 	c "github.com/go-ap/client"
 	"github.com/go-ap/errors"
-	s "github.com/go-ap/storage"
 )
 
 type ClientActivityValidator interface {
@@ -72,7 +71,7 @@ type defaultValidator struct {
 	addr    ipCache
 	auth    *pub.Actor
 	c       c.Basic
-	s       s.ReadStore
+	s       ReadStore
 	infoFn  c.LogFn
 	errFn   c.LogFn
 }
@@ -286,7 +285,7 @@ func (v defaultValidator) ValidateClientActivity(a pub.Item, outbox pub.IRI) err
 }
 
 // ValidateClientContentManagementActivity
-func ValidateClientContentManagementActivity(l s.ReadStore, act *pub.Activity) error {
+func ValidateClientContentManagementActivity(l ReadStore, act *pub.Activity) error {
 	if act.Object == nil {
 		return errors.NotValidf("nil object for %s activity", act.Type)
 	}
@@ -324,47 +323,47 @@ func ValidateClientContentManagementActivity(l s.ReadStore, act *pub.Activity) e
 }
 
 // ValidateClientCollectionManagementActivity
-func ValidateClientCollectionManagementActivity(l s.ReadStore, act *pub.Activity) error {
+func ValidateClientCollectionManagementActivity(l ReadStore, act *pub.Activity) error {
 	return nil
 }
 
 // ValidateClientReactionsActivity
-func ValidateClientReactionsActivity(l s.ReadStore, act *pub.Activity) error {
+func ValidateClientReactionsActivity(l ReadStore, act *pub.Activity) error {
 	return nil
 }
 
 // ValidateClientEventRSVPActivity
-func ValidateClientEventRSVPActivity(l s.ReadStore, act *pub.Activity) error {
+func ValidateClientEventRSVPActivity(l ReadStore, act *pub.Activity) error {
 	return nil
 }
 
 // ValidateClientGroupManagementActivity
-func ValidateClientGroupManagementActivity(l s.ReadStore, act *pub.Activity) error {
+func ValidateClientGroupManagementActivity(l ReadStore, act *pub.Activity) error {
 	return nil
 }
 
 // ValidateClientContentExperienceActivity
-func ValidateClientContentExperienceActivity(l s.ReadStore, act *pub.Activity) error {
+func ValidateClientContentExperienceActivity(l ReadStore, act *pub.Activity) error {
 	return nil
 }
 
 // ValidateClientGeoSocialEventsActivity
-func ValidateClientGeoSocialEventsActivity(l s.ReadStore, act *pub.Activity) error {
+func ValidateClientGeoSocialEventsActivity(l ReadStore, act *pub.Activity) error {
 	return nil
 }
 
 // ValidateClientNotificationActivity
-func ValidateClientNotificationActivity(l s.ReadStore, act *pub.Activity) error {
+func ValidateClientNotificationActivity(l ReadStore, act *pub.Activity) error {
 	return nil
 }
 
 // ValidateClientQuestionActivity
-func ValidateClientQuestionActivity(l s.ReadStore, act *pub.Activity) error {
+func ValidateClientQuestionActivity(l ReadStore, act *pub.Activity) error {
 	return nil
 }
 
 // ValidateClientRelationshipManagementActivity
-func ValidateClientRelationshipManagementActivity(l s.ReadStore, act *pub.Activity) error {
+func ValidateClientRelationshipManagementActivity(l ReadStore, act *pub.Activity) error {
 	switch act.Type {
 	case pub.FollowType:
 		if iri := act.GetLink(); len(iri) > 0 {
@@ -391,12 +390,12 @@ func ValidateClientRelationshipManagementActivity(l s.ReadStore, act *pub.Activi
 }
 
 // ValidateClientNegatingActivity
-func ValidateClientNegatingActivity(l s.ReadStore, act *pub.Activity) error {
+func ValidateClientNegatingActivity(l ReadStore, act *pub.Activity) error {
 	return nil
 }
 
 // ValidateClientOffersActivity
-func ValidateClientOffersActivity(l s.ReadStore, act *pub.Activity) error {
+func ValidateClientOffersActivity(l ReadStore, act *pub.Activity) error {
 	return nil
 }
 
@@ -560,8 +559,6 @@ func (v defaultValidator) ValidateAudience(audience ...pub.ItemCollection) error
 	}
 	return errors.Newf("None of the audience elements is local")
 }
-
-type CtxtKey string
 
 var ValidatorKey = CtxtKey("__validator")
 

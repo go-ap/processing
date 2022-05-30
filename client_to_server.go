@@ -5,11 +5,9 @@ import (
 
 	pub "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
-	s "github.com/go-ap/storage"
 )
 
-// NOTE(marius): this should be moved to the handlers package, where we are actually
-//  interested in its functionality
+// C2SProcessor
 type C2SProcessor interface {
 	ProcessClientActivity(pub.Item) (pub.Item, error)
 }
@@ -66,7 +64,7 @@ func processClientIntransitiveActivity(p defaultProcessor, it pub.Item) (pub.Ite
 	if it, err = p.s.Save(pub.FlattenProperties(it)); err != nil {
 		return it, err
 	}
-	if colSaver, ok := p.s.(s.CollectionStore); ok {
+	if colSaver, ok := p.s.(CollectionStore); ok {
 		if it, err = AddToCollections(p, colSaver, it); err != nil {
 			p.infoFn("error: %s", err)
 		}
@@ -140,7 +138,7 @@ func processClientActivity(p defaultProcessor, act *pub.Activity) (*pub.Activity
 		return act, err
 	}
 
-	if colSaver, ok := p.s.(s.CollectionStore); ok {
+	if colSaver, ok := p.s.(CollectionStore); ok {
 		if it, err = AddToCollections(p, colSaver, it); err != nil {
 			return act, err
 		}

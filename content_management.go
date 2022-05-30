@@ -6,7 +6,6 @@ import (
 
 	pub "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
-	s "github.com/go-ap/storage"
 )
 
 type (
@@ -71,7 +70,7 @@ func SetID(it pub.Item, partOf pub.Item, act pub.Item) error {
 // modification or deletion of content.
 // This includes, for instance, activities such as "John created a new note",
 // "Sally updated an article", and "Joe deleted the photo".
-func ContentManagementActivity(l s.WriteStore, act *pub.Activity, col pub.CollectionPath) (*pub.Activity, error) {
+func ContentManagementActivity(l WriteStore, act *pub.Activity, col pub.CollectionPath) (*pub.Activity, error) {
 	var err error
 	switch act.Type {
 	case pub.CreateType:
@@ -165,7 +164,7 @@ func addNewItemCollections(it pub.Item) (pub.Item, error) {
 // Receiving a Create activity in an inbox has surprisingly few side effects; the activity should appear in the actor's
 // inbox and it is likely that the server will want to locally store a representation of this activity and its
 // accompanying object. However, this mostly happens in general with processing activities delivered to an inbox anyway.
-func CreateActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
+func CreateActivity(l WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	if iri := act.Object.GetLink(); len(iri) == 0 {
 		if err := SetID(act.Object, pub.Outbox.IRI(act.Actor), act); err != nil {
 			return act, nil
@@ -204,11 +203,11 @@ func CreateActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 // activity, this is not a partial update but a complete replacement of the object.
 // The receiving server MUST take care to be sure that the Update is authorized to modify its object. At minimum,
 // this may be done by ensuring that the Update and its object are of same origin.
-func UpdateActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
+func UpdateActivity(l WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	var err error
 	ob := act.Object
 
-	if loader, ok := l.(s.ReadStore); ok {
+	if loader, ok := l.(ReadStore); ok {
 		if pub.IsItemCollection(ob) {
 			foundCol := make(pub.ItemCollection, 0)
 			pub.OnCollectionIntf(ob, func(col pub.CollectionInterface) error {
@@ -239,7 +238,7 @@ func UpdateActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	return act, err
 }
 
-func updateSingleItem(l s.WriteStore, found pub.Item, with pub.Item) (pub.Item, error) {
+func updateSingleItem(l WriteStore, found pub.Item, with pub.Item) (pub.Item, error) {
 	var err error
 	if pub.IsNil(found) {
 		return found, errors.NotFoundf("Unable to find %s %s", with.GetType(), with.GetLink())
@@ -259,9 +258,9 @@ func updateSingleItem(l s.WriteStore, found pub.Item, with pub.Item) (pub.Item, 
 	return l.Save(found)
 }
 
-func updateObjectForUpdate(l s.WriteStore, o *pub.Object) error {
+func updateObjectForUpdate(l WriteStore, o *pub.Object) error {
 	if o.InReplyTo != nil {
-		if colSaver, ok := l.(s.CollectionStore); ok {
+		if colSaver, ok := l.(CollectionStore); ok {
 			if c, ok := o.InReplyTo.(pub.ItemCollection); ok {
 				for _, repl := range c {
 					iri := pub.Replies.IRI(repl.GetLink())
@@ -278,13 +277,13 @@ func updateObjectForUpdate(l s.WriteStore, o *pub.Object) error {
 	return createNewTags(l, o.Tag)
 }
 
-func updateUpdateActivityObject(l s.WriteStore, o pub.Item) error {
+func updateUpdateActivityObject(l WriteStore, o pub.Item) error {
 	return pub.OnObject(o, func(o *pub.Object) error {
 		return updateObjectForUpdate(l, o)
 	})
 }
 
-func updateObjectForCreate(l s.WriteStore, o *pub.Object, act *pub.Activity) error {
+func updateObjectForCreate(l WriteStore, o *pub.Object, act *pub.Activity) error {
 	// See https://www.w3.org/TR/ActivityPub/#create-activity-outbox
 	// Copying the actor's IRI to the object's "AttributedTo"
 	if pub.IsNil(o.AttributedTo) && !pub.IsNil(act.Actor) {
@@ -325,7 +324,7 @@ func updateObjectForCreate(l s.WriteStore, o *pub.Object, act *pub.Activity) err
 	return updateObjectForUpdate(l, o)
 }
 
-func updateCreateActivityObject(l s.WriteStore, o pub.Item, act *pub.Activity) error {
+func updateCreateActivityObject(l WriteStore, o pub.Item, act *pub.Activity) error {
 	return pub.OnObject(o, func(o *pub.Object) error {
 		return updateObjectForCreate(l, o, act)
 	})
@@ -349,12 +348,12 @@ func updateCreateActivityObject(l s.WriteStore, o pub.Item, act *pub.Activity) e
 // Note: that after an activity has been transmitted from an origin server to a remote server, there is nothing in the
 //
 // ActivityPub protocol that can enforce remote deletion of an object's representation.
-func DeleteActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
+func DeleteActivity(l WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	var err error
 	ob := act.Object
 
 	var toRemove pub.ItemCollection
-	if loader, ok := l.(s.ReadStore); ok {
+	if loader, ok := l.(ReadStore); ok {
 		if pub.IsItemCollection(ob) {
 			err = pub.OnItemCollection(ob, func(col *pub.ItemCollection) error {
 				for _, it := range col.Collection() {
@@ -387,7 +386,7 @@ func DeleteActivity(l s.WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	return act, nil
 }
 
-func replaceItemWithTombstone(loader s.ReadStore, it pub.Item, toRemove *pub.ItemCollection) error {
+func replaceItemWithTombstone(loader ReadStore, it pub.Item, toRemove *pub.ItemCollection) error {
 	toRem, err := loader.Load(it.GetLink())
 	if err != nil {
 		return err
@@ -398,7 +397,7 @@ func replaceItemWithTombstone(loader s.ReadStore, it pub.Item, toRemove *pub.Ite
 	return nil
 }
 
-func loadTombstoneForDelete(loader s.ReadStore, toRemove *pub.ItemCollection) func(*pub.Object) error {
+func loadTombstoneForDelete(loader ReadStore, toRemove *pub.ItemCollection) func(*pub.Object) error {
 	return func(ob *pub.Object) error {
 		found, err := loader.Load(ob.GetLink())
 		if err != nil {
