@@ -3,6 +3,7 @@ package processing
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	pub "github.com/go-ap/activitypub"
@@ -14,6 +15,34 @@ import (
 type CtxtKey string
 
 var RepositoryKey = CtxtKey("__repo")
+
+// Typer is the static package variable that determines a CollectionPath type for a particular request
+// It can be overloaded from outside packages.
+// @TODO(marius): This should be moved as a property on an instantiable package object, instead of keeping it here
+var Typer CollectionTyper = pathTyper{}
+
+// CollectionTyper allows external packages to tell us which CollectionPath the current HTTP request addresses
+type CollectionTyper interface {
+	Type(r *http.Request) pub.CollectionPath
+}
+
+type pathTyper struct{}
+
+func (d pathTyper) Type(r *http.Request) pub.CollectionPath {
+	if r.URL == nil || len(r.URL.Path) == 0 {
+		return pub.Unknown
+	}
+	col := pub.Unknown
+	pathElements := strings.Split(r.URL.Path[1:], "/") // Skip first /
+	for i := len(pathElements) - 1; i >= 0; i-- {
+		col = pub.CollectionPath(pathElements[i])
+		if pub.ValidObjectCollection(col) || pub.ValidActivityCollection(col) {
+			return col
+		}
+	}
+
+	return col
+}
 
 // MethodValidator is the interface need to be implemented to specify if an HTTP request's method
 // is supported by the implementor object
@@ -77,7 +106,7 @@ func (a ActivityHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if it, status, err = a(pub.Typer.Type(r), r, st); err != nil {
+	if it, status, err = a(Typer.Type(r), r, st); err != nil {
 		errors.HandleError(err).ServeHTTP(w, r)
 		return
 	}
@@ -179,7 +208,7 @@ func (c CollectionHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	col, err := c(pub.Typer.Type(r), r, st)
+	col, err := c(Typer.Type(r), r, st)
 	if err != nil {
 		errors.HandleError(err).ServeHTTP(w, r)
 		return
