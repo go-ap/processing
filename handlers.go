@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	pub "github.com/go-ap/activitypub"
+	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
 	json "github.com/go-ap/jsonld"
 )
@@ -23,20 +23,20 @@ var Typer CollectionTyper = pathTyper{}
 
 // CollectionTyper allows external packages to tell us which CollectionPath the current HTTP request addresses
 type CollectionTyper interface {
-	Type(r *http.Request) pub.CollectionPath
+	Type(r *http.Request) vocab.CollectionPath
 }
 
 type pathTyper struct{}
 
-func (d pathTyper) Type(r *http.Request) pub.CollectionPath {
+func (d pathTyper) Type(r *http.Request) vocab.CollectionPath {
 	if r.URL == nil || len(r.URL.Path) == 0 {
-		return pub.Unknown
+		return vocab.Unknown
 	}
-	col := pub.Unknown
+	col := vocab.Unknown
 	pathElements := strings.Split(r.URL.Path[1:], "/") // Skip first /
 	for i := len(pathElements) - 1; i >= 0; i-- {
-		col = pub.CollectionPath(pathElements[i])
-		if pub.ValidObjectCollection(col) || pub.ValidActivityCollection(col) {
+		col = vocab.CollectionPath(pathElements[i])
+		if vocab.ValidObjectCollection(col) || vocab.ValidActivityCollection(col) {
 			return col
 		}
 	}
@@ -63,7 +63,7 @@ type RequestValidator interface {
 //  an IRI representing a new Object - in the case of transitive activities that had a side effect, or
 //  an error.
 // In the case of intransitive activities the iri will always be empty.
-type ActivityHandlerFn func(pub.CollectionPath, *http.Request, Store) (pub.Item, int, error)
+type ActivityHandlerFn func(vocab.CollectionPath, *http.Request, Store) (vocab.Item, int, error)
 
 func (a ActivityHandlerFn) Storage(r *http.Request) (Store, error) {
 	ctxVal := r.Context().Value(RepositoryKey)
@@ -90,7 +90,7 @@ func (a ActivityHandlerFn) ValidateRequest(r *http.Request) (int, error) {
 // ServeHTTP implements the http.Handler interface for the ActivityHandlerFn type
 func (a ActivityHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var dat []byte
-	var it pub.Item
+	var it vocab.Item
 	var err error
 	var status = http.StatusInternalServerError
 
@@ -112,12 +112,12 @@ func (a ActivityHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	typ := it.GetType()
-	if pub.ActivityTypes.Contains(typ) {
-		err = pub.OnActivity(it, func(act *pub.Activity) error {
+	if vocab.ActivityTypes.Contains(typ) {
+		err = vocab.OnActivity(it, func(act *vocab.Activity) error {
 			if act.Object.IsLink() {
 				if it, _ := st.Load(act.Object.GetLink()); it != nil {
 					if it.IsCollection() {
-						pub.OnCollectionIntf(it, func(c pub.CollectionInterface) error {
+						vocab.OnCollectionIntf(it, func(c vocab.CollectionInterface) error {
 							act.Object = c.Collection()
 							return nil
 						})
@@ -127,12 +127,12 @@ func (a ActivityHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 			// For non instransitive activities we want to output the object in the response
-			if dat, err = pub.MarshalJSON(act.Object); err != nil {
+			if dat, err = vocab.MarshalJSON(act.Object); err != nil {
 				return err
 			}
 			return nil
 		})
-	} else if pub.IntransitiveActivityTypes.Contains(typ) {
+	} else if vocab.IntransitiveActivityTypes.Contains(typ) {
 		status = http.StatusNoContent
 	} else {
 		err = errors.BadRequestf("Invalid activity type %s received", typ)
@@ -157,7 +157,7 @@ func (a ActivityHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	default:
 		w.Header().Set("Content-Type", json.ContentType)
-		dat, _ = pub.MarshalJSON(it)
+		dat, _ = vocab.MarshalJSON(it)
 	}
 	w.WriteHeader(status)
 	w.Write(dat)
@@ -165,7 +165,7 @@ func (a ActivityHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // CollectionHandlerFn is the type that we're using to represent handlers that will return ActivityStreams
 // Collection or OrderedCollection objects. It needs to implement the http.Handler interface.
-type CollectionHandlerFn func(pub.CollectionPath, *http.Request, ReadStore) (pub.CollectionInterface, error)
+type CollectionHandlerFn func(vocab.CollectionPath, *http.Request, ReadStore) (vocab.CollectionInterface, error)
 
 func (c CollectionHandlerFn) Storage(r *http.Request) (Store, error) {
 	ctxVal := r.Context().Value(RepositoryKey)
@@ -213,12 +213,12 @@ func (c CollectionHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		errors.HandleError(err).ServeHTTP(w, r)
 		return
 	}
-	if dat, err = json.WithContext(json.IRI(pub.ActivityBaseURI)).Marshal(col); err != nil {
+	if dat, err = json.WithContext(json.IRI(vocab.ActivityBaseURI)).Marshal(col); err != nil {
 		errors.HandleError(err).ServeHTTP(w, r)
 		return
 	}
 
-	pub.OnObject(col, func(o *pub.Object) error {
+	vocab.OnObject(col, func(o *vocab.Object) error {
 		updatedAt := o.Published
 		if !o.Updated.IsZero() {
 			updatedAt = o.Updated
@@ -241,7 +241,7 @@ func (c CollectionHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // ItemHandlerFn is the type that we're using to represent handlers that return ActivityStreams
 // objects. It needs to implement the http.Handler interface
-type ItemHandlerFn func(*http.Request, ReadStore) (pub.Item, error)
+type ItemHandlerFn func(*http.Request, ReadStore) (vocab.Item, error)
 
 func (i ItemHandlerFn) Storage(r *http.Request) (Store, error) {
 	ctxVal := r.Context().Value(RepositoryKey)
@@ -292,12 +292,12 @@ func (i ItemHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		errors.HandleError(errors.NotFoundf("")).ServeHTTP(w, r)
 		return
 	}
-	if dat, err = json.WithContext(json.IRI(pub.ActivityBaseURI)).Marshal(it); err != nil {
+	if dat, err = json.WithContext(json.IRI(vocab.ActivityBaseURI)).Marshal(it); err != nil {
 		errors.HandleError(err).ServeHTTP(w, r)
 		return
 	}
 
-	pub.OnObject(it, func(o *pub.Object) error {
+	vocab.OnObject(it, func(o *vocab.Object) error {
 		updatedAt := o.Published
 		if !o.Updated.IsZero() {
 			updatedAt = o.Updated
@@ -305,7 +305,7 @@ func (i ItemHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if !updatedAt.IsZero() {
 			w.Header().Set("Last-Modified", updatedAt.Format(time.RFC1123))
 		}
-		if pub.ActivityTypes.Contains(o.Type) {
+		if vocab.ActivityTypes.Contains(o.Type) {
 			w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d, immutable", int(8766*time.Hour.Seconds())))
 		} else {
 			w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d", int(24*time.Hour.Seconds())))
@@ -313,7 +313,7 @@ func (i ItemHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 	status = http.StatusOK
-	if it.GetType() == pub.TombstoneType {
+	if it.GetType() == vocab.TombstoneType {
 		status = http.StatusGone
 	}
 	w.Header().Set("Content-Type", json.ContentType)

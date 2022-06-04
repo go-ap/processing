@@ -3,7 +3,7 @@ package processing
 import (
 	"strings"
 
-	pub "github.com/go-ap/activitypub"
+	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
 )
 
@@ -14,15 +14,15 @@ import (
 // The Negating Activity use case primarily deals with the ability to redact previously completed activities.
 // See 5.5 Inverse Activities and "Undo" for more information:
 // https://www.w3.org/TR/activitystreams-vocabulary/#inverse
-func NegatingActivity(l WriteStore, act *pub.Activity) (*pub.Activity, error) {
+func NegatingActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
 	if act.Object == nil {
 		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
 	}
 	if act.Actor == nil {
 		return act, errors.NotValidf("Missing actor for %s Activity", act.Type)
 	}
-	if act.Type != pub.UndoType {
-		return act, errors.NotValidf("Activity has wrong type %s, expected %s", act.Type, pub.UndoType)
+	if act.Type != vocab.UndoType {
+		return act, errors.NotValidf("Activity has wrong type %s, expected %s", act.Type, vocab.UndoType)
 	}
 	// TODO(marius): a lot of validation logic should be moved to the validation package
 	if act.Object.IsLink() {
@@ -36,15 +36,15 @@ func NegatingActivity(l WriteStore, act *pub.Activity) (*pub.Activity, error) {
 		}
 	}
 	// the object of the activity needs to be an activity
-	if !pub.ActivityTypes.Contains(act.Object.GetType()) {
-		return act, errors.NotValidf("Activity object has wrong type %s, expected one of %v", act.Type, pub.ActivityTypes)
+	if !vocab.ActivityTypes.Contains(act.Object.GetType()) {
+		return act, errors.NotValidf("Activity object has wrong type %s, expected one of %v", act.Type, vocab.ActivityTypes)
 	}
-	err := pub.OnActivity(act.Object, func(a *pub.Activity) error {
+	err := vocab.OnActivity(act.Object, func(a *vocab.Activity) error {
 		if act.Actor.GetLink() != a.Actor.GetLink() {
 			return errors.NotValidf("The %s activity has a different actor than its object: %s, expected %s", act.Type, act.Actor.GetLink(), a.Actor.GetLink())
 		}
 		// TODO(marius): add more valid types
-		good := pub.ActivityVocabularyTypes{pub.LikeType, pub.DislikeType, pub.BlockType, pub.FollowType}
+		good := vocab.ActivityVocabularyTypes{vocab.LikeType, vocab.DislikeType, vocab.BlockType, vocab.FollowType}
 		if !good.Contains(a.Type) {
 			return errors.NotValidf("Object Activity has wrong type %s, expected %v", a.Type, good)
 		}
@@ -73,14 +73,14 @@ func NegatingActivity(l WriteStore, act *pub.Activity) (*pub.Activity, error) {
 // The Undo activity is used to undo the side effects of previous activities. See the ActivityStreams documentation
 // on Inverse Activities and "Undo". The scope and restrictions of the Undo activity are the same as for the Undo
 // activity in the context of client to server interactions, but applied to a federated context.
-func UndoActivity(r WriteStore, act *pub.Activity) (*pub.Activity, error) {
+func UndoActivity(r WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
 	var err error
 
 	iri := act.GetLink()
 	if len(iri) == 0 {
-		createID(act.Object, pub.Outbox.IRI(act.Actor), nil)
+		createID(act.Object, vocab.Outbox.IRI(act.Actor), nil)
 	}
-	err = pub.OnActivity(act.Object, func(toUndo *pub.Activity) error {
+	err = vocab.OnActivity(act.Object, func(toUndo *vocab.Activity) error {
 		for _, to := range act.Bto {
 			if !toUndo.Bto.Contains(to.GetLink()) {
 				toUndo.Bto = append(toUndo.Bto, to)
@@ -92,18 +92,18 @@ func UndoActivity(r WriteStore, act *pub.Activity) (*pub.Activity, error) {
 			}
 		}
 		switch toUndo.GetType() {
-		case pub.DislikeType:
+		case vocab.DislikeType:
 			// TODO(marius): Dislikes should not trigger a removal from Likes/Liked collections
 			fallthrough
-		case pub.LikeType:
+		case vocab.LikeType:
 			UndoAppreciationActivity(r, toUndo)
-		case pub.FollowType:
+		case vocab.FollowType:
 			fallthrough
-		case pub.BlockType:
+		case vocab.BlockType:
 			fallthrough
-		case pub.FlagType:
+		case vocab.FlagType:
 			fallthrough
-		case pub.IgnoreType:
+		case vocab.IgnoreType:
 			return errors.NotImplementedf("Undoing %s is not implemented", toUndo.GetType())
 		}
 		return nil
@@ -121,7 +121,7 @@ func UndoActivity(r WriteStore, act *pub.Activity) (*pub.Activity, error) {
 // Removes the side effects of an existing Appreciation activity (Like or Dislike)
 // Currently this means only removal of the Liked/Disliked object from the actor's `liked` collection and
 // removal of the Like/Dislike Activity from the object's `likes` collection
-func UndoAppreciationActivity(r WriteStore, act *pub.Activity) (*pub.Activity, error) {
+func UndoAppreciationActivity(r WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
 	errs := make([]error, 0)
 	rem := act.GetLink()
 	colSaver, ok := r.(CollectionStore)
@@ -129,18 +129,18 @@ func UndoAppreciationActivity(r WriteStore, act *pub.Activity) (*pub.Activity, e
 		return act, nil
 	}
 	allRec := act.Recipients()
-	removeFromCols := make(pub.IRIs, 0)
-	removeFromCols = append(removeFromCols, pub.Outbox.IRI(act.Actor))
-	removeFromCols = append(removeFromCols, pub.Liked.IRI(act.Actor))
-	removeFromCols = append(removeFromCols, pub.Likes.IRI(act.Object))
+	removeFromCols := make(vocab.IRIs, 0)
+	removeFromCols = append(removeFromCols, vocab.Outbox.IRI(act.Actor))
+	removeFromCols = append(removeFromCols, vocab.Liked.IRI(act.Actor))
+	removeFromCols = append(removeFromCols, vocab.Likes.IRI(act.Object))
 	for _, rec := range allRec {
 		iri := rec.GetLink()
-		if iri == pub.PublicNS {
+		if iri == vocab.PublicNS {
 			continue
 		}
-		if !pub.ValidCollectionIRI(iri) {
+		if !vocab.ValidCollectionIRI(iri) {
 			// if not a valid collection, then the current iri represents an actor, and we need their inbox
-			removeFromCols = append(removeFromCols, pub.Inbox.IRI(iri))
+			removeFromCols = append(removeFromCols, vocab.Inbox.IRI(iri))
 		}
 	}
 	for _, iri := range removeFromCols {

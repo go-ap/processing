@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	pub "github.com/go-ap/activitypub"
+	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
 )
 
@@ -13,29 +13,31 @@ type (
 	//  "it" is the object we want to generate the ID for.
 	//  "partOf" represents the Collection that it is a part of.
 	//  "by" represents the Activity that generated the object
-	IDGenerator func(it pub.Item, partOf pub.Item, by pub.Item) (pub.ID, error)
+	IDGenerator func(it vocab.Item, partOf vocab.Item, by vocab.Item) (vocab.ID, error)
 )
 
 var (
 	createID  IDGenerator
-	createKey pub.WithActorFn = defaultKeyGenerator()
+	createKey vocab.WithActorFn = defaultKeyGenerator()
 )
 
-func defaultKeyGenerator() pub.WithActorFn {
-	return func(_ *pub.Actor) error { return nil }
+func defaultKeyGenerator() vocab.WithActorFn {
+	return func(_ *vocab.Actor) error { return nil }
 }
 
-func defaultIDGenerator(base pub.IRI) IDGenerator {
-	timeIDFn := func(t time.Time) string { return fmt.Sprintf("%d", t.UnixNano()/1000) }
+func defaultIDGenerator(base vocab.IRI) IDGenerator {
+	timeIDFn := func(t time.Time) string { return fmt.Sprintf("%d", t.UnixMilli()) }
 
-	return func(it pub.Item, col pub.Item, _ pub.Item) (pub.ID, error) {
-		var colIRI pub.IRI
+	return func(it vocab.Item, col vocab.Item, _ vocab.Item) (vocab.ID, error) {
+		var colIRI vocab.IRI
 
 		if col != nil && len(col.GetLink()) > 0 {
 			colIRI = col.GetLink()
 		}
 		when := time.Now()
-		pub.OnObject(it, func(o *pub.Object) error {
+		// NOTE(marius): we're using the non-generic function here,
+		// as the generic one introduces about 50 microsecond delay
+		vocab.OnObject(it, func(o *vocab.Object) error {
 			if !o.Published.IsZero() {
 				when = o.Published
 			}
@@ -43,20 +45,20 @@ func defaultIDGenerator(base pub.IRI) IDGenerator {
 				base = o.AttributedTo.GetLink()
 			}
 			if len(colIRI) == 0 {
-				colIRI = pub.Outbox.IRI(base)
+				colIRI = vocab.Outbox.IRI(base)
 			}
 			return nil
 		})
 		if len(colIRI) == 0 {
-			return pub.NilID, errors.Newf("invalid collection to generate the ID")
+			return vocab.NilID, errors.Newf("invalid collection to generate the ID")
 		}
 		return colIRI.AddPath(timeIDFn(when)), nil
 	}
 }
 
-func SetID(it pub.Item, partOf pub.Item, act pub.Item) error {
+func SetID(it vocab.Item, partOf vocab.Item, act vocab.Item) error {
 	if createID != nil {
-		return pub.OnObject(it, func(o *pub.Object) error {
+		return vocab.OnObject(it, func(o *vocab.Object) error {
 			var err error
 			o.ID, err = createID(it, partOf, act)
 			return err
@@ -70,14 +72,14 @@ func SetID(it pub.Item, partOf pub.Item, act pub.Item) error {
 // modification or deletion of content.
 // This includes, for instance, activities such as "John created a new note",
 // "Sally updated an article", and "Joe deleted the photo".
-func ContentManagementActivity(l WriteStore, act *pub.Activity, col pub.CollectionPath) (*pub.Activity, error) {
+func ContentManagementActivity(l WriteStore, act *vocab.Activity, col vocab.CollectionPath) (*vocab.Activity, error) {
 	var err error
 	switch act.Type {
-	case pub.CreateType:
+	case vocab.CreateType:
 		act, err = CreateActivity(l, act)
-	case pub.UpdateType:
+	case vocab.UpdateType:
 		act, err = UpdateActivity(l, act)
-	case pub.DeleteType:
+	case vocab.DeleteType:
 		act, err = DeleteActivity(l, act)
 	}
 	if err != nil && !isDuplicateKey(err) {
@@ -88,32 +90,32 @@ func ContentManagementActivity(l WriteStore, act *pub.Activity, col pub.Collecti
 	return act, err
 }
 
-func getCollection(it pub.Item, c pub.CollectionPath) pub.CollectionInterface {
-	return &pub.OrderedCollection{
+func getCollection(it vocab.Item, c vocab.CollectionPath) vocab.CollectionInterface {
+	return &vocab.OrderedCollection{
 		ID:   c.IRI(it).GetLink(),
-		Type: pub.OrderedCollectionType,
+		Type: vocab.OrderedCollectionType,
 	}
 }
 
-func addNewActorCollections(p *pub.Actor) error {
+func addNewActorCollections(p *vocab.Actor) error {
 	if p.Inbox == nil {
-		p.Inbox = getCollection(p, pub.Inbox)
+		p.Inbox = getCollection(p, vocab.Inbox)
 	}
 	if p.Outbox == nil {
-		p.Outbox = getCollection(p, pub.Outbox)
+		p.Outbox = getCollection(p, vocab.Outbox)
 	}
 	if p.Followers == nil {
-		p.Followers = getCollection(p, pub.Followers)
+		p.Followers = getCollection(p, vocab.Followers)
 	}
 	if p.Following == nil {
-		p.Following = getCollection(p, pub.Following)
+		p.Following = getCollection(p, vocab.Following)
 	}
 	if p.Liked == nil {
-		p.Liked = getCollection(p, pub.Liked)
+		p.Liked = getCollection(p, vocab.Liked)
 	}
-	if p.Type == pub.PersonType {
+	if p.Type == vocab.PersonType {
 		if p.Endpoints == nil {
-			p.Endpoints = &pub.Endpoints{}
+			p.Endpoints = &vocab.Endpoints{}
 		}
 		if p.Endpoints.OauthAuthorizationEndpoint == nil {
 			p.Endpoints.OauthAuthorizationEndpoint = p.GetLink().AddPath("oauth", "authorize")
@@ -125,24 +127,24 @@ func addNewActorCollections(p *pub.Actor) error {
 	return nil
 }
 
-func addNewObjectCollections(o *pub.Object) error {
+func addNewObjectCollections(o *vocab.Object) error {
 	if o.Replies == nil {
-		o.Replies = getCollection(o, pub.Replies)
+		o.Replies = getCollection(o, vocab.Replies)
 	}
 	if o.Likes == nil {
-		o.Likes = getCollection(o, pub.Likes)
+		o.Likes = getCollection(o, vocab.Likes)
 	}
 	if o.Shares == nil {
-		o.Shares = getCollection(o, pub.Shares)
+		o.Shares = getCollection(o, vocab.Shares)
 	}
 	return nil
 }
 
-func addNewItemCollections(it pub.Item) (pub.Item, error) {
-	if pub.ActorTypes.Contains(it.GetType()) {
-		pub.OnActor(it, addNewActorCollections)
+func addNewItemCollections(it vocab.Item) (vocab.Item, error) {
+	if vocab.ActorTypes.Contains(it.GetType()) {
+		vocab.OnActor(it, addNewActorCollections)
 	}
-	pub.OnObject(it, addNewObjectCollections)
+	vocab.OnObject(it, addNewObjectCollections)
 	return it, nil
 }
 
@@ -164,14 +166,14 @@ func addNewItemCollections(it pub.Item) (pub.Item, error) {
 // Receiving a Create activity in an inbox has surprisingly few side effects; the activity should appear in the actor's
 // inbox and it is likely that the server will want to locally store a representation of this activity and its
 // accompanying object. However, this mostly happens in general with processing activities delivered to an inbox anyway.
-func CreateActivity(l WriteStore, act *pub.Activity) (*pub.Activity, error) {
+func CreateActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
 	if iri := act.Object.GetLink(); len(iri) == 0 {
-		if err := SetID(act.Object, pub.Outbox.IRI(act.Actor), act); err != nil {
+		if err := SetID(act.Object, vocab.Outbox.IRI(act.Actor), act); err != nil {
 			return act, nil
 		}
 	}
-	if pub.ActorTypes.Contains(act.Object.GetType()) {
-		if err := pub.OnActor(act.Object, createKey); err != nil {
+	if vocab.ActorTypes.Contains(act.Object.GetType()) {
+		if err := vocab.OnActor(act.Object, createKey); err != nil {
 			return act, errors.Annotatef(err, "unable to generate private/public key pair for object %s", act.Object.GetLink())
 		}
 	}
@@ -203,14 +205,14 @@ func CreateActivity(l WriteStore, act *pub.Activity) (*pub.Activity, error) {
 // activity, this is not a partial update but a complete replacement of the object.
 // The receiving server MUST take care to be sure that the Update is authorized to modify its object. At minimum,
 // this may be done by ensuring that the Update and its object are of same origin.
-func UpdateActivity(l WriteStore, act *pub.Activity) (*pub.Activity, error) {
+func UpdateActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
 	var err error
 	ob := act.Object
 
 	if loader, ok := l.(ReadStore); ok {
-		if pub.IsItemCollection(ob) {
-			foundCol := make(pub.ItemCollection, 0)
-			pub.OnCollectionIntf(ob, func(col pub.CollectionInterface) error {
+		if vocab.IsItemCollection(ob) {
+			foundCol := make(vocab.ItemCollection, 0)
+			vocab.OnCollectionIntf(ob, func(col vocab.CollectionInterface) error {
 				for _, it := range col.Collection() {
 					old, err := loader.Load(it.GetLink())
 					if err != nil {
@@ -238,16 +240,16 @@ func UpdateActivity(l WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	return act, err
 }
 
-func updateSingleItem(l WriteStore, found pub.Item, with pub.Item) (pub.Item, error) {
+func updateSingleItem(l WriteStore, found vocab.Item, with vocab.Item) (vocab.Item, error) {
 	var err error
-	if pub.IsNil(found) {
+	if vocab.IsNil(found) {
 		return found, errors.NotFoundf("Unable to find %s %s", with.GetType(), with.GetLink())
 	}
 	if found.IsCollection() {
 		return found, errors.Conflictf("IRI %s does not point to a single object", with.GetLink())
 	}
 
-	found, err = pub.CopyItemProperties(found, with)
+	found, err = vocab.CopyItemProperties(found, with)
 	if err != nil {
 		return found, errors.NewConflict(err, "unable to copy item")
 	}
@@ -258,16 +260,16 @@ func updateSingleItem(l WriteStore, found pub.Item, with pub.Item) (pub.Item, er
 	return l.Save(found)
 }
 
-func updateObjectForUpdate(l WriteStore, o *pub.Object) error {
+func updateObjectForUpdate(l WriteStore, o *vocab.Object) error {
 	if o.InReplyTo != nil {
 		if colSaver, ok := l.(CollectionStore); ok {
-			if c, ok := o.InReplyTo.(pub.ItemCollection); ok {
+			if c, ok := o.InReplyTo.(vocab.ItemCollection); ok {
 				for _, repl := range c {
-					iri := pub.Replies.IRI(repl.GetLink())
+					iri := vocab.Replies.IRI(repl.GetLink())
 					colSaver.AddTo(iri, o.GetLink())
 				}
 			} else {
-				iri := pub.Replies.IRI(o.InReplyTo)
+				iri := vocab.Replies.IRI(o.InReplyTo)
 				colSaver.AddTo(iri, o.GetLink())
 			}
 		}
@@ -277,43 +279,43 @@ func updateObjectForUpdate(l WriteStore, o *pub.Object) error {
 	return createNewTags(l, o.Tag)
 }
 
-func updateUpdateActivityObject(l WriteStore, o pub.Item) error {
-	return pub.OnObject(o, func(o *pub.Object) error {
+func updateUpdateActivityObject(l WriteStore, o vocab.Item) error {
+	return vocab.OnObject(o, func(o *vocab.Object) error {
 		return updateObjectForUpdate(l, o)
 	})
 }
 
-func updateObjectForCreate(l WriteStore, o *pub.Object, act *pub.Activity) error {
+func updateObjectForCreate(l WriteStore, o *vocab.Object, act *vocab.Activity) error {
 	// See https://www.w3.org/TR/ActivityPub/#create-activity-outbox
 	// Copying the actor's IRI to the object's "AttributedTo"
-	if pub.IsNil(o.AttributedTo) && !pub.IsNil(act.Actor) {
+	if vocab.IsNil(o.AttributedTo) && !vocab.IsNil(act.Actor) {
 		o.AttributedTo = act.Actor.GetLink()
 	}
 
 	// Merging the activity's and the object's "Audience"
-	if aud := pub.ItemCollectionDeduplication(&act.Audience, &o.Audience); aud != nil {
-		o.Audience = pub.FlattenItemCollection(aud)
-		act.Audience = pub.FlattenItemCollection(aud)
+	if aud := vocab.ItemCollectionDeduplication(&act.Audience, &o.Audience); aud != nil {
+		o.Audience = vocab.FlattenItemCollection(aud)
+		act.Audience = vocab.FlattenItemCollection(aud)
 	}
 	// Merging the activity's and the object's "To" addressing
-	if to := pub.ItemCollectionDeduplication(&act.To, &o.To); to != nil {
-		o.To = pub.FlattenItemCollection(to)
-		act.To = pub.FlattenItemCollection(to)
+	if to := vocab.ItemCollectionDeduplication(&act.To, &o.To); to != nil {
+		o.To = vocab.FlattenItemCollection(to)
+		act.To = vocab.FlattenItemCollection(to)
 	}
 	// Merging the activity's and the object's "Bto" addressing
-	if bto := pub.ItemCollectionDeduplication(&act.Bto, &o.Bto); bto != nil {
-		o.Bto = pub.FlattenItemCollection(bto)
-		act.Bto = pub.FlattenItemCollection(bto)
+	if bto := vocab.ItemCollectionDeduplication(&act.Bto, &o.Bto); bto != nil {
+		o.Bto = vocab.FlattenItemCollection(bto)
+		act.Bto = vocab.FlattenItemCollection(bto)
 	}
 	// Merging the activity's and the object's "Cc" addressing
-	if cc := pub.ItemCollectionDeduplication(&act.CC, &o.CC); cc != nil {
-		o.CC = pub.FlattenItemCollection(cc)
-		act.CC = pub.FlattenItemCollection(cc)
+	if cc := vocab.ItemCollectionDeduplication(&act.CC, &o.CC); cc != nil {
+		o.CC = vocab.FlattenItemCollection(cc)
+		act.CC = vocab.FlattenItemCollection(cc)
 	}
 	// Merging the activity's and the object's "Bcc" addressing
-	if bcc := pub.ItemCollectionDeduplication(&act.BCC, &o.BCC); bcc != nil {
-		o.BCC = pub.FlattenItemCollection(bcc)
-		act.BCC = pub.FlattenItemCollection(bcc)
+	if bcc := vocab.ItemCollectionDeduplication(&act.BCC, &o.BCC); bcc != nil {
+		o.BCC = vocab.FlattenItemCollection(bcc)
+		act.BCC = vocab.FlattenItemCollection(bcc)
 	}
 
 	// TODO(marius): Move these to a ProcessObject function
@@ -324,8 +326,8 @@ func updateObjectForCreate(l WriteStore, o *pub.Object, act *pub.Activity) error
 	return updateObjectForUpdate(l, o)
 }
 
-func updateCreateActivityObject(l WriteStore, o pub.Item, act *pub.Activity) error {
-	return pub.OnObject(o, func(o *pub.Object) error {
+func updateCreateActivityObject(l WriteStore, o vocab.Item, act *vocab.Activity) error {
+	return vocab.OnObject(o, func(o *vocab.Object) error {
 		return updateObjectForCreate(l, o, act)
 	})
 }
@@ -348,14 +350,14 @@ func updateCreateActivityObject(l WriteStore, o pub.Item, act *pub.Activity) err
 // Note: that after an activity has been transmitted from an origin server to a remote server, there is nothing in the
 //
 // ActivityPub protocol that can enforce remote deletion of an object's representation.
-func DeleteActivity(l WriteStore, act *pub.Activity) (*pub.Activity, error) {
+func DeleteActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
 	var err error
 	ob := act.Object
 
-	var toRemove pub.ItemCollection
+	var toRemove vocab.ItemCollection
 	if loader, ok := l.(ReadStore); ok {
-		if pub.IsItemCollection(ob) {
-			err = pub.OnItemCollection(ob, func(col *pub.ItemCollection) error {
+		if vocab.IsItemCollection(ob) {
+			err = vocab.OnItemCollection(ob, func(col *vocab.ItemCollection) error {
 				for _, it := range col.Collection() {
 					if err := replaceItemWithTombstone(loader, it, &toRemove); err != nil {
 						return errors.Annotatef(err, "unable to replace with tombstone object %s", it.GetLink())
@@ -374,7 +376,7 @@ func DeleteActivity(l WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	if len(toRemove) == 0 {
 		return act, nil
 	}
-	result := make(pub.ItemCollection, 0)
+	result := make(vocab.ItemCollection, 0)
 	for _, r := range toRemove {
 		r, err = l.Save(r)
 		if err != nil {
@@ -386,34 +388,34 @@ func DeleteActivity(l WriteStore, act *pub.Activity) (*pub.Activity, error) {
 	return act, nil
 }
 
-func replaceItemWithTombstone(loader ReadStore, it pub.Item, toRemove *pub.ItemCollection) error {
+func replaceItemWithTombstone(loader ReadStore, it vocab.Item, toRemove *vocab.ItemCollection) error {
 	toRem, err := loader.Load(it.GetLink())
 	if err != nil {
 		return err
 	}
-	if err := pub.OnObject(toRem, loadTombstoneForDelete(loader, toRemove)); err != nil {
+	if err := vocab.OnObject(toRem, loadTombstoneForDelete(loader, toRemove)); err != nil {
 		return err
 	}
 	return nil
 }
 
-func loadTombstoneForDelete(loader ReadStore, toRemove *pub.ItemCollection) func(*pub.Object) error {
-	return func(ob *pub.Object) error {
+func loadTombstoneForDelete(loader ReadStore, toRemove *vocab.ItemCollection) func(*vocab.Object) error {
+	return func(ob *vocab.Object) error {
 		found, err := loader.Load(ob.GetLink())
 		if err != nil {
 			return err
 		}
-		if pub.IsNil(found) {
+		if vocab.IsNil(found) {
 			return errors.NotFoundf("Unable to find %s %s", ob.GetType(), ob.GetLink())
 		}
-		pub.OnObject(found, func(fob *pub.Object) error {
-			t := pub.Tombstone{
+		vocab.OnObject(found, func(fob *vocab.Object) error {
+			t := vocab.Tombstone{
 				ID:      fob.GetLink(),
-				Type:    pub.TombstoneType,
-				To:      pub.ItemCollection{pub.PublicNS},
+				Type:    vocab.TombstoneType,
+				To:      vocab.ItemCollection{vocab.PublicNS},
 				Deleted: time.Now().UTC(),
 			}
-			if fob.GetType() != pub.TombstoneType {
+			if fob.GetType() != vocab.TombstoneType {
 				t.FormerType = fob.GetType()
 			}
 			*toRemove = append(*toRemove, t)

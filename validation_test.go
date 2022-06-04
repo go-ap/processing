@@ -4,7 +4,7 @@ import (
 	"net/netip"
 	"testing"
 
-	pub "github.com/go-ap/activitypub"
+	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/client"
 )
 
@@ -56,56 +56,56 @@ var (
 func Test_defaultValidator_validateLocalIRI(t *testing.T) {
 	tests := []struct {
 		name    string
-		arg     pub.IRI
-		baseIRI pub.IRIs
+		arg     vocab.IRI
+		baseIRI vocab.IRIs
 		wantErr bool
 	}{
 		{
 			name:    "IP 127.0.2.1",
-			arg:     pub.IRI("https://127.0.2.1"),
+			arg:     vocab.IRI("https://127.0.2.1"),
 			wantErr: false,
 		},
 		{
 			name:    "IP 127.0.2.1 with port :8443",
-			arg:     pub.IRI("https://127.0.2.1:8443"),
+			arg:     vocab.IRI("https://127.0.2.1:8443"),
 			wantErr: false,
 		},
 		{
 			name:    "localhost",
-			arg:     pub.IRI("https://localhost"),
+			arg:     vocab.IRI("https://localhost"),
 			wantErr: false,
 		},
 		{
 			name:    "example.com host",
-			arg:     pub.IRI("https://example.com"),
+			arg:     vocab.IRI("https://example.com"),
 			wantErr: true,
 		},
 		{
 			name: "example.com host with set baseIRIs",
-			baseIRI: pub.IRIs{
-				pub.IRI("https://example.com"),
+			baseIRI: vocab.IRIs{
+				vocab.IRI("https://example.com"),
 			},
-			arg:     pub.IRI("https://example.com"),
+			arg:     vocab.IRI("https://example.com"),
 			wantErr: false,
 		},
 		{
 			name: "fedbox host with multiple baseIRIs",
-			baseIRI: pub.IRIs{
-				pub.IRI("http://localhost"),
-				pub.IRI("http://fedbox"),
-				pub.IRI("https://example.com"),
+			baseIRI: vocab.IRIs{
+				vocab.IRI("http://localhost"),
+				vocab.IRI("http://fedbox"),
+				vocab.IRI("https://example.com"),
 			},
-			arg:     pub.IRI("https://fedbox"),
+			arg:     vocab.IRI("https://fedbox"),
 			wantErr: false,
 		},
 		{
 			name: "example.com host with multiple baseIRIs",
-			baseIRI: pub.IRIs{
-				pub.IRI("http://localhost"),
-				pub.IRI("http://fedbox"),
-				pub.IRI("https://example1.com"),
+			baseIRI: vocab.IRIs{
+				vocab.IRI("http://localhost"),
+				vocab.IRI("http://fedbox"),
+				vocab.IRI("https://example1.com"),
 			},
-			arg:     pub.IRI("https://example.com"),
+			arg:     vocab.IRI("https://example.com"),
 			wantErr: true,
 		},
 	}

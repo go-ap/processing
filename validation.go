@@ -9,25 +9,25 @@ import (
 	"strings"
 	"sync"
 
-	pub "github.com/go-ap/activitypub"
+	vocab "github.com/go-ap/activitypub"
 	c "github.com/go-ap/client"
 	"github.com/go-ap/errors"
 )
 
 type ClientActivityValidator interface {
-	ValidateClientActivity(pub.Item, pub.IRI) error
-	//ValidateClientObject(pub.Item) error
-	ValidateClientActor(pub.Item) error
-	//ValidateClientTarget(pub.Item) error
-	//ValidateClientAudience(...pub.ItemCollection) error
+	ValidateClientActivity(vocab.Item, vocab.IRI) error
+	//ValidateClientObject(vocab.Item) error
+	ValidateClientActor(vocab.Item) error
+	//ValidateClientTarget(vocab.Item) error
+	//ValidateClientAudience(...vocab.ItemCollection) error
 }
 
 type ServerActivityValidator interface {
-	ValidateServerActivity(pub.Item, pub.IRI) error
-	//ValidateServerObject(pub.Item) error
-	ValidateServerActor(pub.Item) error
-	//ValidateServerTarget(pub.Item) error
-	//ValidateServerAudience(...pub.ItemCollection) error
+	ValidateServerActivity(vocab.Item, vocab.IRI) error
+	//ValidateServerObject(vocab.Item) error
+	ValidateServerActor(vocab.Item) error
+	//ValidateServerTarget(vocab.Item) error
+	//ValidateServerAudience(...vocab.ItemCollection) error
 }
 
 // ActivityValidator is an interface used for validating activity objects.
@@ -37,24 +37,24 @@ type ActivityValidator interface {
 }
 
 //type AudienceValidator interface {
-//	ValidateAudience(...pub.ItemCollection) error
+//	ValidateAudience(...vocab.ItemCollection) error
 //}
 
 // ObjectValidator is an interface used for validating generic objects
 type ObjectValidator interface {
-	ValidateObject(pub.Item) error
+	ValidateObject(vocab.Item) error
 }
 
 // ActorValidator is an interface used for validating actor objects
 type ActorValidator interface {
-	ValidActor(pub.Item) error
+	ValidActor(vocab.Item) error
 }
 
 // TargetValidator is an interface used for validating an object that is an activity's target
 // TODO(marius): this seems to have a different semantic than the previous ones.
 //  Ie, any object can be a target, but in the previous cases, the main validation mechanism is based on the Type.
 //type TargetValidator interface {
-//	ValidTarget(pub.Item) error
+//	ValidTarget(vocab.Item) error
 //}
 
 type invalidActivity struct {
@@ -67,9 +67,9 @@ type ipCache struct {
 }
 
 type defaultValidator struct {
-	baseIRI pub.IRIs
+	baseIRI vocab.IRIs
 	addr    ipCache
-	auth    *pub.Actor
+	auth    *vocab.Actor
 	c       c.Basic
 	s       ReadStore
 	infoFn  c.LogFn
@@ -109,11 +109,11 @@ func (m *MissingActorError) Is(e error) bool {
 	return okp || oks
 }
 
-func (v defaultValidator) ValidateServerActivity(a pub.Item, inbox pub.IRI) error {
+func (v defaultValidator) ValidateServerActivity(a vocab.Item, inbox vocab.IRI) error {
 	if !IsInbox(inbox) {
 		return errors.NotValidf("Trying to validate a non inbox IRI %s", inbox)
 	}
-	//if v.auth.GetLink() == pub.PublicNS {
+	//if v.auth.GetLink() == vocab.PublicNS {
 	//	return errors.Unauthorizedf("%s actor is not allowed posting to current inbox", v.auth.Name)
 	//}
 	if a == nil {
@@ -122,15 +122,15 @@ func (v defaultValidator) ValidateServerActivity(a pub.Item, inbox pub.IRI) erro
 	if a.IsLink() {
 		return v.ValidateLink(a.GetLink())
 	}
-	if !pub.ActivityTypes.Contains(a.GetType()) {
+	if !vocab.ActivityTypes.Contains(a.GetType()) {
 		return InvalidActivity("invalid type %s", a.GetType())
 	}
-	return pub.OnActivity(a, func(act *pub.Activity) error {
+	return vocab.OnActivity(a, func(act *vocab.Activity) error {
 		if len(act.ID) == 0 {
 			return InvalidActivity("invalid activity id %s", act.ID)
 		}
 
-		inboxBelongsTo, err := pub.Inbox.OfActor(inbox)
+		inboxBelongsTo, err := vocab.Inbox.OfActor(inbox)
 		if err != nil {
 			return err
 		}
@@ -156,43 +156,43 @@ func (v defaultValidator) ValidateServerActivity(a pub.Item, inbox pub.IRI) erro
 	})
 }
 
-func IsOutbox(i pub.IRI) bool {
-	return strings.ToLower(path.Base(i.String())) == strings.ToLower(string(pub.Outbox))
+func IsOutbox(i vocab.IRI) bool {
+	return strings.ToLower(path.Base(i.String())) == strings.ToLower(string(vocab.Outbox))
 }
 
-func IsInbox(i pub.IRI) bool {
-	return strings.ToLower(path.Base(i.String())) == strings.ToLower(string(pub.Inbox))
+func IsInbox(i vocab.IRI) bool {
+	return strings.ToLower(path.Base(i.String())) == strings.ToLower(string(vocab.Inbox))
 }
 
 // IRIBelongsToActor checks if the search iri represents any of the collections associated with the actor.
-func IRIBelongsToActor(iri pub.IRI, actor *pub.Actor) bool {
+func IRIBelongsToActor(iri vocab.IRI, actor *vocab.Actor) bool {
 	if actor == nil {
 		return false
 	}
-	if pub.Inbox.IRI(actor).Equals(iri, false) {
+	if vocab.Inbox.IRI(actor).Equals(iri, false) {
 		return true
 	}
-	if pub.Outbox.IRI(actor).Equals(iri, false) {
+	if vocab.Outbox.IRI(actor).Equals(iri, false) {
 		return true
 	}
 	// The following should not really come into question at any point.
 	// This function should be used for checking inbox/outbox/sharedInbox IRIS
-	if pub.Following.IRI(actor).Equals(iri, false) {
+	if vocab.Following.IRI(actor).Equals(iri, false) {
 		return true
 	}
-	if pub.Followers.IRI(actor).Equals(iri, false) {
+	if vocab.Followers.IRI(actor).Equals(iri, false) {
 		return true
 	}
-	if pub.Replies.IRI(actor).Equals(iri, false) {
+	if vocab.Replies.IRI(actor).Equals(iri, false) {
 		return true
 	}
-	if pub.Liked.IRI(actor).Equals(iri, false) {
+	if vocab.Liked.IRI(actor).Equals(iri, false) {
 		return true
 	}
-	if pub.Shares.IRI(actor).Equals(iri, false) {
+	if vocab.Shares.IRI(actor).Equals(iri, false) {
 		return true
 	}
-	if pub.Likes.IRI(actor).Equals(iri, false) {
+	if vocab.Likes.IRI(actor).Equals(iri, false) {
 		return true
 	}
 	if actor.Endpoints != nil && actor.Endpoints.SharedInbox.GetLink().Equals(iri, false) {
@@ -203,21 +203,21 @@ func IRIBelongsToActor(iri pub.IRI, actor *pub.Actor) bool {
 
 var missingActor = new(MissingActorError)
 
-func name(a *pub.Actor) pub.LangRefValue {
+func name(a *vocab.Actor) vocab.LangRefValue {
 	if len(a.Name) > 0 {
 		return a.Name.First()
 	}
 	if len(a.PreferredUsername) > 0 {
 		return a.PreferredUsername.First()
 	}
-	return pub.LangRefValue{Value: pub.Content(path.Base(string(a.ID)))}
+	return vocab.LangRefValue{Value: vocab.Content(path.Base(string(a.ID)))}
 }
 
-func (v defaultValidator) ValidateClientActivity(a pub.Item, outbox pub.IRI) error {
+func (v defaultValidator) ValidateClientActivity(a vocab.Item, outbox vocab.IRI) error {
 	if !IsOutbox(outbox) {
 		return errors.NotValidf("Trying to validate a non outbox IRI %s", outbox)
 	}
-	if v.auth == nil || v.auth.GetLink() == pub.PublicNS {
+	if v.auth == nil || v.auth.GetLink() == vocab.PublicNS {
 		return errors.Unauthorizedf("%s actor is not allowed posting to current outbox", name(v.auth))
 	}
 	if !IRIBelongsToActor(outbox, v.auth) {
@@ -229,11 +229,11 @@ func (v defaultValidator) ValidateClientActivity(a pub.Item, outbox pub.IRI) err
 	if a.IsLink() {
 		return v.ValidateLink(a.GetLink())
 	}
-	validActivityTypes := append(pub.ActivityTypes, pub.IntransitiveActivityTypes...)
+	validActivityTypes := append(vocab.ActivityTypes, vocab.IntransitiveActivityTypes...)
 	if !validActivityTypes.Contains(a.GetType()) {
 		return InvalidActivity("invalid type %s", a.GetType())
 	}
-	return pub.OnActivity(a, func(act *pub.Activity) error {
+	return vocab.OnActivity(a, func(act *vocab.Activity) error {
 		var err error
 		if act.Actor, err = v.ValidateClientActor(act.Actor); err != nil {
 			if missingActor.Is(err) && v.auth != nil {
@@ -242,7 +242,7 @@ func (v defaultValidator) ValidateClientActivity(a pub.Item, outbox pub.IRI) err
 				return err
 			}
 		}
-		if !pub.IntransitiveActivityTypes.Contains(a.GetType()) {
+		if !vocab.IntransitiveActivityTypes.Contains(a.GetType()) {
 			// @TODO(marius): this needs to be extended by a ValidateActivityClientObject
 			//   because the first step would be to test the object in the context of the activity
 			//   The ValidateActivityClientObject could then validate just the object itself.
@@ -255,29 +255,29 @@ func (v defaultValidator) ValidateClientActivity(a pub.Item, outbox pub.IRI) err
 				return err
 			}
 		}
-		if pub.ContentManagementActivityTypes.Contains(act.GetType()) && act.Object.GetType() != pub.RelationshipType {
+		if vocab.ContentManagementActivityTypes.Contains(act.GetType()) && act.Object.GetType() != vocab.RelationshipType {
 			err = ValidateClientContentManagementActivity(v.s, act)
-		} else if pub.CollectionManagementActivityTypes.Contains(act.GetType()) {
+		} else if vocab.CollectionManagementActivityTypes.Contains(act.GetType()) {
 			err = ValidateClientCollectionManagementActivity(v.s, act)
-		} else if pub.ReactionsActivityTypes.Contains(act.GetType()) {
+		} else if vocab.ReactionsActivityTypes.Contains(act.GetType()) {
 			err = ValidateClientReactionsActivity(v.s, act)
-		} else if pub.EventRSVPActivityTypes.Contains(act.GetType()) {
+		} else if vocab.EventRSVPActivityTypes.Contains(act.GetType()) {
 			err = ValidateClientEventRSVPActivity(v.s, act)
-		} else if pub.GroupManagementActivityTypes.Contains(act.GetType()) {
+		} else if vocab.GroupManagementActivityTypes.Contains(act.GetType()) {
 			err = ValidateClientGroupManagementActivity(v.s, act)
-		} else if pub.ContentExperienceActivityTypes.Contains(act.GetType()) {
+		} else if vocab.ContentExperienceActivityTypes.Contains(act.GetType()) {
 			err = ValidateClientContentExperienceActivity(v.s, act)
-		} else if pub.GeoSocialEventsActivityTypes.Contains(act.GetType()) {
+		} else if vocab.GeoSocialEventsActivityTypes.Contains(act.GetType()) {
 			err = ValidateClientGeoSocialEventsActivity(v.s, act)
-		} else if pub.NotificationActivityTypes.Contains(act.GetType()) {
+		} else if vocab.NotificationActivityTypes.Contains(act.GetType()) {
 			err = ValidateClientNotificationActivity(v.s, act)
-		} else if pub.QuestionActivityTypes.Contains(act.GetType()) {
+		} else if vocab.QuestionActivityTypes.Contains(act.GetType()) {
 			err = ValidateClientQuestionActivity(v.s, act)
-		} else if pub.RelationshipManagementActivityTypes.Contains(act.GetType()) {
+		} else if vocab.RelationshipManagementActivityTypes.Contains(act.GetType()) {
 			err = ValidateClientRelationshipManagementActivity(v.s, act)
-		} else if pub.NegatingActivityTypes.Contains(act.GetType()) {
+		} else if vocab.NegatingActivityTypes.Contains(act.GetType()) {
 			err = ValidateClientNegatingActivity(v.s, act)
-		} else if pub.OffersActivityTypes.Contains(act.GetType()) {
+		} else if vocab.OffersActivityTypes.Contains(act.GetType()) {
 			err = ValidateClientOffersActivity(v.s, act)
 		}
 		return err
@@ -285,18 +285,18 @@ func (v defaultValidator) ValidateClientActivity(a pub.Item, outbox pub.IRI) err
 }
 
 // ValidateClientContentManagementActivity
-func ValidateClientContentManagementActivity(l ReadStore, act *pub.Activity) error {
+func ValidateClientContentManagementActivity(l ReadStore, act *vocab.Activity) error {
 	if act.Object == nil {
 		return errors.NotValidf("nil object for %s activity", act.Type)
 	}
 	ob := act.Object
 	switch act.Type {
-	case pub.UpdateType:
-		if pub.ActivityTypes.Contains(ob.GetType()) {
+	case vocab.UpdateType:
+		if vocab.ActivityTypes.Contains(ob.GetType()) {
 			return errors.Newf("trying to update an immutable activity")
 		}
 		fallthrough
-	case pub.DeleteType:
+	case vocab.DeleteType:
 		if len(ob.GetLink()) == 0 {
 			return errors.Newf("invalid object id for %s activity", act.Type)
 		}
@@ -304,7 +304,7 @@ func ValidateClientContentManagementActivity(l ReadStore, act *pub.Activity) err
 			return nil
 		}
 		var (
-			found pub.Item
+			found vocab.Item
 			err   error
 		)
 
@@ -315,7 +315,7 @@ func ValidateClientContentManagementActivity(l ReadStore, act *pub.Activity) err
 		if found == nil {
 			return errors.NotFoundf("found nil object in storage")
 		}
-	case pub.CreateType:
+	case vocab.CreateType:
 	default:
 	}
 
@@ -323,63 +323,63 @@ func ValidateClientContentManagementActivity(l ReadStore, act *pub.Activity) err
 }
 
 // ValidateClientCollectionManagementActivity
-func ValidateClientCollectionManagementActivity(l ReadStore, act *pub.Activity) error {
+func ValidateClientCollectionManagementActivity(l ReadStore, act *vocab.Activity) error {
 	return nil
 }
 
 // ValidateClientReactionsActivity
-func ValidateClientReactionsActivity(l ReadStore, act *pub.Activity) error {
+func ValidateClientReactionsActivity(l ReadStore, act *vocab.Activity) error {
 	return nil
 }
 
 // ValidateClientEventRSVPActivity
-func ValidateClientEventRSVPActivity(l ReadStore, act *pub.Activity) error {
+func ValidateClientEventRSVPActivity(l ReadStore, act *vocab.Activity) error {
 	return nil
 }
 
 // ValidateClientGroupManagementActivity
-func ValidateClientGroupManagementActivity(l ReadStore, act *pub.Activity) error {
+func ValidateClientGroupManagementActivity(l ReadStore, act *vocab.Activity) error {
 	return nil
 }
 
 // ValidateClientContentExperienceActivity
-func ValidateClientContentExperienceActivity(l ReadStore, act *pub.Activity) error {
+func ValidateClientContentExperienceActivity(l ReadStore, act *vocab.Activity) error {
 	return nil
 }
 
 // ValidateClientGeoSocialEventsActivity
-func ValidateClientGeoSocialEventsActivity(l ReadStore, act *pub.Activity) error {
+func ValidateClientGeoSocialEventsActivity(l ReadStore, act *vocab.Activity) error {
 	return nil
 }
 
 // ValidateClientNotificationActivity
-func ValidateClientNotificationActivity(l ReadStore, act *pub.Activity) error {
+func ValidateClientNotificationActivity(l ReadStore, act *vocab.Activity) error {
 	return nil
 }
 
 // ValidateClientQuestionActivity
-func ValidateClientQuestionActivity(l ReadStore, act *pub.Activity) error {
+func ValidateClientQuestionActivity(l ReadStore, act *vocab.Activity) error {
 	return nil
 }
 
 // ValidateClientRelationshipManagementActivity
-func ValidateClientRelationshipManagementActivity(l ReadStore, act *pub.Activity) error {
+func ValidateClientRelationshipManagementActivity(l ReadStore, act *vocab.Activity) error {
 	switch act.Type {
-	case pub.FollowType:
+	case vocab.FollowType:
 		if iri := act.GetLink(); len(iri) > 0 {
-			if a, _ := l.Load(iri); !pub.IsNil(firstOrItem(a)) {
+			if a, _ := l.Load(iri); !vocab.IsNil(firstOrItem(a)) {
 				return errors.Conflictf("%s already exists for this actor/object pair", act.Type)
 			}
 		}
-	case pub.AddType:
-	case pub.BlockType:
-	case pub.CreateType:
-	case pub.DeleteType:
-	case pub.IgnoreType:
-	case pub.InviteType:
-	case pub.AcceptType:
+	case vocab.AddType:
+	case vocab.BlockType:
+	case vocab.CreateType:
+	case vocab.DeleteType:
+	case vocab.IgnoreType:
+	case vocab.InviteType:
+	case vocab.AcceptType:
 		fallthrough
-	case pub.RejectType:
+	case vocab.RejectType:
 		// TODO(marius): either the actor or the object needs to be local for this action to be valid
 		//   in the case of C2S... the actor needs to be local
 		//   in the case of S2S... the object needs to be local
@@ -390,25 +390,25 @@ func ValidateClientRelationshipManagementActivity(l ReadStore, act *pub.Activity
 }
 
 // ValidateClientNegatingActivity
-func ValidateClientNegatingActivity(l ReadStore, act *pub.Activity) error {
+func ValidateClientNegatingActivity(l ReadStore, act *vocab.Activity) error {
 	return nil
 }
 
 // ValidateClientOffersActivity
-func ValidateClientOffersActivity(l ReadStore, act *pub.Activity) error {
+func ValidateClientOffersActivity(l ReadStore, act *vocab.Activity) error {
 	return nil
 }
 
 // IsLocalIRI shows if the received IRI belongs to the current instance
-func (v defaultValidator) IsLocalIRI(i pub.IRI) bool {
+func (v defaultValidator) IsLocalIRI(i vocab.IRI) bool {
 	return v.validateLocalIRI(i) == nil
 }
 
-func (v defaultValidator) ValidateLink(i pub.IRI) error {
-	if i.Equals(pub.PublicNS, false) {
+func (v defaultValidator) ValidateLink(i vocab.IRI) error {
+	if i.Equals(vocab.PublicNS, false) {
 		return InvalidIRI("Public namespace is not a local IRI")
 	}
-	var loadFn func(pub.IRI) (pub.Item, error) = v.s.Load
+	var loadFn func(vocab.IRI) (vocab.Item, error) = v.s.Load
 	if !v.IsLocalIRI(i) {
 		loadFn = v.c.LoadIRI
 	}
@@ -416,13 +416,13 @@ func (v defaultValidator) ValidateLink(i pub.IRI) error {
 	if err != nil {
 		return err
 	}
-	if pub.IsNil(it) {
+	if vocab.IsNil(it) {
 		return InvalidIRI("%s could not be found locally", i)
 	}
 	return nil
 }
 
-func (v defaultValidator) ValidateClientActor(a pub.Item) (pub.Item, error) {
+func (v defaultValidator) ValidateClientActor(a vocab.Item) (vocab.Item, error) {
 	if a == nil {
 		return a, MissingActivityActor("")
 	}
@@ -432,7 +432,7 @@ func (v defaultValidator) ValidateClientActor(a pub.Item) (pub.Item, error) {
 	return v.ValidateActor(a)
 }
 
-func (v defaultValidator) ValidateServerActor(a pub.Item) (pub.Item, error) {
+func (v defaultValidator) ValidateServerActor(a vocab.Item) (vocab.Item, error) {
 	if a == nil {
 		return a, InvalidActivityActor("is nil")
 	}
@@ -446,8 +446,8 @@ func (v defaultValidator) ValidateServerActor(a pub.Item) (pub.Item, error) {
 			return a, errors.NotFoundf("Invalid activity actor")
 		}
 	}
-	err = pub.OnActor(a, func(act *pub.Actor) error {
-		if !pub.ActorTypes.Contains(act.GetType()) {
+	err = vocab.OnActor(a, func(act *vocab.Actor) error {
+		if !vocab.ActorTypes.Contains(act.GetType()) {
 			return InvalidActivityActor("invalid type %s", act.GetType())
 		}
 		if v.auth != nil {
@@ -461,7 +461,7 @@ func (v defaultValidator) ValidateServerActor(a pub.Item) (pub.Item, error) {
 	return a, err
 }
 
-func (v defaultValidator) ValidateActor(a pub.Item) (pub.Item, error) {
+func (v defaultValidator) ValidateActor(a vocab.Item) (vocab.Item, error) {
 	if a == nil {
 		return a, InvalidActivityActor("is nil")
 	}
@@ -471,7 +471,7 @@ func (v defaultValidator) ValidateActor(a pub.Item) (pub.Item, error) {
 		if err != nil {
 			return a, err
 		}
-		var loadFn func(pub.IRI) (pub.Item, error) = v.s.Load
+		var loadFn func(vocab.IRI) (vocab.Item, error) = v.s.Load
 		if !v.IsLocalIRI(iri) {
 			loadFn = v.c.LoadIRI
 		}
@@ -479,12 +479,12 @@ func (v defaultValidator) ValidateActor(a pub.Item) (pub.Item, error) {
 			return a, err
 		}
 	} else {
-		if pub.IsNil(a) {
+		if vocab.IsNil(a) {
 			return a, errors.NotFoundf("Invalid activity actor")
 		}
 	}
-	return a, pub.OnActor(a, func(act *pub.Actor) error {
-		if !pub.ActorTypes.Contains(act.GetType()) {
+	return a, vocab.OnActor(a, func(act *vocab.Actor) error {
+		if !vocab.ActorTypes.Contains(act.GetType()) {
 			return InvalidActivityActor("invalid type %s", act.GetType())
 		}
 		if v.auth != nil && v.auth.GetLink().Equals(act.GetLink(), false) {
@@ -494,11 +494,11 @@ func (v defaultValidator) ValidateActor(a pub.Item) (pub.Item, error) {
 	})
 }
 
-func (v defaultValidator) ValidateClientObject(o pub.Item) (pub.Item, error) {
+func (v defaultValidator) ValidateClientObject(o vocab.Item) (vocab.Item, error) {
 	return v.ValidateObject(o)
 }
 
-func (v defaultValidator) ValidateServerObject(o pub.Item) (pub.Item, error) {
+func (v defaultValidator) ValidateServerObject(o vocab.Item) (vocab.Item, error) {
 	var err error
 	if o, err = v.ValidateObject(o); err != nil {
 		return o, err
@@ -509,7 +509,7 @@ func (v defaultValidator) ValidateServerObject(o pub.Item) (pub.Item, error) {
 	return o, nil
 }
 
-func (v defaultValidator) ValidateObject(o pub.Item) (pub.Item, error) {
+func (v defaultValidator) ValidateObject(o vocab.Item) (vocab.Item, error) {
 	if o == nil {
 		return o, InvalidActivityObject("is nil")
 	}
@@ -519,40 +519,40 @@ func (v defaultValidator) ValidateObject(o pub.Item) (pub.Item, error) {
 		if err != nil {
 			return o, err
 		}
-		var loadFn func(pub.IRI) (pub.Item, error) = v.s.Load
+		var loadFn func(vocab.IRI) (vocab.Item, error) = v.s.Load
 		if !v.IsLocalIRI(iri) {
 			loadFn = v.c.LoadIRI
 		}
 		if o, err = loadFn(iri); err != nil {
 			return o, err
 		}
-		if pub.IsNil(o) {
+		if vocab.IsNil(o) {
 			return o, errors.NotFoundf("Invalid activity object")
 		}
 	}
 	return o, nil
 }
 
-func (v defaultValidator) ValidateTarget(t pub.Item) error {
+func (v defaultValidator) ValidateTarget(t vocab.Item) error {
 	if t == nil {
 		return InvalidActivityObject("is nil")
 	}
 	if t.IsLink() {
 		return v.ValidateLink(t.GetLink())
 	}
-	if !(pub.ObjectTypes.Contains(t.GetType()) || pub.ActorTypes.Contains(t.GetType()) || pub.ActivityTypes.Contains(t.GetType())) {
+	if !(vocab.ObjectTypes.Contains(t.GetType()) || vocab.ActorTypes.Contains(t.GetType()) || vocab.ActivityTypes.Contains(t.GetType())) {
 		return InvalidActivityObject("invalid type %s", t.GetType())
 	}
 	return nil
 }
 
-func (v defaultValidator) ValidateAudience(audience ...pub.ItemCollection) error {
+func (v defaultValidator) ValidateAudience(audience ...vocab.ItemCollection) error {
 	for _, elem := range audience {
 		for _, iri := range elem {
 			if err := v.validateLocalIRI(iri.GetLink()); err == nil {
 				return nil
 			}
-			if iri.GetLink() == pub.PublicNS {
+			if iri.GetLink() == vocab.PublicNS {
 				return nil
 			}
 		}
@@ -568,7 +568,7 @@ func ValidatorFromContext(ctx context.Context) (*defaultValidator, bool) {
 	return s, ok
 }
 
-func (v *defaultValidator) SetActor(p *pub.Actor) {
+func (v *defaultValidator) SetActor(p *vocab.Actor) {
 	v.auth = p
 }
 
@@ -583,7 +583,7 @@ func hostSplit(h string) (string, string) {
 	return pieces[0], pieces[1]
 }
 
-func (v defaultValidator) validateLocalIRI(i pub.IRI) error {
+func (v defaultValidator) validateLocalIRI(i vocab.IRI) error {
 	if len(v.baseIRI) > 0 {
 		for _, base := range v.baseIRI {
 			if i.Contains(base, false) {

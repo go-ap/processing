@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	pub "github.com/go-ap/activitypub"
+	vocab "github.com/go-ap/activitypub"
 )
 
 func TestContentManagementActivity(t *testing.T) {
@@ -23,7 +23,7 @@ func TestUpdateActivity(t *testing.T) {
 
 func Test_addNewActorCollections(t *testing.T) {
 	type args struct {
-		p *pub.Actor
+		p *vocab.Actor
 	}
 	tests := []struct {
 		name    string
@@ -44,12 +44,12 @@ func Test_addNewActorCollections(t *testing.T) {
 
 func Test_addNewItemCollections(t *testing.T) {
 	type args struct {
-		it pub.Item
+		it vocab.Item
 	}
 	tests := []struct {
 		name    string
 		args    args
-		want    pub.Item
+		want    vocab.Item
 		wantErr bool
 	}{
 		// TODO: Add test cases.
@@ -71,7 +71,7 @@ func Test_addNewItemCollections(t *testing.T) {
 
 func Test_addNewObjectCollections(t *testing.T) {
 	type args struct {
-		o *pub.Object
+		o *vocab.Object
 	}
 	tests := []struct {
 		name    string
@@ -92,13 +92,13 @@ func Test_addNewObjectCollections(t *testing.T) {
 
 func Test_getCollection(t *testing.T) {
 	type args struct {
-		it pub.Item
-		c  pub.CollectionPath
+		it vocab.Item
+		c  vocab.CollectionPath
 	}
 	tests := []struct {
 		name string
 		args args
-		want pub.CollectionInterface
+		want vocab.CollectionInterface
 	}{
 		// TODO: Add test cases.
 	}
@@ -115,8 +115,8 @@ func Test_getCollection(t *testing.T) {
 func Test_updateCreateActivityObject(t *testing.T) {
 	type args struct {
 		l   WriteStore
-		o   pub.Item
-		act *pub.Activity
+		o   vocab.Item
+		act *vocab.Activity
 	}
 	tests := []struct {
 		name    string
@@ -138,8 +138,8 @@ func Test_updateCreateActivityObject(t *testing.T) {
 func Test_updateObjectForCreate(t *testing.T) {
 	type args struct {
 		l   WriteStore
-		o   *pub.Object
-		act *pub.Activity
+		o   *vocab.Object
+		act *vocab.Activity
 	}
 	tests := []struct {
 		name    string
@@ -161,8 +161,8 @@ func Test_updateObjectForCreate(t *testing.T) {
 func Test_updateObjectForUpdate(t *testing.T) {
 	type args struct {
 		l   WriteStore
-		o   *pub.Object
-		act *pub.Activity
+		o   *vocab.Object
+		act *vocab.Activity
 	}
 	tests := []struct {
 		name    string
@@ -184,8 +184,8 @@ func Test_updateObjectForUpdate(t *testing.T) {
 func Test_updateUpdateActivityObject(t *testing.T) {
 	type args struct {
 		l   WriteStore
-		o   pub.Item
-		act *pub.Activity
+		o   vocab.Item
+		act *vocab.Activity
 	}
 	tests := []struct {
 		name    string
@@ -204,44 +204,43 @@ func Test_updateUpdateActivityObject(t *testing.T) {
 	}
 }
 
-var defaultActor = &pub.Actor{
-	ID: pub.IRI("https://example.com/user/jdoe"),
+var defaultActor = &vocab.Actor{
+	ID: vocab.IRI("https://example.com/user/jdoe"),
 }
-var publishedAt = time.Now()
 
 func Test_defaultIDGenerator(t *testing.T) {
+	var publishedAt = time.Now()
+
 	type args struct {
-		it     pub.Item
-		partOf pub.Item
-		by     pub.Item
+		it     vocab.Item
+		partOf vocab.Item
+		by     vocab.Item
 	}
 	tests := []struct {
 		name string
 		args args
-		want pub.ID
+		want vocab.ID
 	}{
 		{
 			name: "plain inbox",
 			args: args{
-				&pub.Object{
-					Published: publishedAt,
-				},
-				pub.Inbox.IRI(defaultActor),
+				&vocab.Object{Published: publishedAt},
+				vocab.Inbox.IRI(defaultActor),
 				nil,
 			},
-			want: pub.Inbox.IRI(defaultActor).AddPath(fmt.Sprintf("%d", publishedAt.UnixNano()/1000)),
+			want: vocab.Inbox.IRI(defaultActor).AddPath(fmt.Sprintf("%d", publishedAt.UnixMilli())),
 		},
 		{
 			name: "empty collection",
 			args: args{
-				&pub.Object{
+				&vocab.Object{
 					AttributedTo: defaultActor,
 					Published:    publishedAt,
 				},
 				nil,
 				nil,
 			},
-			want: pub.Outbox.IRI(defaultActor.GetLink()).AddPath(fmt.Sprintf("%d", publishedAt.UnixNano()/1000)),
+			want: vocab.Outbox.IRI(defaultActor.GetLink()).AddPath(fmt.Sprintf("%d", publishedAt.UnixMilli())),
 		},
 	}
 	for _, tt := range tests {

@@ -3,39 +3,39 @@ package processing
 import (
 	"time"
 
-	pub "github.com/go-ap/activitypub"
+	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
 )
 
 // C2SProcessor
 type C2SProcessor interface {
-	ProcessClientActivity(pub.Item) (pub.Item, error)
+	ProcessClientActivity(vocab.Item) (vocab.Item, error)
 }
 
 // ProcessClientActivity processes an Activity received in a client to server request
-func (p defaultProcessor) ProcessClientActivity(it pub.Item) (pub.Item, error) {
+func (p defaultProcessor) ProcessClientActivity(it vocab.Item) (vocab.Item, error) {
 	if it == nil {
 		return nil, errors.Newf("Unable to process nil activity")
 	}
-	if pub.IntransitiveActivityTypes.Contains(it.GetType()) {
+	if vocab.IntransitiveActivityTypes.Contains(it.GetType()) {
 		return processClientIntransitiveActivity(p, it)
 	}
-	return it, pub.OnActivity(it, func(act *pub.Activity) error {
+	return it, vocab.OnActivity(it, func(act *vocab.Activity) error {
 		var err error
 		it, err = processClientActivity(p, act)
 		return err
 	})
 }
 
-func processClientIntransitiveActivity(p defaultProcessor, it pub.Item) (pub.Item, error) {
+func processClientIntransitiveActivity(p defaultProcessor, it vocab.Item) (vocab.Item, error) {
 	if len(it.GetLink()) == 0 {
 		if err := SetID(it, nil, nil); err != nil {
 			return it, err
 		}
 	}
 	typ := it.GetType()
-	if pub.QuestionActivityTypes.Contains(typ) {
-		err := pub.OnQuestion(it, func(q *pub.Question) error {
+	if vocab.QuestionActivityTypes.Contains(typ) {
+		err := vocab.OnQuestion(it, func(q *vocab.Question) error {
 			var err error
 			q, err = QuestionActivity(p.s, q)
 			return err
@@ -44,9 +44,9 @@ func processClientIntransitiveActivity(p defaultProcessor, it pub.Item) (pub.Ite
 			return it, err
 		}
 	}
-	err := pub.OnIntransitiveActivity(it, func(act *pub.IntransitiveActivity) error {
+	err := vocab.OnIntransitiveActivity(it, func(act *vocab.IntransitiveActivity) error {
 		var err error
-		if pub.GeoSocialEventsActivityTypes.Contains(typ) {
+		if vocab.GeoSocialEventsActivityTypes.Contains(typ) {
 			act, err = GeoSocialEventsIntransitiveActivity(p.s, act)
 		}
 		if err != nil {
@@ -61,7 +61,7 @@ func processClientIntransitiveActivity(p defaultProcessor, it pub.Item) (pub.Ite
 		return it, err
 	}
 
-	if it, err = p.s.Save(pub.FlattenProperties(it)); err != nil {
+	if it, err = p.s.Save(vocab.FlattenProperties(it)); err != nil {
 		return it, err
 	}
 	if colSaver, ok := p.s.(CollectionStore); ok {
@@ -72,7 +72,7 @@ func processClientIntransitiveActivity(p defaultProcessor, it pub.Item) (pub.Ite
 	return it, nil
 }
 
-func processClientActivity(p defaultProcessor, act *pub.Activity) (*pub.Activity, error) {
+func processClientActivity(p defaultProcessor, act *vocab.Activity) (*vocab.Activity, error) {
 	if len(act.GetLink()) == 0 {
 		if err := SetID(act, nil, nil); err != nil {
 			return act, err
@@ -87,27 +87,27 @@ func processClientActivity(p defaultProcessor, act *pub.Activity) (*pub.Activity
 	// TODO(marius): this does not work correctly if act.Object is an ItemCollection
 	obType := act.Object.GetType()
 	// First we process the activity to effect whatever changes we need to on the activity properties.
-	if pub.ContentManagementActivityTypes.Contains(act.Type) && obType != pub.RelationshipType {
-		act, err = ContentManagementActivity(p.s, act, pub.Outbox)
-	} else if pub.CollectionManagementActivityTypes.Contains(act.Type) {
+	if vocab.ContentManagementActivityTypes.Contains(act.Type) && obType != vocab.RelationshipType {
+		act, err = ContentManagementActivity(p.s, act, vocab.Outbox)
+	} else if vocab.CollectionManagementActivityTypes.Contains(act.Type) {
 		act, err = CollectionManagementActivity(p.s, act)
-	} else if pub.ReactionsActivityTypes.Contains(act.Type) {
+	} else if vocab.ReactionsActivityTypes.Contains(act.Type) {
 		act, err = ReactionsActivity(p, act)
-	} else if pub.EventRSVPActivityTypes.Contains(act.Type) {
+	} else if vocab.EventRSVPActivityTypes.Contains(act.Type) {
 		act, err = EventRSVPActivity(p.s, act)
-	} else if pub.GroupManagementActivityTypes.Contains(act.Type) {
+	} else if vocab.GroupManagementActivityTypes.Contains(act.Type) {
 		act, err = GroupManagementActivity(p.s, act)
-	} else if pub.ContentExperienceActivityTypes.Contains(act.Type) {
+	} else if vocab.ContentExperienceActivityTypes.Contains(act.Type) {
 		act, err = ContentExperienceActivity(p.s, act)
-	} else if pub.GeoSocialEventsActivityTypes.Contains(act.Type) {
+	} else if vocab.GeoSocialEventsActivityTypes.Contains(act.Type) {
 		act, err = GeoSocialEventsActivity(p.s, act)
-	} else if pub.NotificationActivityTypes.Contains(act.Type) {
+	} else if vocab.NotificationActivityTypes.Contains(act.Type) {
 		act, err = NotificationActivity(p.s, act)
-	} else if pub.RelationshipManagementActivityTypes.Contains(act.Type) {
+	} else if vocab.RelationshipManagementActivityTypes.Contains(act.Type) {
 		act, err = RelationshipManagementActivity(p, act)
-	} else if pub.NegatingActivityTypes.Contains(act.Type) {
+	} else if vocab.NegatingActivityTypes.Contains(act.Type) {
 		act, err = NegatingActivity(p.s, act)
-	} else if pub.OffersActivityTypes.Contains(act.Type) {
+	} else if vocab.OffersActivityTypes.Contains(act.Type) {
 		act, err = OffersActivity(p.s, act)
 	}
 	if err != nil {
@@ -122,18 +122,18 @@ func processClientActivity(p defaultProcessor, act *pub.Activity) (*pub.Activity
 		act.Published = time.Now().UTC()
 	}
 
-	var it pub.Item
+	var it vocab.Item
 	if act.Content != nil || act.Summary != nil {
 		// For activities that have a content value, we create the collections that allow actors to interact
 		// with them as they are a regular object.
-		pub.OnObject(act, addNewObjectCollections)
+		vocab.OnObject(act, addNewObjectCollections)
 	}
 
 	// Making a local copy of the activity in order to not lose information that could be required
 	// later in the call system.
 	toSave := *act
 
-	it, err = p.s.Save(pub.FlattenProperties(&toSave))
+	it, err = p.s.Save(vocab.FlattenProperties(&toSave))
 	if err != nil {
 		return act, err
 	}

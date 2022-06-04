@@ -1,7 +1,7 @@
 package processing
 
 import (
-	pub "github.com/go-ap/activitypub"
+	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
 )
 
@@ -13,7 +13,7 @@ import (
 // of interpersonal and social relationships (e.g. friend requests, management of social network, etc).
 // See 5.2 Representing Relationships Between Entities for more information:
 // https://www.w3.org/TR/activitystreams-vocabulary/#connections
-func RelationshipManagementActivity(p defaultProcessor, act *pub.Activity) (*pub.Activity, error) {
+func RelationshipManagementActivity(p defaultProcessor, act *vocab.Activity) (*vocab.Activity, error) {
 	if act.Object == nil {
 		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
 	}
@@ -21,23 +21,23 @@ func RelationshipManagementActivity(p defaultProcessor, act *pub.Activity) (*pub
 		return act, errors.NotValidf("Missing actor for %s Activity", act.Type)
 	}
 	switch act.Type {
-	case pub.FollowType:
+	case vocab.FollowType:
 		return FollowActivity(p, act)
-	case pub.BlockType:
+	case vocab.BlockType:
 		fallthrough
-	case pub.AcceptType:
+	case vocab.AcceptType:
 		fallthrough
-	case pub.AddType:
+	case vocab.AddType:
 		fallthrough
-	case pub.CreateType:
+	case vocab.CreateType:
 		fallthrough
-	case pub.DeleteType:
+	case vocab.DeleteType:
 		fallthrough
-	case pub.IgnoreType:
+	case vocab.IgnoreType:
 		fallthrough
-	case pub.InviteType:
+	case vocab.InviteType:
 		fallthrough
-	case pub.RejectType:
+	case vocab.RejectType:
 		fallthrough
 	default:
 		return act, errors.NotImplementedf("Activity %s is not implemented", act.GetType())
@@ -71,12 +71,12 @@ func RelationshipManagementActivity(p defaultProcessor, act *pub.Activity) (*pub
 // an actor for perhaps six months while the follower remains unreachable, it is reasonable that the delivering
 // server remove the subscriber from the followers list. Timeframes and behavior for dealing with unreachable
 // actors are left to the discretion of the delivering server.
-func FollowActivity(p defaultProcessor, act *pub.Activity) (*pub.Activity, error) {
+func FollowActivity(p defaultProcessor, act *vocab.Activity) (*vocab.Activity, error) {
 	ob := act.Object.GetLink()
-	if !pub.ValidCollectionIRI(ob) {
+	if !vocab.ValidCollectionIRI(ob) {
 		// TODO(marius): add check if IRI represents an actor (or rely on the collection saver to break if not)
-		ob = pub.Inbox.IRI(ob)
+		ob = vocab.Inbox.IRI(ob)
 	}
-	collections := pub.ItemCollection{ob}
+	collections := vocab.ItemCollection{ob}
 	return disseminateToCollections(p, act, collections)
 }

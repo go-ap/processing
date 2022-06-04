@@ -1,7 +1,7 @@
 package processing
 
 import (
-	pub "github.com/go-ap/activitypub"
+	vocab "github.com/go-ap/activitypub"
 )
 
 // Filterable can filter objects by Type and ID
@@ -9,13 +9,13 @@ import (
 // to work.
 // It also allows for an activitypub.IRI to be used as a filter.
 type Filterable interface {
-	GetLink() pub.IRI
+	GetLink() vocab.IRI
 }
 
 type FilterableItems interface {
 	Filterable
-	Types() pub.ActivityVocabularyTypes
-	IRIs() pub.IRIs
+	Types() vocab.ActivityVocabularyTypes
+	IRIs() vocab.IRIs
 }
 
 // FilterableCollection can filter collections
@@ -26,36 +26,36 @@ type FilterableCollection interface {
 	TotalItemsEq() uint
 	TotalItemsGtE() uint
 	TotalItemsLtE() uint
-	Contains() pub.IRIs
+	Contains() vocab.IRIs
 }
 
 // FilterableActivity can filter activities
 type FilterableActivity interface {
 	FilterableObject
-	Actors() pub.IRIs
-	Objects() pub.IRIs
-	Targets() pub.IRIs
+	Actors() vocab.IRIs
+	Objects() vocab.IRIs
+	Targets() vocab.IRIs
 }
 
 // FilterableObject can filter objects
 type FilterableObject interface {
 	FilterableItems
-	AttributedTo() pub.IRIs
-	InReplyTo() pub.IRIs
-	MediaTypes() []pub.MimeType
+	AttributedTo() vocab.IRIs
+	InReplyTo() vocab.IRIs
+	MediaTypes() []vocab.MimeType
 	Names() []string
 	Content() []string
 	//PublishedBefore() time.Time
 	//PublishedAfter() time.Time
-	URLs() pub.IRIs
+	URLs() vocab.IRIs
 	// Audience returns the list of IRIs to check against full Audience targeting for the object
 	// It should include all relevant fields: To, CC, BTo, BCC, and Audience
 	// ---
 	// An element of the Audience is used to get its Inbox end-point and then disseminate the current Activity
 	// to it.
-	Audience() pub.IRIs
+	Audience() vocab.IRIs
 	// Context returns the list of IRIs to check against an Object's Context property.
-	Context() pub.IRIs
+	Context() vocab.IRIs
 	// Generator returns the list of IRIs to check against an Object's Generator property.
-	Generator() pub.IRIs
+	Generator() vocab.IRIs
 }

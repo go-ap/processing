@@ -1,52 +1,52 @@
 package processing
 
 import (
-	pub "github.com/go-ap/activitypub"
+	vocab "github.com/go-ap/activitypub"
 )
 
 type itemFilter struct {
-	item pub.Item
+	item vocab.Item
 }
 
-func FilterItem(i pub.Item) itemFilter {
+func FilterItem(i vocab.Item) itemFilter {
 	return itemFilter{item: i}
 }
 
-func (i itemFilter) GetLink() pub.IRI {
+func (i itemFilter) GetLink() vocab.IRI {
 	return i.item.GetLink()
 }
 
-func (i itemFilter) Types() pub.ActivityVocabularyTypes {
-	return pub.ActivityVocabularyTypes{i.item.GetType()}
+func (i itemFilter) Types() vocab.ActivityVocabularyTypes {
+	return vocab.ActivityVocabularyTypes{i.item.GetType()}
 }
 
-func (i itemFilter) IRIs() pub.IRIs {
+func (i itemFilter) IRIs() vocab.IRIs {
 	iri := i.item.GetLink()
 	if len(iri) > 0 {
-		return pub.IRIs{iri}
+		return vocab.IRIs{iri}
 	}
 	return nil
 }
-func (i itemFilter) Actors() pub.IRIs {
-	iris := make(pub.IRIs, 0)
-	if pub.ActivityTypes.Contains(i.item.GetType()) {
-		pub.OnActivity(i.item, func(a *pub.Activity) error {
+func (i itemFilter) Actors() vocab.IRIs {
+	iris := make(vocab.IRIs, 0)
+	if vocab.ActivityTypes.Contains(i.item.GetType()) {
+		vocab.OnActivity(i.item, func(a *vocab.Activity) error {
 			iris = append(iris, a.Actor.GetLink())
 			return nil
 		})
 	}
-	if pub.IntransitiveActivityTypes.Contains(i.item.GetType()) {
-		pub.OnIntransitiveActivity(i.item, func(a *pub.IntransitiveActivity) error {
+	if vocab.IntransitiveActivityTypes.Contains(i.item.GetType()) {
+		vocab.OnIntransitiveActivity(i.item, func(a *vocab.IntransitiveActivity) error {
 			iris = append(iris, a.Actor.GetLink())
 			return nil
 		})
 	}
 	return iris
 }
-func (i itemFilter) Objects() pub.IRIs {
-	iris := make(pub.IRIs, 0)
-	if pub.ActivityTypes.Contains(i.item.GetType()) {
-		pub.OnActivity(i.item, func(a *pub.Activity) error {
+func (i itemFilter) Objects() vocab.IRIs {
+	iris := make(vocab.IRIs, 0)
+	if vocab.ActivityTypes.Contains(i.item.GetType()) {
+		vocab.OnActivity(i.item, func(a *vocab.Activity) error {
 			iris = append(iris, a.Object.GetLink())
 			return nil
 		})
@@ -54,16 +54,16 @@ func (i itemFilter) Objects() pub.IRIs {
 	return iris
 }
 
-func (i itemFilter) Targets() pub.IRIs {
-	iris := make(pub.IRIs, 0)
-	if pub.ActivityTypes.Contains(i.item.GetType()) {
-		pub.OnActivity(i.item, func(a *pub.Activity) error {
+func (i itemFilter) Targets() vocab.IRIs {
+	iris := make(vocab.IRIs, 0)
+	if vocab.ActivityTypes.Contains(i.item.GetType()) {
+		vocab.OnActivity(i.item, func(a *vocab.Activity) error {
 			iris = append(iris, a.Target.GetLink())
 			return nil
 		})
 	}
-	if pub.IntransitiveActivityTypes.Contains(i.item.GetType()) {
-		pub.OnIntransitiveActivity(i.item, func(a *pub.IntransitiveActivity) error {
+	if vocab.IntransitiveActivityTypes.Contains(i.item.GetType()) {
+		vocab.OnIntransitiveActivity(i.item, func(a *vocab.IntransitiveActivity) error {
 			iris = append(iris, a.Target.GetLink())
 			return nil
 		})
@@ -71,56 +71,56 @@ func (i itemFilter) Targets() pub.IRIs {
 	return iris
 }
 
-func (i itemFilter) AttributedTo() pub.IRIs {
-	iris := make(pub.IRIs, 0)
-	if pub.ObjectTypes.Contains(i.item.GetType()) {
-		pub.OnObject(i.item, func(o *pub.Object) error {
+func (i itemFilter) AttributedTo() vocab.IRIs {
+	iris := make(vocab.IRIs, 0)
+	if vocab.ObjectTypes.Contains(i.item.GetType()) {
+		vocab.OnObject(i.item, func(o *vocab.Object) error {
 			iris = append(iris, o.AttributedTo.GetLink())
 			return nil
 		})
 	}
 	return iris
 }
-func (i itemFilter) InReplyTo() pub.IRIs {
-	iris := make(pub.IRIs, 0)
-	if pub.ObjectTypes.Contains(i.item.GetType()) {
-		pub.OnObject(i.item, func(o *pub.Object) error {
+func (i itemFilter) InReplyTo() vocab.IRIs {
+	iris := make(vocab.IRIs, 0)
+	if vocab.ObjectTypes.Contains(i.item.GetType()) {
+		vocab.OnObject(i.item, func(o *vocab.Object) error {
 			iris = append(iris, o.InReplyTo.GetLink())
 			return nil
 		})
 	}
 	return iris
 }
-func (i itemFilter) MediaTypes() []pub.MimeType {
-	types := make([]pub.MimeType, 0)
-	if pub.ObjectTypes.Contains(i.item.GetType()) {
-		pub.OnObject(i.item, func(o *pub.Object) error {
+func (i itemFilter) MediaTypes() []vocab.MimeType {
+	types := make([]vocab.MimeType, 0)
+	if vocab.ObjectTypes.Contains(i.item.GetType()) {
+		vocab.OnObject(i.item, func(o *vocab.Object) error {
 			types = append(types, o.MediaType)
 			return nil
 		})
 	}
 	return types
 }
-func (i itemFilter) Names() []pub.Content {
-	names := make([]pub.Content, 0)
-	if pub.ActivityTypes.Contains(i.item.GetType()) {
-		pub.OnActivity(i.item, func(a *pub.Activity) error {
+func (i itemFilter) Names() []vocab.Content {
+	names := make([]vocab.Content, 0)
+	if vocab.ActivityTypes.Contains(i.item.GetType()) {
+		vocab.OnActivity(i.item, func(a *vocab.Activity) error {
 			for _, name := range a.Name {
 				names = append(names, name.Value)
 			}
 			return nil
 		})
 	}
-	if pub.ObjectTypes.Contains(i.item.GetType()) {
-		pub.OnObject(i.item, func(o *pub.Object) error {
+	if vocab.ObjectTypes.Contains(i.item.GetType()) {
+		vocab.OnObject(i.item, func(o *vocab.Object) error {
 			for _, name := range o.Name {
 				names = append(names, name.Value)
 			}
 			return nil
 		})
 	}
-	if pub.ActivityTypes.Contains(i.item.GetType()) {
-		pub.OnActor(i.item, func(p *pub.Actor) error {
+	if vocab.ActivityTypes.Contains(i.item.GetType()) {
+		vocab.OnActor(i.item, func(p *vocab.Actor) error {
 			for _, name := range p.Name {
 				names = append(names, name.Value)
 			}
@@ -132,33 +132,33 @@ func (i itemFilter) Names() []pub.Content {
 	}
 	return names
 }
-func (i itemFilter) URLs() pub.IRIs {
-	iris := make(pub.IRIs, 0)
-	pub.OnObject(i.item, func(o *pub.Object) error {
+func (i itemFilter) URLs() vocab.IRIs {
+	iris := make(vocab.IRIs, 0)
+	vocab.OnObject(i.item, func(o *vocab.Object) error {
 		iris = append(iris, o.URL.GetLink())
 		return nil
 	})
 	return iris
 }
-func (i itemFilter) Audience() pub.IRIs {
-	iris := make(pub.IRIs, 0)
-	pub.OnObject(i.item, func(o *pub.Object) error {
+func (i itemFilter) Audience() vocab.IRIs {
+	iris := make(vocab.IRIs, 0)
+	vocab.OnObject(i.item, func(o *vocab.Object) error {
 		iris = append(iris, o.Audience.GetLink())
 		return nil
 	})
 	return iris
 }
-func (i itemFilter) Context() pub.IRIs {
-	iris := make(pub.IRIs, 0)
-	pub.OnObject(i.item, func(o *pub.Object) error {
+func (i itemFilter) Context() vocab.IRIs {
+	iris := make(vocab.IRIs, 0)
+	vocab.OnObject(i.item, func(o *vocab.Object) error {
 		iris = append(iris, o.Context.GetLink())
 		return nil
 	})
 	return iris
 }
-func (i itemFilter) Generator() pub.IRIs {
-	iris := make(pub.IRIs, 0)
-	pub.OnObject(i.item, func(o *pub.Object) error {
+func (i itemFilter) Generator() vocab.IRIs {
+	iris := make(vocab.IRIs, 0)
+	vocab.OnObject(i.item, func(o *vocab.Object) error {
 		iris = append(iris, o.Generator.GetLink())
 		return nil
 	})
