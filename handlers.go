@@ -213,7 +213,7 @@ func (c CollectionHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		errors.HandleError(err).ServeHTTP(w, r)
 		return
 	}
-	if dat, err = json.WithContext(json.IRI(vocab.ActivityBaseURI)).Marshal(col); err != nil {
+	if dat, err = json.WithContext(json.IRI(vocab.ActivityBaseURI), json.IRI(vocab.SecurityContextURI)).Marshal(col); err != nil {
 		errors.HandleError(err).ServeHTTP(w, r)
 		return
 	}
@@ -292,7 +292,7 @@ func (i ItemHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		errors.HandleError(errors.NotFoundf("")).ServeHTTP(w, r)
 		return
 	}
-	if dat, err = json.WithContext(json.IRI(vocab.ActivityBaseURI)).Marshal(it); err != nil {
+	if dat, err = json.WithContext(json.IRI(vocab.ActivityBaseURI), json.IRI(vocab.SecurityContextURI)).Marshal(it); err != nil {
 		errors.HandleError(err).ServeHTTP(w, r)
 		return
 	}
