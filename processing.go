@@ -156,6 +156,8 @@ type KeySaver interface {
 	GenKey(vocab.IRI) error
 }
 
+const OAuthOOBRedirectURN = "urn:ietf:wg:oauth:2.0:oob:auto"
+
 var defaultSignFn c.RequestSignFn = func(*http.Request) error { return nil }
 
 func genOAuth2Token(c osin.Storage, actor *vocab.Actor) (string, error) {
@@ -169,7 +171,7 @@ func genOAuth2Token(c osin.Storage, actor *vocab.Actor) (string, error) {
 		Client:      &osin.DefaultClient{Id: "temp-client"},
 		ExpiresIn:   int32(expiration.Seconds()),
 		Scope:       "scope",
-		RedirectUri: "urn:ietf:wg:oauth:2.0:oob:auto",
+		RedirectUri: OAuthOOBRedirectURN,
 		CreatedAt:   now,
 		UserData:    actor.GetLink(),
 	}
