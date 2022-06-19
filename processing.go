@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"net/http"
 	"net/netip"
+	"time"
 
 	vocab "github.com/go-ap/activitypub"
 	c "github.com/go-ap/client"
 	"github.com/go-ap/errors"
 	"github.com/go-ap/httpsig"
+	"github.com/openshift/osin"
 	"golang.org/x/crypto/ed25519"
 )
 
@@ -155,6 +157,43 @@ type KeySaver interface {
 }
 
 var defaultSignFn c.RequestSignFn = func(*http.Request) error { return nil }
+
+func genOAuth2Token(c osin.Storage, actor *vocab.Actor) (string, error) {
+	if actor == nil {
+		return "", errors.Newf("invalid actor")
+	}
+
+	now := time.Now().UTC()
+	expiration := time.Hour * 24 * 14
+	ad := &osin.AccessData{
+		Client:      &osin.DefaultClient{Id: "temp-client"},
+		ExpiresIn:   int32(expiration.Seconds()),
+		Scope:       "scope",
+		RedirectUri: "urn:ietf:wg:oauth:2.0:oob:auto",
+		CreatedAt:   now,
+		UserData:    actor.GetLink(),
+	}
+
+	// save access token
+	if err := c.SaveAccess(ad); err != nil {
+		return "", err
+	}
+
+	return ad.AccessToken, nil
+}
+
+func c2sSignFn(storage osin.Storage, act vocab.Item) func(r *http.Request) error {
+	return func(req *http.Request) error {
+		return vocab.OnActor(act, func(actor *vocab.Actor) error {
+			tok, err := genOAuth2Token(storage, actor)
+			if err != nil {
+				return err
+			}
+			req.Header.Set("Authorization", "Bearer "+tok)
+			return nil
+		})
+	}
+}
 
 func s2sSignFn(keyLoader KeyLoader, actor vocab.Item) func(r *http.Request) error {
 	return func(r *http.Request) error {
