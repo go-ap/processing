@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/netip"
+	"path"
 	"time"
 
 	vocab "github.com/go-ap/activitypub"
@@ -160,15 +161,22 @@ const OAuthOOBRedirectURN = "urn:ietf:wg:oauth:2.0:oob:auto"
 
 var defaultSignFn c.RequestSignFn = func(*http.Request) error { return nil }
 
-func genOAuth2Token(c osin.Storage, actor *vocab.Actor) (string, error) {
+func genOAuth2Token(c osin.Storage, actor *vocab.Actor, cl vocab.Item) (string, error) {
 	if actor == nil {
 		return "", errors.Newf("invalid actor")
 	}
 
+	var client osin.Client
+	if !vocab.IsNil(cl) {
+		client, _ = c.GetClient(path.Base(cl.GetLink().String()))
+	}
+	if client == nil {
+		client = &osin.DefaultClient{Id: "temp-client"}
+	}
 	now := time.Now().UTC()
 	expiration := time.Hour * 24 * 14
 	ad := &osin.AccessData{
-		Client:      &osin.DefaultClient{Id: "temp-client"},
+		Client:      client,
 		ExpiresIn:   int32(expiration.Seconds()),
 		Scope:       "scope",
 		RedirectUri: OAuthOOBRedirectURN,
@@ -187,12 +195,11 @@ func genOAuth2Token(c osin.Storage, actor *vocab.Actor) (string, error) {
 func c2sSignFn(storage osin.Storage, act vocab.Item) func(r *http.Request) error {
 	return func(req *http.Request) error {
 		return vocab.OnActor(act, func(actor *vocab.Actor) error {
-			tok, err := genOAuth2Token(storage, actor)
-			if err != nil {
-				return err
+			tok, err := genOAuth2Token(storage, actor, nil)
+			if len(tok) > 0 {
+				req.Header.Set("Authorization", "Bearer "+tok)
 			}
-			req.Header.Set("Authorization", "Bearer "+tok)
-			return nil
+			return err
 		})
 	}
 }
