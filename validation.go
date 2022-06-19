@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"net/url"
 	"path"
 	"strings"
 	"sync"
-	"net/url"
 
 	vocab "github.com/go-ap/activitypub"
 	c "github.com/go-ap/client"
@@ -520,19 +520,21 @@ func (v defaultValidator) ValidateObject(o vocab.Item) (vocab.Item, error) {
 		if err != nil {
 			return o, err
 		}
-		// FIXME(marius): this does not work for the case where IRI is not a Public item
-		// We need to invent a way to pass the currently authorized actor to the ReadStore.Load
-		// The way we're doing it now is not great as it makes assumption that the underlying storage 
-		// receives the authenticated actor as a basic auth user in the IRI. Maybe that's a safe 
-		// assumption to make, but I'm not thrilled about it.
-		if v.auth != nil {
-			u, _ := iri.URL()
-			u.User = url.User(v.auth.ID.String())
-			iri = vocab.IRI(u.String())
-		}
-		var loadFn func(vocab.IRI) (vocab.Item, error) = v.s.Load
+		var loadFn func(vocab.IRI) (vocab.Item, error)
 		if !v.IsLocalIRI(iri) {
 			loadFn = v.c.LoadIRI
+		} else {
+			// FIXME(marius): this does not work for the case where IRI is not a Public item
+			// We need to invent a way to pass the currently authorized actor to the ReadStore.Load
+			// The way we're doing it now is not great as it makes assumption that the underlying storage
+			// receives the authenticated actor as a basic auth user in the IRI. Maybe that's a safe
+			// assumption to make, but I'm not thrilled about it.
+			if v.auth != nil {
+				u, _ := iri.URL()
+				u.User = url.User(v.auth.ID.String())
+				iri = vocab.IRI(u.String())
+			}
+			loadFn = v.s.Load
 		}
 		if o, err = loadFn(iri); err != nil {
 			return o, err
