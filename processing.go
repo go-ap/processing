@@ -154,15 +154,11 @@ type KeySaver interface {
 	GenKey(vocab.IRI) error
 }
 
-func s2sSignFn(p defaultProcessor, act *vocab.Activity) func(r *http.Request) error {
-	keyLoader, ok := p.s.(KeyLoader)
-	if !ok {
-		return func(r *http.Request) error {
-			return nil
-		}
-	}
+var defaultSignFn c.RequestSignFn = func(*http.Request) error { return nil }
+
+func s2sSignFn(keyLoader KeyLoader, actor vocab.Item) func(r *http.Request) error {
 	return func(r *http.Request) error {
-		key, err := keyLoader.LoadKey(act.Actor.GetLink())
+		key, err := keyLoader.LoadKey(actor.GetLink())
 		if err != nil {
 			return err
 		}
@@ -172,8 +168,7 @@ func s2sSignFn(p defaultProcessor, act *vocab.Activity) func(r *http.Request) er
 		}
 
 		signHdrs := []string{"(request-target)", "host", "date"}
-		keyId := fmt.Sprintf("%s#main-key", act.Actor.GetID())
-		p.infoFn("Signing with key %s", keyId)
+		keyId := fmt.Sprintf("%s#main-key", actor.GetID())
 		return httpsig.NewSigner(keyId, key, typ, signHdrs).Sign(r)
 	}
 }
@@ -278,9 +273,13 @@ func disseminateToCollection(p defaultProcessor, col vocab.IRI, act *vocab.Activ
 			return err
 		}
 	} else if p.v.IsLocalIRI(act.ID) {
+		keyLoader, ok := p.s.(KeyLoader)
+		if !ok {
+			return nil
+		}
 		// TODO(marius): Move this function to either the go-ap/auth package, or in FedBOX itself.
 		//   We should probably change the signature for client.RequestSignFn to accept an Actor/IRI as a param.
-		p.c.SignFn(s2sSignFn(p, act))
+		p.c.SignFn(s2sSignFn(keyLoader, act.Actor))
 		p.infoFn("Pushing to remote actor's collection %s", col)
 		if _, _, err := p.c.ToCollection(col, act); err != nil {
 			return err
