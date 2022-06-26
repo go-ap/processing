@@ -306,7 +306,7 @@ func disseminateToCollections(p defaultProcessor, act *vocab.Activity, allRecipi
 	return act, nil
 }
 
-func disseminateToCollection(p defaultProcessor, col vocab.IRI, act *vocab.Activity) error {
+func disseminateToCollection(p defaultProcessor, col vocab.IRI, act vocab.Item) error {
 	colSaver, ok := p.s.(CollectionStore)
 	if !ok {
 		// TODO(marius): not returning an error might be the wrong move here
@@ -316,22 +316,32 @@ func disseminateToCollection(p defaultProcessor, col vocab.IRI, act *vocab.Activ
 	//    For each recipient we need to save the incoming activity to the actor's Inbox if the actor is local
 	//    Or disseminate it using S2S if the actor is not local
 	if p.v.IsLocalIRI(col) {
+		if !p.v.IsLocalIRI(act.GetLink()) {
+			p.infoFn("Saving remote activity to local storage %s", act.GetLink())
+			var err error
+			if act, err = p.s.Save(act); err != nil {
+				return err
+			}
+		}
 		p.infoFn("Saving to local actor's collection %s", col)
 		if err := colSaver.AddTo(col, act.GetLink()); err != nil {
 			return err
 		}
-	} else if p.v.IsLocalIRI(act.ID) {
+	} else if p.v.IsLocalIRI(act.GetLink()) {
 		keyLoader, ok := p.s.(KeyLoader)
 		if !ok {
 			return nil
 		}
 		// TODO(marius): Move this function to either the go-ap/auth package, or in FedBOX itself.
 		//   We should probably change the signature for client.RequestSignFn to accept an Actor/IRI as a param.
-		p.c.SignFn(s2sSignFn(keyLoader, act.Actor))
-		p.infoFn("Pushing to remote actor's collection %s", col)
-		if _, _, err := p.c.ToCollection(col, act); err != nil {
-			return err
-		}
+		return vocab.OnIntransitiveActivity(act, func(act *vocab.IntransitiveActivity) error {
+			p.c.SignFn(s2sSignFn(keyLoader, act.Actor))
+			p.infoFn("Pushing to remote actor's collection %s", col)
+			if _, _, err := p.c.ToCollection(col, act); err != nil {
+				return err
+			}
+			return nil
+		})
 	}
 	return nil
 }
