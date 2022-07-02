@@ -30,7 +30,15 @@ func (p defaultProcessor) ProcessServerActivity(it vocab.Item) (vocab.Item, erro
 }
 
 func processServerActivity(p defaultProcessor, act *vocab.Activity) (*vocab.Activity, error) {
-	return processClientActivity(p, act)
+	if _, err := p.s.Save(vocab.FlattenProperties(act)); err != nil {
+		return act, err
+	}
+	if colSaver, ok := p.s.(CollectionStore); ok {
+		if _, err := AddToCollections(p, colSaver, act); err != nil {
+			return act, err
+		}
+	}
+	return act, nil
 }
 
 func processServerIntransitiveActivity(p defaultProcessor, it vocab.Item) (vocab.Item, error) {

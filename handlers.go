@@ -126,7 +126,7 @@ func (a ActivityHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 			}
-			// For non instransitive activities we want to output the object in the response
+			// For non-intransitive activities we want to output the object in the response
 			if dat, err = vocab.MarshalJSON(act.Object); err != nil {
 				return err
 			}
