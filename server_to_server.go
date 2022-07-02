@@ -30,7 +30,7 @@ func (p defaultProcessor) ProcessServerActivity(it vocab.Item) (vocab.Item, erro
 }
 
 func processServerActivity(p defaultProcessor, act *vocab.Activity) (*vocab.Activity, error) {
-	if _, err := p.s.Save(vocab.FlattenProperties(act)); err != nil {
+	if _, err := p.s.Save(act); err != nil {
 		return act, err
 	}
 	if colSaver, ok := p.s.(CollectionStore); ok {
