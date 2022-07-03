@@ -15,32 +15,13 @@ func (p defaultProcessor) ProcessServerActivity(it vocab.Item) (vocab.Item, erro
 		return nil, errors.Newf("Unable to process nil activity")
 	}
 
-	if vocab.IntransitiveActivityTypes.Contains(it.GetType()) {
-		return it, vocab.OnIntransitiveActivity(it, func(act *vocab.IntransitiveActivity) error {
-			var err error
-			it, err = processServerIntransitiveActivity(p, act)
-			return err
-		})
-	}
-	return it, vocab.OnActivity(it, func(act *vocab.Activity) error {
-		var err error
-		it, err = processServerActivity(p, act)
-		return err
-	})
-}
-
-func processServerActivity(p defaultProcessor, act *vocab.Activity) (*vocab.Activity, error) {
-	if _, err := p.s.Save(act); err != nil {
-		return act, err
+	if _, err := p.s.Save(it); err != nil {
+		return it, err
 	}
 	if colSaver, ok := p.s.(CollectionStore); ok {
-		if _, err := AddToCollections(p, colSaver, act); err != nil {
-			return act, err
+		if _, err := AddToCollections(p, colSaver, it); err != nil {
+			return it, err
 		}
 	}
-	return act, nil
-}
-
-func processServerIntransitiveActivity(p defaultProcessor, it vocab.Item) (vocab.Item, error) {
-	return processClientIntransitiveActivity(p, it)
+	return it, nil
 }
