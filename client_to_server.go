@@ -104,7 +104,7 @@ func processClientActivity(p defaultProcessor, act *vocab.Activity) (*vocab.Acti
 	} else if vocab.NotificationActivityTypes.Contains(act.Type) {
 		act, err = NotificationActivity(p.s, act)
 	} else if vocab.RelationshipManagementActivityTypes.Contains(act.Type) {
-		act, err = RelationshipManagementActivity(p, act)
+		act, err = RelationshipManagementActivity(p, act, vocab.Outbox)
 	} else if vocab.NegatingActivityTypes.Contains(act.Type) {
 		act, err = NegatingActivity(p.s, act)
 	} else if vocab.OffersActivityTypes.Contains(act.Type) {
