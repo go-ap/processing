@@ -71,11 +71,11 @@ func RelationshipManagementActivity(p defaultProcessor, act *vocab.Activity, col
 // an actor for perhaps six months while the follower remains unreachable, it is reasonable that the delivering
 // server remove the subscriber from the followers list. Timeframes and behavior for dealing with unreachable
 // actors are left to the discretion of the delivering server.
-	ob := act.Object.GetLink()
-	if !vocab.ValidCollectionIRI(ob) {
+func FollowActivity(p defaultProcessor, act *vocab.Activity, col vocab.CollectionPath) (*vocab.Activity, error) {
+	var err error
+	if !vocab.IsNil(act.Object) {
 		// TODO(marius): add check if IRI represents an actor (or rely on the collection saver to break if not)
-		ob = vocab.Inbox.IRI(ob)
+		err = act.To.Append(act.Object)
 	}
-	collections := vocab.ItemCollection{ob}
-	return disseminateToCollections(p, act, collections)
+	return act, err
 }
