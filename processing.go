@@ -245,11 +245,12 @@ func AddToCollections(p defaultProcessor, colSaver CollectionStore, it vocab.Ite
 	}
 
 	allRecipients := make(vocab.ItemCollection, 0)
-	if act.Actor != nil {
+	if act.Actor != nil && p.v.IsLocalIRI(act.Actor.GetLink()) {
+		// NOTE(marius): this is needed only for client to server interactions
 		actIRI := act.Actor.GetLink()
 		outbox := vocab.Outbox.IRI(actIRI)
 
-		if !actIRI.Equals(vocab.PublicNS, true) && !act.GetLink().Contains(outbox, false) && p.v.IsLocalIRI(actIRI) {
+		if !actIRI.Equals(vocab.PublicNS, true) && !act.GetLink().Contains(outbox, false) {
 			allRecipients = append(allRecipients, outbox)
 		}
 	}
