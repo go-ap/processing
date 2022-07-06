@@ -72,10 +72,9 @@ func RelationshipManagementActivity(p defaultProcessor, act *vocab.Activity, col
 // server remove the subscriber from the followers list. Timeframes and behavior for dealing with unreachable
 // actors are left to the discretion of the delivering server.
 func FollowActivity(p defaultProcessor, act *vocab.Activity, col vocab.CollectionPath) (*vocab.Activity, error) {
-	var err error
-	if !vocab.IsNil(act.Object) {
+	if !vocab.IsNil(act.Object) && !act.To.Contains(act.Object.GetLink()) {
 		// TODO(marius): add check if IRI represents an actor (or rely on the collection saver to break if not)
-		err = act.To.Append(act.Object)
+		act.To.Append(act.Object.GetLink())
 	}
-	return act, err
+	return act, nil
 }
