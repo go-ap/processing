@@ -63,7 +63,7 @@ type RequestValidator interface {
 //  an IRI representing a new Object - in the case of transitive activities that had a side effect, or
 //  an error.
 // In the case of intransitive activities the iri will always be empty.
-type ActivityHandlerFn func(vocab.CollectionPath, *http.Request, Store) (vocab.Item, int, error)
+type ActivityHandlerFn func(vocab.IRI, *http.Request, Store) (vocab.Item, int, error)
 
 func (a ActivityHandlerFn) Storage(r *http.Request) (Store, error) {
 	ctxVal := r.Context().Value(RepositoryKey)
@@ -106,7 +106,8 @@ func (a ActivityHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if it, status, err = a(Typer.Type(r), r, st); err != nil {
+	iri := vocab.IRI(fmt.Sprintf("https://%s%s", r.Host, r.RequestURI))
+	if it, status, err = a(iri, r, st); err != nil {
 		errors.HandleError(err).ServeHTTP(w, r)
 		return
 	}

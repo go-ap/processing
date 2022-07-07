@@ -15,6 +15,10 @@ import (
 	"github.com/go-ap/errors"
 )
 
+type Validator interface {
+	ValidateClientActivity(vocab.Item, vocab.IRI) error
+}
+
 type ClientActivityValidator interface {
 	ValidateClientActivity(vocab.Item, vocab.IRI) error
 	//ValidateClientObject(vocab.Item) error
@@ -212,6 +216,17 @@ func name(a *vocab.Actor) vocab.LangRefValue {
 		return a.PreferredUsername.First()
 	}
 	return vocab.LangRefValue{Value: vocab.Content(path.Base(string(a.ID)))}
+}
+
+func (v defaultValidator) ValidateActivity(a vocab.Item, receivedIn vocab.IRI) error {
+	if IsOutbox(receivedIn) {
+		return v.ValidateClientActivity(a, receivedIn)
+	}
+	if IsInbox(receivedIn) {
+		return v.ValidateServerActivity(a, receivedIn)
+	}
+
+	return errors.MethodNotAllowedf("unable to process activities at current IRI: %s", receivedIn)
 }
 
 func (v defaultValidator) ValidateClientActivity(a vocab.Item, outbox vocab.IRI) error {

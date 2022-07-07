@@ -17,10 +17,6 @@ import (
 	"golang.org/x/crypto/ed25519"
 )
 
-type Validator interface {
-	ValidateClientActivity(vocab.Item, vocab.IRI) error
-}
-
 type _p struct {
 	p *defaultProcessor
 	v *defaultValidator
@@ -108,6 +104,18 @@ func SetIRI(i ...vocab.IRI) optionFn {
 		v.p.baseIRI = i
 		return nil
 	}
+}
+
+// ProcessActivity processes an Activity received
+func (p defaultProcessor) ProcessActivity(it vocab.Item, receivedIn vocab.IRI) (vocab.Item, error) {
+	if IsOutbox(receivedIn) {
+		return p.ProcessClientActivity(it, receivedIn)
+	}
+	if IsInbox(receivedIn) {
+		return p.ProcessServerActivity(it, receivedIn)
+	}
+
+	return nil, errors.MethodNotAllowedf("unable to process activities at current IRI: %s", receivedIn)
 }
 
 func createNewTags(l WriteStore, tags vocab.ItemCollection) error {
