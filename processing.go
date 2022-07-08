@@ -22,27 +22,24 @@ type _p struct {
 	v *defaultValidator
 }
 
-var emptyLogFn c.LogFn = func(s string, el ...interface{}) {}
+var (
+	emptyLogFn c.LogFn = func(s string, el ...interface{}) {}
+	infoFn     c.LogFn = emptyLogFn
+	errFn      c.LogFn = emptyLogFn
+)
 
 type defaultProcessor struct {
 	baseIRI vocab.IRIs
 	v       *defaultValidator
 	c       c.Basic
 	s       WriteStore
-	infoFn  c.LogFn
-	errFn   c.LogFn
 }
 
 func New(o ...optionFn) (*defaultProcessor, *defaultValidator, error) {
 	v := &_p{
-		p: &defaultProcessor{
-			infoFn: emptyLogFn,
-			errFn:  emptyLogFn,
-		},
+		p: &defaultProcessor{},
 		v: &defaultValidator{
-			addr:   ipCache{addr: make(map[string][]netip.Addr)},
-			infoFn: emptyLogFn,
-			errFn:  emptyLogFn,
+			addr: ipCache{addr: make(map[string][]netip.Addr)},
 		},
 	}
 	for _, fn := range o {
@@ -68,16 +65,14 @@ func SetActorKeyGenerator(genFn vocab.WithActorFn) optionFn {
 
 func SetInfoLogger(logFn c.LogFn) optionFn {
 	return func(v *_p) error {
-		v.v.infoFn = logFn
-		v.p.infoFn = logFn
+		infoFn = logFn
 		return nil
 	}
 }
 
 func SetErrorLogger(logFn c.LogFn) optionFn {
 	return func(v *_p) error {
-		v.v.errFn = logFn
-		v.p.errFn = logFn
+		errFn = logFn
 		return nil
 	}
 }
@@ -309,7 +304,7 @@ func AddToCollections(p defaultProcessor, colSaver CollectionStore, it vocab.Ite
 func disseminateToCollections(p defaultProcessor, act *vocab.Activity, allRecipients vocab.ItemCollection) (*vocab.Activity, error) {
 	for _, recInb := range vocab.ItemCollectionDeduplication(&allRecipients) {
 		if err := disseminateToCollection(p, recInb.GetLink(), act); err != nil {
-			p.errFn("Failed: %s", err.Error())
+			errFn("Failed: %s", err.Error())
 		}
 	}
 	return act, nil
@@ -325,7 +320,7 @@ func disseminateToCollection(p defaultProcessor, col vocab.IRI, act vocab.Item) 
 	//    For each recipient we need to save the incoming activity to the actor's Inbox if the actor is local
 	//    Or disseminate it using S2S if the actor is not local
 	if p.v.IsLocalIRI(col) {
-		p.infoFn("Saving to local actor's collection %s", col)
+		infoFn("Saving to local actor's collection %s", col)
 		if err := colSaver.AddTo(col, act.GetLink()); err != nil {
 			return err
 		}
@@ -340,7 +335,7 @@ func disseminateToCollection(p defaultProcessor, col vocab.IRI, act vocab.Item) 
 			p.c.SignFn(s2sSignFn(keyLoader, act.Actor))
 			return nil
 		})
-		p.infoFn("Pushing to remote actor's collection %s", col)
+		infoFn("Pushing to remote actor's collection %s", col)
 		if _, _, err := p.c.ToCollection(col, act); err != nil {
 			return err
 		}

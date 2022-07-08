@@ -24,13 +24,6 @@ func wrapErr(err error, s string, args ...interface{}) errors.Err {
 	return *errors.Annotatef(err, s, args...)
 }
 
-var errFn = func(ss string) func(s string, p ...interface{}) errors.Err {
-	fn := func(s string, p ...interface{}) errors.Err {
-		return wrapErr(nil, fmt.Sprintf("%s: %s", ss, s), p...)
-	}
-	return fn
-}
-
 var ErrDuplicateObject = func(s string, p ...interface{}) errDuplicateKey {
 	return errDuplicateKey{wrapErr(nil, fmt.Sprintf("Duplicate key: %s", s), p...)}
 }

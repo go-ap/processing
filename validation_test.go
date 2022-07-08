@@ -109,6 +109,8 @@ func Test_defaultValidator_validateLocalIRI(t *testing.T) {
 			wantErr: true,
 		},
 	}
+	infoFn = tInfFn(t)
+	errFn = tErrFn(t)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			v := defaultValidator{
@@ -116,8 +118,6 @@ func Test_defaultValidator_validateLocalIRI(t *testing.T) {
 					addr: make(map[string][]netip.Addr),
 				},
 				baseIRI: tt.baseIRI,
-				infoFn:  tInfFn(t),
-				errFn:   tErrFn(t),
 			}
 			if err := v.validateLocalIRI(tt.arg); (err != nil) != tt.wantErr {
 				t.Errorf("validateLocalIRI() error = %v, wantErr %v", err, tt.wantErr)

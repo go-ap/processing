@@ -98,7 +98,7 @@ func processClientIntransitiveActivity(p defaultProcessor, it vocab.Item, receiv
 	}
 	if colSaver, ok := p.s.(CollectionStore); ok {
 		if it, err = AddToCollections(p, colSaver, it); err != nil {
-			p.infoFn("error: %s", err)
+			infoFn("error: %s", err)
 		}
 	}
 	return it, nil

@@ -77,8 +77,6 @@ type defaultValidator struct {
 	auth    *vocab.Actor
 	c       c.Basic
 	s       ReadStore
-	infoFn  c.LogFn
-	errFn   c.LogFn
 }
 
 type ActivityPubError struct {
