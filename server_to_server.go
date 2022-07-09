@@ -46,7 +46,7 @@ type S2SProcessor interface {
 	ProcessServerActivity(vocab.Item, vocab.IRI) (vocab.Item, error)
 }
 
-func (p defaultProcessor) ProcessServerActivity(it vocab.Item, receivedIn vocab.IRI) (vocab.Item, error) {
+func (p P) ProcessServerActivity(it vocab.Item, receivedIn vocab.IRI) (vocab.Item, error) {
 	if it == nil {
 		return nil, errors.Newf("Unable to process nil activity")
 	}

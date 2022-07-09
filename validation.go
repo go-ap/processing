@@ -11,7 +11,6 @@ import (
 	"sync"
 
 	vocab "github.com/go-ap/activitypub"
-	c "github.com/go-ap/client"
 	"github.com/go-ap/errors"
 )
 
@@ -71,13 +70,7 @@ type ipCache struct {
 	m    sync.RWMutex
 }
 
-type defaultValidator struct {
-	baseIRI vocab.IRIs
-	addr    ipCache
-	auth    *vocab.Actor
-	c       c.Basic
-	s       ReadStore
-}
+var localAddressCache ipCache
 
 type ActivityPubError struct {
 	errors.Err
@@ -112,18 +105,18 @@ func (m *MissingActorError) Is(e error) bool {
 	return okp || oks
 }
 
-func (v defaultValidator) ValidateServerActivity(a vocab.Item, inbox vocab.IRI) error {
+func (p P) ValidateServerActivity(a vocab.Item, inbox vocab.IRI) error {
 	if !IsInbox(inbox) {
 		return errors.NotValidf("Trying to validate a non inbox IRI %s", inbox)
 	}
-	//if v.auth.GetLink() == vocab.PublicNS {
-	//	return errors.Unauthorizedf("%s actor is not allowed posting to current inbox", v.auth.Name)
+	//if p.auth.GetLink() == vocab.PublicNS {
+	//	return errors.Unauthorizedf("%s actor is not allowed posting to current inbox", p.auth.Name)
 	//}
 	if a == nil {
 		return InvalidActivityActor("received nil activity")
 	}
 	if a.IsLink() {
-		return v.ValidateLink(a.GetLink())
+		return p.ValidateLink(a.GetLink())
 	}
 	if !vocab.ActivityTypes.Contains(a.GetType()) {
 		return InvalidActivity("invalid type %s", a.GetType())
@@ -137,21 +130,21 @@ func (v defaultValidator) ValidateServerActivity(a vocab.Item, inbox vocab.IRI) 
 		if err != nil {
 			return err
 		}
-		if isBlocked(v.s, inboxBelongsTo, act.Actor) {
+		if isBlocked(p.s, inboxBelongsTo, act.Actor) {
 			return errors.NotFoundf("")
 		}
-		if act.Actor, err = v.ValidateServerActor(act.Actor); err != nil {
-			if missingActor.Is(err) && v.auth != nil {
-				act.Actor = v.auth
+		if act.Actor, err = p.ValidateServerActor(act.Actor); err != nil {
+			if missingActor.Is(err) && p.auth != nil {
+				act.Actor = p.auth
 			} else {
 				return err
 			}
 		}
-		if act.Object, err = v.ValidateServerObject(act.Object); err != nil {
+		if act.Object, err = p.ValidateServerObject(act.Object); err != nil {
 			return err
 		}
 		if act.Target != nil {
-			if act.Target, err = v.ValidateServerObject(act.Target); err != nil {
+			if act.Target, err = p.ValidateServerObject(act.Target); err != nil {
 				return err
 			}
 		}
@@ -216,32 +209,32 @@ func name(a *vocab.Actor) vocab.LangRefValue {
 	return vocab.LangRefValue{Value: vocab.Content(path.Base(string(a.ID)))}
 }
 
-func (v defaultValidator) ValidateActivity(a vocab.Item, receivedIn vocab.IRI) error {
+func (p P) ValidateActivity(a vocab.Item, receivedIn vocab.IRI) error {
 	if IsOutbox(receivedIn) {
-		return v.ValidateClientActivity(a, receivedIn)
+		return p.ValidateClientActivity(a, receivedIn)
 	}
 	if IsInbox(receivedIn) {
-		return v.ValidateServerActivity(a, receivedIn)
+		return p.ValidateServerActivity(a, receivedIn)
 	}
 
 	return errors.MethodNotAllowedf("unable to process activities at current IRI: %s", receivedIn)
 }
 
-func (v defaultValidator) ValidateClientActivity(a vocab.Item, outbox vocab.IRI) error {
+func (p P) ValidateClientActivity(a vocab.Item, outbox vocab.IRI) error {
 	if !IsOutbox(outbox) {
 		return errors.NotValidf("Trying to validate a non outbox IRI %s", outbox)
 	}
-	if v.auth == nil || v.auth.GetLink() == vocab.PublicNS {
-		return errors.Unauthorizedf("%s actor is not allowed posting to current outbox", name(v.auth))
+	if p.auth == nil || p.auth.GetLink() == vocab.PublicNS {
+		return errors.Unauthorizedf("%s actor is not allowed posting to current outbox", name(p.auth))
 	}
-	if !IRIBelongsToActor(outbox, v.auth) {
-		return errors.Unauthorizedf("%s actor does not own the current outbox", name(v.auth))
+	if !IRIBelongsToActor(outbox, p.auth) {
+		return errors.Unauthorizedf("%s actor does not own the current outbox", name(p.auth))
 	}
 	if a == nil {
 		return InvalidActivityActor("received nil activity")
 	}
 	if a.IsLink() {
-		return v.ValidateLink(a.GetLink())
+		return p.ValidateLink(a.GetLink())
 	}
 	validActivityTypes := append(vocab.ActivityTypes, vocab.IntransitiveActivityTypes...)
 	if !validActivityTypes.Contains(a.GetType()) {
@@ -249,9 +242,9 @@ func (v defaultValidator) ValidateClientActivity(a vocab.Item, outbox vocab.IRI)
 	}
 	return vocab.OnActivity(a, func(act *vocab.Activity) error {
 		var err error
-		if act.Actor, err = v.ValidateClientActor(act.Actor); err != nil {
-			if missingActor.Is(err) && v.auth != nil {
-				act.Actor = v.auth
+		if act.Actor, err = p.ValidateClientActor(act.Actor); err != nil {
+			if missingActor.Is(err) && p.auth != nil {
+				act.Actor = p.auth
 			} else {
 				return err
 			}
@@ -260,39 +253,39 @@ func (v defaultValidator) ValidateClientActivity(a vocab.Item, outbox vocab.IRI)
 			// @TODO(marius): this needs to be extended by a ValidateActivityClientObject
 			//   because the first step would be to test the object in the context of the activity
 			//   The ValidateActivityClientObject could then validate just the object itself.
-			if act.Object, err = v.ValidateClientObject(act.Object); err != nil {
+			if act.Object, err = p.ValidateClientObject(act.Object); err != nil {
 				return err
 			}
 		}
 		if act.Target != nil {
-			if act.Target, err = v.ValidateClientObject(act.Target); err != nil {
+			if act.Target, err = p.ValidateClientObject(act.Target); err != nil {
 				return err
 			}
 		}
 		if vocab.ContentManagementActivityTypes.Contains(act.GetType()) && act.Object.GetType() != vocab.RelationshipType {
-			err = ValidateClientContentManagementActivity(v.s, act)
+			err = ValidateClientContentManagementActivity(p.s, act)
 		} else if vocab.CollectionManagementActivityTypes.Contains(act.GetType()) {
-			err = ValidateClientCollectionManagementActivity(v.s, act)
+			err = ValidateClientCollectionManagementActivity(p.s, act)
 		} else if vocab.ReactionsActivityTypes.Contains(act.GetType()) {
-			err = ValidateClientReactionsActivity(v.s, act)
+			err = ValidateClientReactionsActivity(p.s, act)
 		} else if vocab.EventRSVPActivityTypes.Contains(act.GetType()) {
-			err = ValidateClientEventRSVPActivity(v.s, act)
+			err = ValidateClientEventRSVPActivity(p.s, act)
 		} else if vocab.GroupManagementActivityTypes.Contains(act.GetType()) {
-			err = ValidateClientGroupManagementActivity(v.s, act)
+			err = ValidateClientGroupManagementActivity(p.s, act)
 		} else if vocab.ContentExperienceActivityTypes.Contains(act.GetType()) {
-			err = ValidateClientContentExperienceActivity(v.s, act)
+			err = ValidateClientContentExperienceActivity(p.s, act)
 		} else if vocab.GeoSocialEventsActivityTypes.Contains(act.GetType()) {
-			err = ValidateClientGeoSocialEventsActivity(v.s, act)
+			err = ValidateClientGeoSocialEventsActivity(p.s, act)
 		} else if vocab.NotificationActivityTypes.Contains(act.GetType()) {
-			err = ValidateClientNotificationActivity(v.s, act)
+			err = ValidateClientNotificationActivity(p.s, act)
 		} else if vocab.QuestionActivityTypes.Contains(act.GetType()) {
-			err = ValidateClientQuestionActivity(v.s, act)
+			err = ValidateClientQuestionActivity(p.s, act)
 		} else if vocab.RelationshipManagementActivityTypes.Contains(act.GetType()) {
-			err = ValidateClientRelationshipManagementActivity(v.s, act)
+			err = ValidateClientRelationshipManagementActivity(p.s, act)
 		} else if vocab.NegatingActivityTypes.Contains(act.GetType()) {
-			err = ValidateClientNegatingActivity(v.s, act)
+			err = ValidateClientNegatingActivity(p.s, act)
 		} else if vocab.OffersActivityTypes.Contains(act.GetType()) {
-			err = ValidateClientOffersActivity(v.s, act)
+			err = ValidateClientOffersActivity(p.s, act)
 		}
 		return err
 	})
@@ -414,17 +407,17 @@ func ValidateClientOffersActivity(l ReadStore, act *vocab.Activity) error {
 }
 
 // IsLocalIRI shows if the received IRI belongs to the current instance
-func (v defaultValidator) IsLocalIRI(i vocab.IRI) bool {
-	return v.validateLocalIRI(i) == nil
+func (p P) IsLocalIRI(i vocab.IRI) bool {
+	return p.validateLocalIRI(i) == nil
 }
 
-func (v defaultValidator) ValidateLink(i vocab.IRI) error {
+func (p P) ValidateLink(i vocab.IRI) error {
 	if i.Equals(vocab.PublicNS, false) {
 		return InvalidIRI("Public namespace is not a local IRI")
 	}
-	var loadFn func(vocab.IRI) (vocab.Item, error) = v.s.Load
-	if !v.IsLocalIRI(i) {
-		loadFn = v.c.LoadIRI
+	var loadFn func(vocab.IRI) (vocab.Item, error) = p.s.Load
+	if !p.IsLocalIRI(i) {
+		loadFn = p.c.LoadIRI
 	}
 	it, err := loadFn(i)
 	if err != nil {
@@ -436,23 +429,23 @@ func (v defaultValidator) ValidateLink(i vocab.IRI) error {
 	return nil
 }
 
-func (v defaultValidator) ValidateClientActor(a vocab.Item) (vocab.Item, error) {
+func (p P) ValidateClientActor(a vocab.Item) (vocab.Item, error) {
 	if a == nil {
 		return a, MissingActivityActor("")
 	}
-	if err := v.validateLocalIRI(a.GetLink()); err != nil {
+	if err := p.validateLocalIRI(a.GetLink()); err != nil {
 		return a, InvalidActivityActor("%s is not local", a.GetLink())
 	}
-	return v.ValidateActor(a)
+	return p.ValidateActor(a)
 }
 
-func (v defaultValidator) ValidateServerActor(a vocab.Item) (vocab.Item, error) {
+func (p P) ValidateServerActor(a vocab.Item) (vocab.Item, error) {
 	if a == nil {
 		return a, InvalidActivityActor("is nil")
 	}
 	var err error
 	if a.IsLink() {
-		a, err = v.c.LoadIRI(a.GetLink())
+		a, err = p.c.LoadIRI(a.GetLink())
 		if err != nil {
 			return a, err
 		}
@@ -464,8 +457,8 @@ func (v defaultValidator) ValidateServerActor(a vocab.Item) (vocab.Item, error) 
 		if !vocab.ActorTypes.Contains(act.GetType()) {
 			return InvalidActivityActor("invalid type %s", act.GetType())
 		}
-		if v.auth != nil {
-			if !v.auth.GetLink().Equals(act.GetLink(), false) {
+		if p.auth != nil {
+			if !p.auth.GetLink().Equals(act.GetLink(), false) {
 				return InvalidActivityActor("current activity's actor doesn't match the authenticated one")
 			}
 		}
@@ -475,19 +468,19 @@ func (v defaultValidator) ValidateServerActor(a vocab.Item) (vocab.Item, error) 
 	return a, err
 }
 
-func (v defaultValidator) ValidateActor(a vocab.Item) (vocab.Item, error) {
+func (p P) ValidateActor(a vocab.Item) (vocab.Item, error) {
 	if a == nil {
 		return a, InvalidActivityActor("is nil")
 	}
 	if a.IsLink() {
 		iri := a.GetLink()
-		err := v.ValidateLink(iri)
+		err := p.ValidateLink(iri)
 		if err != nil {
 			return a, err
 		}
-		var loadFn func(vocab.IRI) (vocab.Item, error) = v.s.Load
-		if !v.IsLocalIRI(iri) {
-			loadFn = v.c.LoadIRI
+		var loadFn func(vocab.IRI) (vocab.Item, error) = p.s.Load
+		if !p.IsLocalIRI(iri) {
+			loadFn = p.c.LoadIRI
 		}
 		if a, err = loadFn(iri); err != nil {
 			return a, err
@@ -501,53 +494,53 @@ func (v defaultValidator) ValidateActor(a vocab.Item) (vocab.Item, error) {
 		if !vocab.ActorTypes.Contains(act.GetType()) {
 			return InvalidActivityActor("invalid type %s", act.GetType())
 		}
-		if v.auth != nil && v.auth.GetLink().Equals(act.GetLink(), false) {
+		if p.auth != nil && p.auth.GetLink().Equals(act.GetLink(), false) {
 			return nil
 		}
 		return InvalidActivityActor("current activity's actor doesn't match the authenticated one")
 	})
 }
 
-func (v defaultValidator) ValidateClientObject(o vocab.Item) (vocab.Item, error) {
-	return v.ValidateObject(o)
+func (p P) ValidateClientObject(o vocab.Item) (vocab.Item, error) {
+	return p.ValidateObject(o)
 }
 
-func (v defaultValidator) ValidateServerObject(o vocab.Item) (vocab.Item, error) {
+func (p P) ValidateServerObject(o vocab.Item) (vocab.Item, error) {
 	var err error
-	if o, err = v.ValidateObject(o); err != nil {
+	if o, err = p.ValidateObject(o); err != nil {
 		return o, err
 	}
-	if err = v.ValidateLink(o.GetLink()); err != nil {
+	if err = p.ValidateLink(o.GetLink()); err != nil {
 		return o, err
 	}
 	return o, nil
 }
 
-func (v defaultValidator) ValidateObject(o vocab.Item) (vocab.Item, error) {
+func (p P) ValidateObject(o vocab.Item) (vocab.Item, error) {
 	if o == nil {
 		return o, InvalidActivityObject("is nil")
 	}
 	if o.IsLink() {
 		iri := o.GetLink()
-		err := v.ValidateLink(iri)
+		err := p.ValidateLink(iri)
 		if err != nil {
 			return o, err
 		}
 		var loadFn func(vocab.IRI) (vocab.Item, error)
-		if !v.IsLocalIRI(iri) {
-			loadFn = v.c.LoadIRI
+		if !p.IsLocalIRI(iri) {
+			loadFn = p.c.LoadIRI
 		} else {
 			// FIXME(marius): this does not work for the case where IRI is not a Public item
 			// We need to invent a way to pass the currently authorized actor to the ReadStore.Load
 			// The way we're doing it now is not great as it makes assumption that the underlying storage
 			// receives the authenticated actor as a basic auth user in the IRI. Maybe that's a safe
 			// assumption to make, but I'm not thrilled about it.
-			if v.auth != nil {
+			if p.auth != nil {
 				u, _ := iri.URL()
-				u.User = url.User(v.auth.ID.String())
+				u.User = url.User(p.auth.ID.String())
 				iri = vocab.IRI(u.String())
 			}
-			loadFn = v.s.Load
+			loadFn = p.s.Load
 		}
 		if o, err = loadFn(iri); err != nil {
 			return o, err
@@ -559,12 +552,12 @@ func (v defaultValidator) ValidateObject(o vocab.Item) (vocab.Item, error) {
 	return o, nil
 }
 
-func (v defaultValidator) ValidateTarget(t vocab.Item) error {
+func (p P) ValidateTarget(t vocab.Item) error {
 	if t == nil {
 		return InvalidActivityObject("is nil")
 	}
 	if t.IsLink() {
-		return v.ValidateLink(t.GetLink())
+		return p.ValidateLink(t.GetLink())
 	}
 	if !(vocab.ObjectTypes.Contains(t.GetType()) || vocab.ActorTypes.Contains(t.GetType()) || vocab.ActivityTypes.Contains(t.GetType())) {
 		return InvalidActivityObject("invalid type %s", t.GetType())
@@ -572,10 +565,10 @@ func (v defaultValidator) ValidateTarget(t vocab.Item) error {
 	return nil
 }
 
-func (v defaultValidator) ValidateAudience(audience ...vocab.ItemCollection) error {
+func (p P) ValidateAudience(audience ...vocab.ItemCollection) error {
 	for _, elem := range audience {
 		for _, iri := range elem {
-			if err := v.validateLocalIRI(iri.GetLink()); err == nil {
+			if err := p.validateLocalIRI(iri.GetLink()); err == nil {
 				return nil
 			}
 			if iri.GetLink() == vocab.PublicNS {
@@ -588,14 +581,15 @@ func (v defaultValidator) ValidateAudience(audience ...vocab.ItemCollection) err
 
 var ValidatorKey = CtxtKey("__validator")
 
-func ValidatorFromContext(ctx context.Context) (*defaultValidator, bool) {
-	ctxVal := ctx.Value(ValidatorKey)
-	s, ok := ctxVal.(*defaultValidator)
-	return s, ok
+func ValidatorFromContext(ctx context.Context) *P {
+	if p, ok := ctx.Value(ValidatorKey).(*P); ok {
+		return p
+	}
+	return nil
 }
 
-func (v *defaultValidator) SetActor(p *vocab.Actor) {
-	v.auth = p
+func (p *P) SetActor(a *vocab.Actor) {
+	p.auth = a
 }
 
 func hostSplit(h string) (string, string) {
@@ -609,9 +603,9 @@ func hostSplit(h string) (string, string) {
 	return pieces[0], pieces[1]
 }
 
-func (v defaultValidator) validateLocalIRI(i vocab.IRI) error {
-	if len(v.baseIRI) > 0 {
-		for _, base := range v.baseIRI {
+func (p P) validateLocalIRI(i vocab.IRI) error {
+	if len(p.baseIRI) > 0 {
+		for _, base := range p.baseIRI {
 			if i.Contains(base, false) {
 				return nil
 			}
@@ -622,27 +616,27 @@ func (v defaultValidator) validateLocalIRI(i vocab.IRI) error {
 	if err != nil {
 		return errors.Annotatef(err, "%s is not a local IRI", i)
 	}
-	v.addr.m.Lock()
-	defer v.addr.m.Unlock()
-	if _, ok := v.addr.addr[u.Host]; !ok {
+	localAddressCache.m.Lock()
+	defer localAddressCache.m.Unlock()
+	if _, ok := localAddressCache.addr[u.Host]; !ok {
 		h, _ := hostSplit(u.Host)
 
 		if ip, err := netip.ParseAddr(h); err == nil && !ip.IsUnspecified() {
-			v.addr.addr[u.Host] = []netip.Addr{ip}
+			localAddressCache.addr[u.Host] = []netip.Addr{ip}
 		} else {
 			addrs, err := net.LookupHost(u.Host)
 			if err != nil {
 				return errors.Annotatef(err, "%s is not a local IRI", i)
 			}
-			v.addr.addr[u.Host] = make([]netip.Addr, len(addrs))
-			for i, addr := range addrs {
-				if ip, err = netip.ParseAddr(addr); err == nil && !ip.IsUnspecified() {
-					v.addr.addr[u.Host][i] = ip
+			localAddressCache.addr[u.Host] = make([]netip.Addr, len(addrs))
+			for i, a := range addrs {
+				if ip, err = netip.ParseAddr(a); err == nil && !ip.IsUnspecified() {
+					localAddressCache.addr[u.Host][i] = ip
 				}
 			}
 		}
 	}
-	for _, ip := range v.addr.addr[u.Host] {
+	for _, ip := range localAddressCache.addr[u.Host] {
 		if ip.IsLoopback() {
 			return nil
 		}

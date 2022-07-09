@@ -17,92 +17,79 @@ import (
 	"golang.org/x/crypto/ed25519"
 )
 
-type _p struct {
-	p *defaultProcessor
-	v *defaultValidator
-}
-
 var (
 	emptyLogFn c.LogFn = func(s string, el ...interface{}) {}
 	infoFn     c.LogFn = emptyLogFn
 	errFn      c.LogFn = emptyLogFn
 )
 
-type defaultProcessor struct {
+type P struct {
 	baseIRI vocab.IRIs
-	v       *defaultValidator
+	auth    *vocab.Actor
 	c       c.Basic
-	s       WriteStore
+	s       Store
 }
 
-func New(o ...optionFn) (*defaultProcessor, *defaultValidator, error) {
-	v := &_p{
-		p: &defaultProcessor{},
-		v: &defaultValidator{
-			addr: ipCache{addr: make(map[string][]netip.Addr)},
-		},
-	}
+func New(o ...optionFn) (*P, error) {
+	localAddressCache = ipCache{addr: make(map[string][]netip.Addr)}
+	p := &P{}
 	for _, fn := range o {
-		if err := fn(v); err != nil {
-			return v.p, v.v, err
+		if err := fn(p); err != nil {
+			return p, err
 		}
 	}
-	v.p.v = v.v
-	return v.p, v.v, nil
+	return p, nil
 }
 
-type optionFn func(s *_p) error
+type optionFn func(s *P) error
 
 func SetIDGenerator(genFn IDGenerator) optionFn {
 	createID = genFn
-	return func(v *_p) error { return nil }
+	return func(_ *P) error { return nil }
 }
 
 func SetActorKeyGenerator(genFn vocab.WithActorFn) optionFn {
 	createKey = genFn
-	return func(_ *_p) error { return nil }
+	return func(_ *P) error { return nil }
 }
 
 func SetInfoLogger(logFn c.LogFn) optionFn {
-	return func(v *_p) error {
+	return func(_ *P) error {
 		infoFn = logFn
 		return nil
 	}
 }
 
 func SetErrorLogger(logFn c.LogFn) optionFn {
-	return func(v *_p) error {
+	return func(_ *P) error {
 		errFn = logFn
 		return nil
 	}
 }
 
 func SetClient(c c.Basic) optionFn {
-	return func(v *_p) error {
-		v.v.c = c
-		v.p.c = c
+	return func(p *P) error {
+		p.c = c
 		return nil
 	}
 }
 
 func SetStorage(s Store) optionFn {
-	return func(v *_p) error {
-		v.v.s = s
-		v.p.s = s
+	return func(p *P) error {
+		p.s = s
 		return nil
 	}
 }
 
 func SetIRI(i ...vocab.IRI) optionFn {
-	return func(v *_p) error {
-		v.v.baseIRI = i
-		v.p.baseIRI = i
+	return func(p *P) error {
+		p.baseIRI = i
 		return nil
 	}
 }
 
 // ProcessActivity processes an Activity received
-func (p defaultProcessor) ProcessActivity(it vocab.Item, receivedIn vocab.IRI) (vocab.Item, error) {
+func (p P) ProcessActivity(it vocab.Item, receivedIn vocab.IRI) (vocab.Item, error) {
 	if IsOutbox(receivedIn) {
 		return p.ProcessClientActivity(it, receivedIn)
 	}
@@ -238,7 +225,7 @@ func keyType(key crypto.PrivateKey) (httpsig.Algorithm, error) {
 // it is addressed to:
 //  - the author's Outbox - if the author is local
 //  - the recipients' Inboxes - if they are local
-func AddToCollections(p defaultProcessor, colSaver CollectionStore, it vocab.Item) (vocab.Item, error) {
+func AddToCollections(p P, colSaver CollectionStore, it vocab.Item) (vocab.Item, error) {
 	act, err := vocab.ToActivity(it)
 	if err != nil {
 		return nil, err
@@ -248,7 +235,7 @@ func AddToCollections(p defaultProcessor, colSaver CollectionStore, it vocab.Ite
 	}
 
 	allRecipients := make(vocab.ItemCollection, 0)
-	if act.Actor != nil && p.v.IsLocalIRI(act.Actor.GetLink()) {
+	if act.Actor != nil && p.IsLocalIRI(act.Actor.GetLink()) {
 		// NOTE(marius): this is needed only for client to server interactions
 		actIRI := act.Actor.GetLink()
 		outbox := vocab.Outbox.IRI(actIRI)
@@ -277,7 +264,7 @@ func AddToCollections(p defaultProcessor, colSaver CollectionStore, it vocab.Ite
 				}
 				vocab.OnCollectionIntf(members, func(col vocab.CollectionInterface) error {
 					for _, m := range col.Collection() {
-						if !vocab.ActorTypes.Contains(m.GetType()) || (p.v.IsLocalIRI(m.GetLink()) && isBlocked(loader, m, act.Actor)) {
+						if !vocab.ActorTypes.Contains(m.GetType()) || (p.IsLocalIRI(m.GetLink()) && isBlocked(loader, m, act.Actor)) {
 							continue
 						}
 						allRecipients = append(allRecipients, vocab.Inbox.IRI(m))
@@ -287,7 +274,7 @@ func AddToCollections(p defaultProcessor, colSaver CollectionStore, it vocab.Ite
 			}
 		} else {
 			if loader, ok := colSaver.(ReadStore); ok {
-				if p.v.IsLocalIRI(recIRI) && isBlocked(loader, recIRI, act.Actor) {
+				if p.IsLocalIRI(recIRI) && isBlocked(loader, recIRI, act.Actor) {
 					continue
 				}
 			}
@@ -301,7 +288,7 @@ func AddToCollections(p defaultProcessor, colSaver CollectionStore, it vocab.Ite
 	return disseminateToCollections(p, act, allRecipients)
 }
 
-func disseminateToCollections(p defaultProcessor, act *vocab.Activity, allRecipients vocab.ItemCollection) (*vocab.Activity, error) {
+func disseminateToCollections(p P, act *vocab.Activity, allRecipients vocab.ItemCollection) (*vocab.Activity, error) {
 	for _, recInb := range vocab.ItemCollectionDeduplication(&allRecipients) {
 		if err := disseminateToCollection(p, recInb.GetLink(), act); err != nil {
 			errFn("Failed: %s", err.Error())
@@ -310,7 +297,7 @@ func disseminateToCollections(p defaultProcessor, act *vocab.Activity, allRecipi
 	return act, nil
 }
 
-func disseminateToCollection(p defaultProcessor, col vocab.IRI, act vocab.Item) error {
+func disseminateToCollection(p P, col vocab.IRI, act vocab.Item) error {
 	colSaver, ok := p.s.(CollectionStore)
 	if !ok {
 		// TODO(marius): not returning an error might be the wrong move here
@@ -319,12 +306,12 @@ func disseminateToCollection(p defaultProcessor, col vocab.IRI, act vocab.Item) 
 	// TODO(marius): the processing module needs a method to see if an IRI is local or not
 	//    For each recipient we need to save the incoming activity to the actor's Inbox if the actor is local
 	//    Or disseminate it using S2S if the actor is not local
-	if p.v.IsLocalIRI(col) {
+	if p.IsLocalIRI(col) {
 		infoFn("Saving to local actor's collection %s", col)
 		if err := colSaver.AddTo(col, act.GetLink()); err != nil {
 			return err
 		}
-	} else if p.v.IsLocalIRI(act.GetLink()) {
+	} else if p.IsLocalIRI(act.GetLink()) {
 		keyLoader, ok := p.s.(KeyLoader)
 		if !ok {
 			return nil

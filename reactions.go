@@ -11,7 +11,7 @@ import (
 // The Reactions use case primarily deals with reactions to content.
 // This can include activities such as liking or disliking content, ignoring updates,
 // flagging content as being inappropriate, accepting or rejecting objects, etc.
-func ReactionsActivity(p defaultProcessor, act *vocab.Activity) (*vocab.Activity, error) {
+func ReactionsActivity(p P, act *vocab.Activity) (*vocab.Activity, error) {
 	var err error
 	if act.Object != nil {
 		switch act.Type {
@@ -139,7 +139,7 @@ func firstOrItem(it vocab.Item) vocab.Item {
 
 // AcceptActivity
 // The side effect of receiving this in an inbox is that the server SHOULD add the object to the actor's followers Collection.
-func AcceptActivity(p defaultProcessor, act *vocab.Activity) (*vocab.Activity, error) {
+func AcceptActivity(p P, act *vocab.Activity) (*vocab.Activity, error) {
 	if act.Object == nil {
 		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
 	}
@@ -170,7 +170,7 @@ func AcceptActivity(p defaultProcessor, act *vocab.Activity) (*vocab.Activity, e
 	return act, err
 }
 
-func finalizeFollowActivity(p defaultProcessor, a *vocab.Activity) error {
+func finalizeFollowActivity(p P, a *vocab.Activity) error {
 	good := vocab.ActivityVocabularyTypes{vocab.FollowType}
 	if !good.Contains(a.Type) {
 		return errors.NotValidf("Object Activity has wrong type %s, expected %v", a.Type, good)
@@ -181,13 +181,13 @@ func finalizeFollowActivity(p defaultProcessor, a *vocab.Activity) error {
 		return nil
 	}
 	followers := vocab.Followers.IRI(a.Object)
-	if p.v.IsLocalIRI(followers) {
+	if p.IsLocalIRI(followers) {
 		if err := colSaver.AddTo(followers, a.Actor.GetLink()); err != nil {
 			return err
 		}
 	}
 	following := vocab.Following.IRI(a.Actor)
-	if p.v.IsLocalIRI(following) {
+	if p.IsLocalIRI(following) {
 		if err := colSaver.AddTo(following, a.Object.GetLink()); err != nil {
 			return err
 		}

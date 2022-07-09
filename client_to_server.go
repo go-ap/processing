@@ -45,7 +45,7 @@ type C2SProcessor interface {
 	ProcessClientActivity(vocab.Item, vocab.IRI) (vocab.Item, error)
 }
 
-func (p defaultProcessor) ProcessClientActivity(it vocab.Item, receivedIn vocab.IRI) (vocab.Item, error) {
+func (p P) ProcessClientActivity(it vocab.Item, receivedIn vocab.IRI) (vocab.Item, error) {
 	if it == nil {
 		return nil, errors.Newf("Unable to process nil activity")
 	}
@@ -59,7 +59,7 @@ func (p defaultProcessor) ProcessClientActivity(it vocab.Item, receivedIn vocab.
 	})
 }
 
-func processClientIntransitiveActivity(p defaultProcessor, it vocab.Item, receivedIn vocab.IRI) (vocab.Item, error) {
+func processClientIntransitiveActivity(p P, it vocab.Item, receivedIn vocab.IRI) (vocab.Item, error) {
 	if len(it.GetLink()) == 0 {
 		if err := SetID(it, nil, nil); err != nil {
 			return it, err
@@ -104,7 +104,7 @@ func processClientIntransitiveActivity(p defaultProcessor, it vocab.Item, receiv
 	return it, nil
 }
 
-func processClientActivity(p defaultProcessor, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activity, error) {
+func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activity, error) {
 	if len(act.GetLink()) == 0 {
 		if err := SetID(act, nil, nil); err != nil {
 			return act, err

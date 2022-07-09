@@ -111,15 +111,13 @@ func Test_defaultValidator_validateLocalIRI(t *testing.T) {
 	}
 	infoFn = tInfFn(t)
 	errFn = tErrFn(t)
+	localAddressCache = ipCache{addr: make(map[string][]netip.Addr)}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			v := defaultValidator{
-				addr: ipCache{
-					addr: make(map[string][]netip.Addr),
-				},
-				baseIRI: tt.baseIRI,
-			}
-			if err := v.validateLocalIRI(tt.arg); (err != nil) != tt.wantErr {
+			p := P{baseIRI: tt.baseIRI}
+
+			if err := p.validateLocalIRI(tt.arg); (err != nil) != tt.wantErr {
 				t.Errorf("validateLocalIRI() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
