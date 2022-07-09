@@ -31,60 +31,51 @@ type P struct {
 }
 
 func New(o ...optionFn) (*P, error) {
-	localAddressCache = ipCache{addr: make(map[string][]netip.Addr)}
-	p := &P{}
+	p := new(P)
 	for _, fn := range o {
-		if err := fn(p); err != nil {
-			return p, err
-		}
+		fn(p)
 	}
+	localAddressCache = ipCache{addr: make(map[string][]netip.Addr)}
 	return p, nil
 }
 
-type optionFn func(s *P) error
+type optionFn func(s *P)
 
 func SetIDGenerator(genFn IDGenerator) optionFn {
 	createID = genFn
-	return func(_ *P) error { return nil }
+	return func(_ *P) {}
 }
 
 func SetActorKeyGenerator(genFn vocab.WithActorFn) optionFn {
 	createKey = genFn
-	return func(_ *P) error { return nil }
+	return func(_ *P) {}
 }
 
 func SetInfoLogger(logFn c.LogFn) optionFn {
-	return func(_ *P) error {
-		infoFn = logFn
-		return nil
-	}
+	infoFn = logFn
+	return func(_ *P) {}
 }
 
 func SetErrorLogger(logFn c.LogFn) optionFn {
-	return func(_ *P) error {
-		errFn = logFn
-		return nil
-	}
+	errFn = logFn
+	return func(_ *P) {}
 }
 
 func SetClient(c c.Basic) optionFn {
-	return func(p *P) error {
+	return func(p *P) {
 		p.c = c
-		return nil
 	}
 }
 
 func SetStorage(s Store) optionFn {
-	return func(p *P) error {
+	return func(p *P) {
 		p.s = s
-		return nil
 	}
 }
 
 func SetIRI(i ...vocab.IRI) optionFn {
-	return func(p *P) error {
+	return func(p *P) {
 		p.baseIRI = i
-		return nil
 	}
 }
 
