@@ -72,7 +72,7 @@ func SetID(it vocab.Item, partOf vocab.Item, act vocab.Item) error {
 // modification or deletion of content.
 // This includes, for instance, activities such as "John created a new note",
 // "Sally updated an article", and "Joe deleted the photo".
-func ContentManagementActivity(l WriteStore, act *vocab.Activity, col vocab.CollectionPath) (*vocab.Activity, error) {
+func ContentManagementActivity(l WriteStore, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activity, error) {
 	var err error
 	switch act.Type {
 	case vocab.CreateType:
@@ -83,7 +83,7 @@ func ContentManagementActivity(l WriteStore, act *vocab.Activity, col vocab.Coll
 		act, err = DeleteActivity(l, act)
 	}
 	if err != nil && !isDuplicateKey(err) {
-		//l.errFn(logrus.Fields{"IRI": act.GetLink(), "type": act.Type}, "unable to save activity's object")
+		errFn("unable to save activity's object: %s", err)
 		return act, err
 	}
 

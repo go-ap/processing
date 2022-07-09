@@ -212,11 +212,19 @@ func keyType(key crypto.PrivateKey) (httpsig.Algorithm, error) {
 	return nil, errors.Errorf("Unknown private key type[%T] %v", key, key)
 }
 
-// AddToCollections handles the dissemination of the received it Activity to the local collections,
+// AddToLocalCollections handles the dissemination of the received it Activity to the local collections,
 // it is addressed to:
 //  - the author's Outbox - if the author is local
 //  - the recipients' Inboxes - if they are local
-func AddToCollections(p P, colSaver CollectionStore, it vocab.Item) (vocab.Item, error) {
+func AddToLocalCollections(p P, colSaver CollectionStore, it vocab.Item) (vocab.Item, error) {
+	return it, nil
+}
+
+// BuildRecipientsList handles the dissemination of the received it Activity to the local collections,
+// it is addressed to:
+//  - the author's Outbox - if the author is local
+//  - the recipients' Inboxes - if they are local
+func (p P) BuildRecipientsList(it vocab.Item) (vocab.ItemCollection, error) {
 	act, err := vocab.ToActivity(it)
 	if err != nil {
 		return nil, err
@@ -224,6 +232,7 @@ func AddToCollections(p P, colSaver CollectionStore, it vocab.Item) (vocab.Item,
 	if act == nil {
 		return nil, errors.Newf("Unable to process nil activity")
 	}
+	loader := p.s
 
 	allRecipients := make(vocab.ItemCollection, 0)
 	if act.Actor != nil && p.IsLocalIRI(act.Actor.GetLink()) {
@@ -247,27 +256,23 @@ func AddToCollections(p P, colSaver CollectionStore, it vocab.Item) (vocab.Item,
 		}
 		if vocab.ValidCollectionIRI(recIRI) {
 			// TODO(marius): this step should happen at validation time
-			if loader, ok := colSaver.(ReadStore); ok {
-				// Load all members if colIRI is a valid actor collection
-				members, err := loader.Load(recIRI)
-				if err != nil || vocab.IsNil(members) {
-					continue
-				}
-				vocab.OnCollectionIntf(members, func(col vocab.CollectionInterface) error {
-					for _, m := range col.Collection() {
-						if !vocab.ActorTypes.Contains(m.GetType()) || (p.IsLocalIRI(m.GetLink()) && isBlocked(loader, m, act.Actor)) {
-							continue
-						}
-						allRecipients = append(allRecipients, vocab.Inbox.IRI(m))
-					}
-					return nil
-				})
+			// Load all members if colIRI is a valid actor collection
+			members, err := loader.Load(recIRI)
+			if err != nil || vocab.IsNil(members) {
+				continue
 			}
-		} else {
-			if loader, ok := colSaver.(ReadStore); ok {
-				if p.IsLocalIRI(recIRI) && isBlocked(loader, recIRI, act.Actor) {
-					continue
+			vocab.OnCollectionIntf(members, func(col vocab.CollectionInterface) error {
+				for _, m := range col.Collection() {
+					if !vocab.ActorTypes.Contains(m.GetType()) || (p.IsLocalIRI(m.GetLink()) && isBlocked(loader, m, act.Actor)) {
+						continue
+					}
+					allRecipients = append(allRecipients, vocab.Inbox.IRI(m))
 				}
+				return nil
+			})
+		} else {
+			if p.IsLocalIRI(recIRI) && isBlocked(loader, recIRI, act.Actor) {
+				continue
 			}
 			inb := vocab.Inbox.IRI(recIRI)
 			if !allRecipients.Contains(inb) {
@@ -276,16 +281,16 @@ func AddToCollections(p P, colSaver CollectionStore, it vocab.Item) (vocab.Item,
 			}
 		}
 	}
-	return disseminateToCollections(p, act, allRecipients)
+	return allRecipients, nil
 }
 
-func disseminateToCollections(p P, act *vocab.Activity, allRecipients vocab.ItemCollection) (*vocab.Activity, error) {
+func disseminateToCollections(p P, act vocab.Item, allRecipients vocab.ItemCollection) error {
 	for _, recInb := range vocab.ItemCollectionDeduplication(&allRecipients) {
 		if err := disseminateToCollection(p, recInb.GetLink(), act); err != nil {
 			errFn("Failed: %s", err.Error())
 		}
 	}
-	return act, nil
+	return nil
 }
 
 func disseminateToCollection(p P, col vocab.IRI, act vocab.Item) error {

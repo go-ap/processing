@@ -9,46 +9,49 @@ import (
 
 // C2SProcessor
 type C2SProcessor interface {
-	// ProcessClientActivity processes an Activity received in a client to server request
-	//
-	// https://www.w3.org/TR/activitypub/#client-to-server-interactions
-	//
-	// Activities as defined by [ActivityStreams] are the core mechanism for creating, modifying and sharing content within
-	// the social graph.
-	//
-	// Client to server interaction takes place through clients posting Activities to an actor's outbox. To do this,
-	// clients MUST discover the URL of the actor's outbox from their profile and then MUST make an HTTP POST request to
-	// this URL with the Content-Type of 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'.
-	// Servers MAY interpret a Content-Type or Accept header of application/activity+json as equivalent to
-	// 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"' for client-to-server interactions.
-	// The request MUST be authenticated with the credentials of the user to whom the outbox belongs. The body of the POST
-	// request MUST contain a single Activity (which MAY contain embedded objects), or a single non-Activity object which
-	// will be wrapped in a Create activity by the server.
-	//
-	// If an Activity is submitted with a value in the id property, servers MUST ignore this and generate a new id for the
-	// Activity. Servers MUST return a 201 Created HTTP code, and unless the activity is transient, MUST include the new id
-	// in the Location header.
-	//
-	// The server MUST remove the bto and/or bcc properties, if they exist, from the ActivityStreams object before delivery,
-	// but MUST utilize the addressing originally stored on the bto / bcc properties for determining recipients in delivery.
-	//
-	// The server MUST then add this new Activity to the outbox collection. Depending on the type of Activity, servers may
-	// then be required to carry out further side effects. (However, there is no guarantee that time the Activity may appear
-	// in the outbox. The Activity might appear after a delay or disappear at any period). These are described per
-	// individual Activity below.
-	//
-	// Attempts to submit objects to servers not implementing client to server support SHOULD result in a
-	// 405 Method Not Allowed response.
-	//
-	// HTTP caching mechanisms [RFC7234] SHOULD be respected when appropriate, both in clients receiving responses from
-	// servers as well as servers sending responses to clients.
 	ProcessClientActivity(vocab.Item, vocab.IRI) (vocab.Item, error)
 }
 
+// ProcessClientActivity processes an Activity received in a client to server request
+//
+// https://www.w3.org/TR/activitypub/#client-to-server-interactions
+//
+// Activities as defined by [ActivityStreams] are the core mechanism for creating, modifying and sharing content within
+// the social graph.
+//
+// Client to server interaction takes place through clients posting Activities to an actor's outbox. To do this,
+// clients MUST discover the URL of the actor's outbox from their profile and then MUST make an HTTP POST request to
+// this URL with the Content-Type of 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'.
+// Servers MAY interpret a Content-Type or Accept header of application/activity+json as equivalent to
+// 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"' for client-to-server interactions.
+// The request MUST be authenticated with the credentials of the user to whom the outbox belongs. The body of the POST
+// request MUST contain a single Activity (which MAY contain embedded objects), or a single non-Activity object which
+// will be wrapped in a Create activity by the server.
+//
+// If an Activity is submitted with a value in the id property, servers MUST ignore this and generate a new id for the
+// Activity. Servers MUST return a 201 Created HTTP code, and unless the activity is transient, MUST include the new id
+// in the Location header.
+//
+// The server MUST remove the bto and/or bcc properties, if they exist, from the ActivityStreams object before delivery,
+// but MUST utilize the addressing originally stored on the bto / bcc properties for determining recipients in delivery.
+//
+// The server MUST then add this new Activity to the outbox collection. Depending on the type of Activity, servers may
+// then be required to carry out further side effects. (However, there is no guarantee that time the Activity may appear
+// in the outbox. The Activity might appear after a delay or disappear at any period). These are described per
+// individual Activity below.
+//
+// Attempts to submit objects to servers not implementing client to server support SHOULD result in a
+// 405 Method Not Allowed response.
+//
+// HTTP caching mechanisms [RFC7234] SHOULD be respected when appropriate, both in clients receiving responses from
+// servers as well as servers sending responses to clients.
 func (p P) ProcessClientActivity(it vocab.Item, receivedIn vocab.IRI) (vocab.Item, error) {
 	if it == nil {
 		return nil, errors.Newf("Unable to process nil activity")
 	}
+	// NOTE(marius): the separation between transitive and intransitive activities overlaps the separation we're
+	// using in the processingClientActivity function between the ActivityStreams motivations separation.
+	// This means that 'it' should probably be treated as a vocab.Item until the last possible moment.
 	if vocab.IntransitiveActivityTypes.Contains(it.GetType()) {
 		return processClientIntransitiveActivity(p, it, receivedIn)
 	}
@@ -96,50 +99,48 @@ func processClientIntransitiveActivity(p P, it vocab.Item, receivedIn vocab.IRI)
 	if it, err = p.s.Save(vocab.FlattenProperties(it)); err != nil {
 		return it, err
 	}
-	if colSaver, ok := p.s.(CollectionStore); ok {
-		if it, err = AddToCollections(p, colSaver, it); err != nil {
-			infoFn("error: %s", err)
-		}
+	recipients, err := p.BuildRecipientsList(it)
+	if err != nil {
+		infoFn("error: %s", err)
 	}
-	return it, nil
+	return it, disseminateToCollections(p, it, recipients)
 }
 
-func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activity, error) {
+func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (vocab.Item, error) {
 	if len(act.GetLink()) == 0 {
 		if err := SetID(act, nil, nil); err != nil {
 			return act, err
 		}
 	}
-	var err error
-
 	if act.Object == nil {
 		return act, errors.BadRequestf("Invalid %s: object is nil", act.Type)
 	}
 
+	var err error
+	typ := act.GetType()
 	// TODO(marius): this does not work correctly if act.Object is an ItemCollection
-	obType := act.Object.GetType()
-	// First we process the activity to effect whatever changes we need to on the activity properties.
-	if vocab.ContentManagementActivityTypes.Contains(act.Type) && obType != vocab.RelationshipType {
-		act, err = ContentManagementActivity(p.s, act, vocab.Outbox)
-	} else if vocab.CollectionManagementActivityTypes.Contains(act.Type) {
+	//  First we process the activity to effect whatever changes we need to on the activity properties.
+	if vocab.ContentManagementActivityTypes.Contains(typ) && act.Object.GetType() != vocab.RelationshipType {
+		act, err = ContentManagementActivity(p.s, act, receivedIn)
+	} else if vocab.CollectionManagementActivityTypes.Contains(typ) {
 		act, err = CollectionManagementActivity(p.s, act)
-	} else if vocab.ReactionsActivityTypes.Contains(act.Type) {
+	} else if vocab.ReactionsActivityTypes.Contains(typ) {
 		act, err = ReactionsActivity(p, act)
-	} else if vocab.EventRSVPActivityTypes.Contains(act.Type) {
+	} else if vocab.EventRSVPActivityTypes.Contains(typ) {
 		act, err = EventRSVPActivity(p.s, act)
-	} else if vocab.GroupManagementActivityTypes.Contains(act.Type) {
+	} else if vocab.GroupManagementActivityTypes.Contains(typ) {
 		act, err = GroupManagementActivity(p.s, act)
-	} else if vocab.ContentExperienceActivityTypes.Contains(act.Type) {
+	} else if vocab.ContentExperienceActivityTypes.Contains(typ) {
 		act, err = ContentExperienceActivity(p.s, act)
-	} else if vocab.GeoSocialEventsActivityTypes.Contains(act.Type) {
+	} else if vocab.GeoSocialEventsActivityTypes.Contains(typ) {
 		act, err = GeoSocialEventsActivity(p.s, act)
-	} else if vocab.NotificationActivityTypes.Contains(act.Type) {
+	} else if vocab.NotificationActivityTypes.Contains(typ) {
 		act, err = NotificationActivity(p.s, act)
-	} else if vocab.RelationshipManagementActivityTypes.Contains(act.Type) {
+	} else if vocab.RelationshipManagementActivityTypes.Contains(typ) {
 		act, err = RelationshipManagementActivity(p, act, vocab.Outbox)
-	} else if vocab.NegatingActivityTypes.Contains(act.Type) {
+	} else if vocab.NegatingActivityTypes.Contains(typ) {
 		act, err = NegatingActivity(p.s, act)
-	} else if vocab.OffersActivityTypes.Contains(act.Type) {
+	} else if vocab.OffersActivityTypes.Contains(typ) {
 		act, err = OffersActivity(p.s, act)
 	}
 	if err != nil {
@@ -170,10 +171,9 @@ func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*voc
 		return act, err
 	}
 
-	if colSaver, ok := p.s.(CollectionStore); ok {
-		if it, err = AddToCollections(p, colSaver, it); err != nil {
-			return act, err
-		}
+	recipients, err := p.BuildRecipientsList(it)
+	if err != nil {
+		return act, err
 	}
-	return act, nil
+	return act, disseminateToCollections(p, it, recipients)
 }
