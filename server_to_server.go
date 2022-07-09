@@ -55,10 +55,12 @@ func (p P) ProcessServerActivity(it vocab.Item, receivedIn vocab.IRI) (vocab.Ite
 		return it, err
 	}
 
-	recipients, err := p.BuildRecipientsList(it)
+	recipients, err := p.BuildRecipientsList(it, receivedIn)
 	if err != nil {
 		return it, err
 	}
-
-	return it, disseminateToCollections(p, it, recipients)
+	if err := p.AddToLocalCollections(it, recipients); err != nil {
+		errFn("error: %s", err)
+	}
+	return it, nil
 }

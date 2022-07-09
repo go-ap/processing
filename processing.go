@@ -212,19 +212,11 @@ func keyType(key crypto.PrivateKey) (httpsig.Algorithm, error) {
 	return nil, errors.Errorf("Unknown private key type[%T] %v", key, key)
 }
 
-// AddToLocalCollections handles the dissemination of the received it Activity to the local collections,
-// it is addressed to:
-//  - the author's Outbox - if the author is local
-//  - the recipients' Inboxes - if they are local
-func AddToLocalCollections(p P, colSaver CollectionStore, it vocab.Item) (vocab.Item, error) {
-	return it, nil
-}
-
 // BuildRecipientsList handles the dissemination of the received it Activity to the local collections,
 // it is addressed to:
 //  - the author's Outbox - if the author is local
 //  - the recipients' Inboxes - if they are local
-func (p P) BuildRecipientsList(it vocab.Item) (vocab.ItemCollection, error) {
+func (p P) BuildRecipientsList(it vocab.Item, receivedIn vocab.IRI) (vocab.ItemCollection, error) {
 	act, err := vocab.ToActivity(it)
 	if err != nil {
 		return nil, err
@@ -235,7 +227,7 @@ func (p P) BuildRecipientsList(it vocab.Item) (vocab.ItemCollection, error) {
 	loader := p.s
 
 	allRecipients := make(vocab.ItemCollection, 0)
-	if act.Actor != nil && p.IsLocalIRI(act.Actor.GetLink()) {
+	if act.Actor != nil && p.IsLocal(act.Actor) {
 		// NOTE(marius): this is needed only for client to server interactions
 		actIRI := act.Actor.GetLink()
 		outbox := vocab.Outbox.IRI(actIRI)
@@ -281,49 +273,10 @@ func (p P) BuildRecipientsList(it vocab.Item) (vocab.ItemCollection, error) {
 			}
 		}
 	}
-	return allRecipients, nil
-}
-
-func disseminateToCollections(p P, act vocab.Item, allRecipients vocab.ItemCollection) error {
-	for _, recInb := range vocab.ItemCollectionDeduplication(&allRecipients) {
-		if err := disseminateToCollection(p, recInb.GetLink(), act); err != nil {
-			errFn("Failed: %s", err.Error())
-		}
+	if !allRecipients.Contains(receivedIn) {
+		allRecipients.Append(receivedIn)
 	}
-	return nil
-}
-
-func disseminateToCollection(p P, col vocab.IRI, act vocab.Item) error {
-	colSaver, ok := p.s.(CollectionStore)
-	if !ok {
-		// TODO(marius): not returning an error might be the wrong move here
-		return nil
-	}
-	// TODO(marius): the processing module needs a method to see if an IRI is local or not
-	//    For each recipient we need to save the incoming activity to the actor's Inbox if the actor is local
-	//    Or disseminate it using S2S if the actor is not local
-	if p.IsLocalIRI(col) {
-		infoFn("Saving to local actor's collection %s", col)
-		if err := colSaver.AddTo(col, act.GetLink()); err != nil {
-			return err
-		}
-	} else if p.IsLocalIRI(act.GetLink()) {
-		keyLoader, ok := p.s.(KeyLoader)
-		if !ok {
-			return nil
-		}
-		// TODO(marius): Move this function to either the go-ap/auth package, or in FedBOX itself.
-		//   We should probably change the signature for client.RequestSignFn to accept an Actor/IRI as a param.
-		vocab.OnIntransitiveActivity(act, func(act *vocab.IntransitiveActivity) error {
-			p.c.SignFn(s2sSignFn(keyLoader, act.Actor))
-			return nil
-		})
-		infoFn("Pushing to remote actor's collection %s", col)
-		if _, _, err := p.c.ToCollection(col, act); err != nil {
-			return err
-		}
-	}
-	return nil
+	return vocab.ItemCollectionDeduplication(&allRecipients), nil
 }
 
 // CollectionManagementActivity processes matching activities

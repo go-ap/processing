@@ -99,11 +99,17 @@ func processClientIntransitiveActivity(p P, it vocab.Item, receivedIn vocab.IRI)
 	if it, err = p.s.Save(vocab.FlattenProperties(it)); err != nil {
 		return it, err
 	}
-	recipients, err := p.BuildRecipientsList(it)
+	recipients, err := p.BuildRecipientsList(it, receivedIn)
 	if err != nil {
 		infoFn("error: %s", err)
 	}
-	return it, disseminateToCollections(p, it, recipients)
+	if err := p.AddToLocalCollections(it, recipients); err != nil {
+		errFn("error: %s", err)
+	}
+	if err := p.AddToRemoteCollections(it, recipients); err != nil {
+		errFn("error: %s", err)
+	}
+	return it, nil
 }
 
 func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (vocab.Item, error) {
@@ -171,9 +177,17 @@ func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (voca
 		return act, err
 	}
 
-	recipients, err := p.BuildRecipientsList(it)
+	recipients, err := p.BuildRecipientsList(it, receivedIn)
 	if err != nil {
 		return act, err
 	}
-	return act, disseminateToCollections(p, it, recipients)
+	// NOTE(marius): append the receivedIn collection to the list of recipients
+	// We do this, because it could be missing from the Activity's recipients fields (to, bto, cc, bcc)
+	if err := p.AddToRemoteCollections(it, recipients); err != nil {
+		errFn("error: %s", err)
+	}
+	if err := p.AddToLocalCollections(it, recipients); err != nil {
+		errFn("error: %s", err)
+	}
+	return act, nil
 }
