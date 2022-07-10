@@ -181,8 +181,6 @@ func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (voca
 	if err != nil {
 		return act, err
 	}
-	// NOTE(marius): append the receivedIn collection to the list of recipients
-	// We do this, because it could be missing from the Activity's recipients fields (to, bto, cc, bcc)
 	if err := p.AddToRemoteCollections(it, recipients); err != nil {
 		errFn("error: %s", err)
 	}

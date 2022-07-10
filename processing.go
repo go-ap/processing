@@ -273,10 +273,72 @@ func (p P) BuildRecipientsList(it vocab.Item, receivedIn vocab.IRI) (vocab.ItemC
 			}
 		}
 	}
+
 	if !allRecipients.Contains(receivedIn) {
+		// NOTE(marius): append the receivedIn collection to the list of recipients
+		// We do this, because it could be missing from the Activity's recipients fields (to, bto, cc, bcc)
+		allRecipients.Append(receivedIn)
+	}
+	for _, rec := range loadSharedInboxRecipients(p, receivedIn) {
+		// NOTE(marius): load all actors that use 'receivedIn' as a sharedInbox
+		if allRecipients.Contains(rec.GetLink()) {
+			continue
+		}
 		allRecipients.Append(receivedIn)
 	}
 	return vocab.ItemCollectionDeduplication(&allRecipients), nil
+}
+
+func loadSharedInboxRecipients(p P, sharedInbox vocab.IRI) vocab.ItemCollection {
+	if len(p.baseIRI) == 0 {
+		return nil
+	}
+
+	next := func(it vocab.Item) vocab.IRI {
+		var next vocab.IRI
+		switch it.GetType() {
+		case vocab.CollectionPageType, vocab.OrderedCollectionPageType:
+			vocab.OnCollectionPage(it, func(p *vocab.CollectionPage) error {
+				next = p.Next.GetLink()
+				return nil
+			})
+		case vocab.CollectionType, vocab.OrderedCollectionType:
+			vocab.OnCollection(it, func(p *vocab.Collection) error {
+				next = p.First.GetLink()
+				return nil
+			})
+		}
+		return next
+	}
+	// NOTE(marius): all of this is terrible, as it relies on FedBOX discoverability of actors
+	//  It also doesn't iterate through the whole collection but only through the first page of results
+	iri := p.baseIRI[0].AddPath("actors?maxItems=200")
+
+	actors := make(vocab.ItemCollection, 0)
+	for {
+		col, err := p.s.Load(iri)
+		if err != nil {
+			errFn("unable to load actors for sharedInbox check: %s", err)
+			break
+		}
+		vocab.OnCollectionIntf(col, func(col vocab.CollectionInterface) error {
+			for _, act := range col.Collection() {
+				vocab.OnActor(act, func(act *vocab.Actor) error {
+					if act.Endpoints != nil {
+						if sharedInbox.Equals(act.Endpoints.SharedInbox.GetLink(), false) && !actors.Contains(act.GetLink()) {
+							actors = append(actors, act)
+						}
+					}
+					return nil
+				})
+			}
+			return nil
+		})
+		if iri = next(col); iri == "" {
+			break
+		}
+	}
+	return actors
 }
 
 // CollectionManagementActivity processes matching activities
