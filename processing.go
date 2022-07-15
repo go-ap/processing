@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/netip"
 	"path"
+	"sync"
 	"time"
 
 	vocab "github.com/go-ap/activitypub"
@@ -42,22 +43,30 @@ func New(o ...optionFn) (*P, error) {
 type optionFn func(s *P)
 
 func SetIDGenerator(genFn IDGenerator) optionFn {
-	createID = genFn
+	new(sync.Once).Do(func() {
+		createID = genFn
+	})
 	return func(_ *P) {}
 }
 
 func SetActorKeyGenerator(genFn vocab.WithActorFn) optionFn {
-	createKey = genFn
+	new(sync.Once).Do(func() {
+		createKey = genFn
+	})
 	return func(_ *P) {}
 }
 
 func SetInfoLogger(logFn c.LogFn) optionFn {
-	infoFn = logFn
+	new(sync.Once).Do(func() {
+		infoFn = logFn
+	})
 	return func(_ *P) {}
 }
 
 func SetErrorLogger(logFn c.LogFn) optionFn {
-	errFn = logFn
+	new(sync.Once).Do(func() {
+		errFn = logFn
+	})
 	return func(_ *P) {}
 }
 
