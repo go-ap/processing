@@ -33,6 +33,9 @@ func (p P) AddToLocalCollections(it vocab.Item, recipients vocab.ItemCollection)
 }
 
 func disseminateToRemoteCollection(p P, act vocab.Item, iris ...vocab.IRI) error {
+	if len(iris) == 0 {
+		return nil
+	}
 	keyLoader, ok := p.s.(KeyLoader)
 	if !ok {
 		return errors.Newf("local storage %T does not support loading private keys", p.s)
@@ -68,6 +71,9 @@ func disseminateToRemoteCollection(p P, act vocab.Item, iris ...vocab.IRI) error
 }
 
 func disseminateToLocalCollections(p P, act vocab.Item, iris ...vocab.IRI) error {
+	if len(iris) == 0 {
+		return nil
+	}
 	colSaver, ok := p.s.(CollectionStore)
 	if !ok {
 		return errors.Newf("local storage %T does not support appending to collections", p.s)
