@@ -198,7 +198,7 @@ func s2sSignFn(keyLoader KeyLoader, actor vocab.Item) func(r *http.Request) erro
 	return func(r *http.Request) error {
 		key, err := keyLoader.LoadKey(actor.GetLink())
 		if err != nil {
-			return err
+			return errors.Annotatef(err, "unable to load the actor's private key")
 		}
 		typ, err := keyType(key)
 		if err != nil {
