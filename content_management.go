@@ -14,11 +14,19 @@ type (
 	//  "partOf" represents the Collection that it is a part of.
 	//  "by" represents the Activity that generated the object
 	IDGenerator func(it vocab.Item, partOf vocab.Item, by vocab.Item) (vocab.ID, error)
+	// IRIValidator designates the type for a function that can validate an IRI
+	// It's currently used as the type for var isLocalIRI
+	IRIValidator func(i vocab.IRI) bool
 )
 
 var (
 	createID  IDGenerator
 	createKey vocab.WithActorFn = defaultKeyGenerator()
+
+	// isLocalIRI is a function that can be passed from outside the module to determine
+	// if an IRI "is local". This usually means that the storage layer can dereference the IRI to an object
+	// that is stored locally.
+	isLocalIRI IRIValidator
 )
 
 func defaultKeyGenerator() vocab.WithActorFn {

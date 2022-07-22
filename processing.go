@@ -88,6 +88,13 @@ func SetIRI(i ...vocab.IRI) optionFn {
 	}
 }
 
+func SetLocalIRIChecker(isLocalFn IRIValidator) optionFn {
+	new(sync.Once).Do(func() {
+		isLocalIRI = isLocalFn
+	})
+	return func(_ *P) {}
+}
+
 // ProcessActivity processes an Activity received
 func (p P) ProcessActivity(it vocab.Item, receivedIn vocab.IRI) (vocab.Item, error) {
 	if IsOutbox(receivedIn) {
