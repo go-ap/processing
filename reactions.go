@@ -40,16 +40,21 @@ func ReactionsActivity(p P, act *vocab.Activity) (*vocab.Activity, error) {
 	return act, err
 }
 
-type multi struct {
-	errors []error
-}
+type multi []error
 
 func (m multi) Error() string {
 	b := strings.Builder{}
-	for _, err := range m.errors {
+	for _, err := range m {
 		b.WriteString(err.Error())
 	}
 	return b.String()
+}
+
+func (m multi) As(e any) bool {
+	if len(m) == 0 {
+		return false
+	}
+	return errors.As(m[0], e)
 }
 
 // AppreciationActivity
@@ -73,7 +78,7 @@ func AppreciationActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, e
 	}
 
 	saveToCollections := func(colSaver CollectionStore, actors, objects vocab.ItemCollection) error {
-		colErrors := multi{}
+		errs := make(multi, 0)
 		colToAdd := make(map[vocab.IRI][]vocab.IRI)
 		for _, object := range objects {
 			for _, actor := range actors {
@@ -86,12 +91,12 @@ func AppreciationActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, e
 		for col, iris := range colToAdd {
 			for _, iri := range iris {
 				if err := colSaver.AddTo(col, iri); err != nil {
-					colErrors.errors = append(colErrors.errors, errors.Annotatef(err, "Unable to save %s to collection %s", iris, col))
+					errs = append(errs, errors.Annotatef(err, "Unable to save %s to collection %s", iris, col))
 				}
 			}
 		}
-		if len(colErrors.errors) > 0 {
-			return colErrors
+		if len(errs) > 0 {
+			return errs
 		}
 		return nil
 	}
@@ -180,17 +185,21 @@ func finalizeFollowActivity(p P, a *vocab.Activity) error {
 		// NOTE(marius): Invalid storage backend, unable to save to local collection
 		return nil
 	}
+	errs := make(multi, 0)
 	followers := vocab.Followers.IRI(a.Object)
 	if p.IsLocalIRI(followers) {
 		if err := colSaver.AddTo(followers, a.Actor.GetLink()); err != nil {
-			return err
+			errs = append(errs, err)
 		}
 	}
 	following := vocab.Following.IRI(a.Actor)
 	if p.IsLocalIRI(following) {
 		if err := colSaver.AddTo(following, a.Object.GetLink()); err != nil {
-			return err
+			errs = append(errs, err)
 		}
+	}
+	if len(errs) > 0 {
+		return errs
 	}
 	return nil
 }
@@ -207,12 +216,16 @@ func RejectActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) 
 		return act, errors.NotValidf("Activity has wrong type %s, expected %v", act.Type, good)
 	}
 
+	errs := make(multi, 0)
 	if colSaver, ok := l.(CollectionStore); ok {
 		inbox := vocab.Inbox.IRI(act.Actor)
 		err := colSaver.RemoveFrom(inbox, act.Object.GetLink())
 		if err != nil {
-			return act, err
+			errs = append(errs, err)
 		}
+	}
+	if len(errs) > 0 {
+		return act, errs
 	}
 	return act, nil
 }
