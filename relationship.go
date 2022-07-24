@@ -32,7 +32,7 @@ func RelationshipManagementActivity(p P, act *vocab.Activity, receivedIn vocab.I
 	case vocab.AcceptType:
 		return AcceptActivity(p, act, receivedIn)
 	case vocab.BlockType:
-		return BlockActivity(p.s, act)
+		return BlockActivity(p, act, receivedIn)
 	case vocab.AddType:
 		fallthrough
 	case vocab.CreateType:

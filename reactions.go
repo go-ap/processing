@@ -32,7 +32,7 @@ func ReactionsActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.A
 		case vocab.AcceptType:
 			act, err = AcceptActivity(p, act, receivedIn)
 		case vocab.BlockType:
-			act, err = BlockActivity(p.s, act)
+			act, err = BlockActivity(p, act, receivedIn)
 		case vocab.FlagType:
 			act, err = FlagActivity(p.s, act)
 		case vocab.IgnoreType:
@@ -236,8 +236,15 @@ func RejectActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) 
 const BlockedCollection = vocab.CollectionPath("blocked")
 
 // BlockActivity
-// The side effect of receiving this in an outbox is that the server SHOULD add the object to the actor's blocked Collection.
-func BlockActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
+//
+// https://www.w3.org/TR/activitypub/#block-activity-outbox
+//
+// The Block activity is used to indicate that the posting actor does not want another actor
+// (defined in the object property) to be able to interact with objects posted by the actor posting the Block activity.
+// The server SHOULD prevent the blocked user from interacting with any object posted by the actor.
+//
+// Servers SHOULD NOT deliver Block Activities to their object.
+func BlockActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activity, error) {
 	if act.Object == nil {
 		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
 	}
@@ -255,13 +262,7 @@ func BlockActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
 	act.Bto.Remove(obIRI)
 	act.BCC.Remove(obIRI)
 
-	if colSaver, ok := l.(CollectionStore); ok {
-		err := colSaver.AddTo(BlockedCollection.IRI(act.Actor), obIRI)
-		if err != nil {
-			return act, err
-		}
-	}
-	return act, nil
+	return act, p.AddItemToCollection(BlockedCollection.IRI(act.Actor), act.Object)
 }
 
 // FlagActivity
