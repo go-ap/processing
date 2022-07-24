@@ -13,7 +13,7 @@ import (
 // of interpersonal and social relationships (e.g. friend requests, management of social network, etc).
 // See 5.2 Representing Relationships Between Entities for more information:
 // https://www.w3.org/TR/activitystreams-vocabulary/#connections
-func RelationshipManagementActivity(p P, act *vocab.Activity, col vocab.CollectionPath) (*vocab.Activity, error) {
+func RelationshipManagementActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activity, error) {
 	if act.Object == nil {
 		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
 	}
@@ -22,7 +22,7 @@ func RelationshipManagementActivity(p P, act *vocab.Activity, col vocab.Collecti
 	}
 	switch act.Type {
 	case vocab.FollowType:
-		return FollowActivity(p, act, col)
+		return FollowActivity(p, act, receivedIn)
 	case vocab.BlockType:
 		fallthrough
 	case vocab.AcceptType:
@@ -71,7 +71,7 @@ func RelationshipManagementActivity(p P, act *vocab.Activity, col vocab.Collecti
 // an actor for perhaps six months while the follower remains unreachable, it is reasonable that the delivering
 // server remove the subscriber from the followers list. Timeframes and behavior for dealing with unreachable
 // actors are left to the discretion of the delivering server.
-func FollowActivity(p P, act *vocab.Activity, col vocab.CollectionPath) (*vocab.Activity, error) {
+func FollowActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activity, error) {
 	if !vocab.IsNil(act.Object) && !act.To.Contains(act.Object.GetLink()) {
 		// TODO(marius): add check if IRI represents an actor (or rely on the collection saver to break if not)
 		act.To.Append(act.Object.GetLink())

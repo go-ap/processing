@@ -11,7 +11,7 @@ import (
 // The Reactions use case primarily deals with reactions to content.
 // This can include activities such as liking or disliking content, ignoring updates,
 // flagging content as being inappropriate, accepting or rejecting objects, etc.
-func ReactionsActivity(p P, act *vocab.Activity) (*vocab.Activity, error) {
+func ReactionsActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activity, error) {
 	var err error
 	if act.Object != nil {
 		switch act.Type {
@@ -27,7 +27,7 @@ func ReactionsActivity(p P, act *vocab.Activity) (*vocab.Activity, error) {
 		case vocab.TentativeAcceptType:
 			fallthrough
 		case vocab.AcceptType:
-			act, err = AcceptActivity(p, act)
+			act, err = AcceptActivity(p, act, receivedIn)
 		case vocab.BlockType:
 			act, err = BlockActivity(p.s, act)
 		case vocab.FlagType:

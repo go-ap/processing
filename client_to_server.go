@@ -131,7 +131,7 @@ func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (voca
 	} else if vocab.CollectionManagementActivityTypes.Contains(typ) {
 		act, err = CollectionManagementActivity(p.s, act)
 	} else if vocab.ReactionsActivityTypes.Contains(typ) {
-		act, err = ReactionsActivity(p, act)
+		act, err = ReactionsActivity(p, act, receivedIn)
 	} else if vocab.EventRSVPActivityTypes.Contains(typ) {
 		act, err = EventRSVPActivity(p.s, act)
 	} else if vocab.GroupManagementActivityTypes.Contains(typ) {
