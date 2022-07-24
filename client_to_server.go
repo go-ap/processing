@@ -143,7 +143,7 @@ func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (voca
 	} else if vocab.NotificationActivityTypes.Contains(typ) {
 		act, err = NotificationActivity(p.s, act)
 	} else if vocab.RelationshipManagementActivityTypes.Contains(typ) {
-		act, err = RelationshipManagementActivity(p, act, vocab.Outbox)
+		act, err = RelationshipManagementActivity(p, act, receivedIn)
 	} else if vocab.NegatingActivityTypes.Contains(typ) {
 		act, err = NegatingActivity(p.s, act)
 	} else if vocab.OffersActivityTypes.Contains(typ) {

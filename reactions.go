@@ -143,8 +143,15 @@ func firstOrItem(it vocab.Item) vocab.Item {
 }
 
 // AcceptActivity
-// The side effect of receiving this in an inbox is that the server SHOULD add the object to the actor's followers Collection.
-func AcceptActivity(p P, act *vocab.Activity) (*vocab.Activity, error) {
+//
+// In Inbox: https://www.w3.org/TR/activitypub/#follow-activity-inbox
+//
+// The side effect of receiving this in an inbox is determined by the type of the object received, and it is possible
+// to accept types not described in this document (for example, an Offer).
+//
+// If the object of an Accept received to an inbox is a Follow activity previously sent by the receiver, the server
+// SHOULD add the actor to the receiver's Following Collection.
+func AcceptActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activity, error) {
 	if act.Object == nil {
 		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
 	}
@@ -167,6 +174,9 @@ func AcceptActivity(p P, act *vocab.Activity) (*vocab.Activity, error) {
 		}
 	}
 	err := vocab.OnActivity(act.Object, func(a *vocab.Activity) error {
+		if a.GetType() != vocab.FollowType {
+			return nil
+		}
 		if !act.Actor.GetLink().Equals(a.Object.GetLink(), false) {
 			return errors.NotValidf("The %s activity has a different actor than its object: %s, expected %s", act.Type, act.Actor.GetLink(), a.Actor.GetLink())
 		}

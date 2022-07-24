@@ -62,5 +62,32 @@ func (p P) ProcessServerActivity(it vocab.Item, receivedIn vocab.IRI) (vocab.Ite
 	if err := p.AddToLocalCollections(it, recipients); err != nil {
 		errFn("error: %s", err)
 	}
+	// NOTE(marius): the separation between transitive and intransitive activities overlaps the separation we're
+	// using in the processingClientActivity function between the ActivityStreams motivations separation.
+	// This means that 'it' should probably be treated as a vocab.Item until the last possible moment.
+	if vocab.IntransitiveActivityTypes.Contains(it.GetType()) {
+		return processServerIntransitiveActivity(p, it, receivedIn)
+	}
+	return it, vocab.OnActivity(it, func(act *vocab.Activity) error {
+		var err error
+		it, err = processServerActivity(p, act, receivedIn)
+		return err
+	})
 	return it, nil
+}
+
+func processServerIntransitiveActivity(p P, it vocab.Item, receivedIn vocab.IRI) (vocab.Item, error) {
+	return it, nil
+}
+
+func processServerActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (vocab.Item, error) {
+	var err error
+	typ := act.GetType()
+	if vocab.ReactionsActivityTypes.Contains(typ) {
+		act, err = ReactionsActivity(p, act, receivedIn)
+	}
+	if err != nil {
+		return act, err
+	}
+	return act, nil
 }
