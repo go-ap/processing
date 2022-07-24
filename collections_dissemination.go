@@ -15,7 +15,7 @@ func (p P) AddToRemoteCollections(it vocab.Item, recipients vocab.ItemCollection
 			remoteRecipients = append(remoteRecipients, recInb.GetLink())
 		}
 	}
-	return disseminateToRemoteCollection(p, it, remoteRecipients...)
+	return p.disseminateToRemoteCollection(it, remoteRecipients...)
 }
 
 // AddToLocalCollections handles the dissemination of the received it Activity to the local collections,
@@ -29,10 +29,10 @@ func (p P) AddToLocalCollections(it vocab.Item, recipients vocab.ItemCollection)
 			localRecipients = append(localRecipients, recInb.GetLink())
 		}
 	}
-	return disseminateToLocalCollections(p, it, localRecipients...)
+	return p.disseminateToLocalCollections(it, localRecipients...)
 }
 
-func disseminateToRemoteCollection(p P, act vocab.Item, iris ...vocab.IRI) error {
+func (p P) disseminateToRemoteCollection(act vocab.Item, iris ...vocab.IRI) error {
 	if len(iris) == 0 {
 		return nil
 	}
@@ -70,13 +70,9 @@ func disseminateToRemoteCollection(p P, act vocab.Item, iris ...vocab.IRI) error
 	return nil
 }
 
-func disseminateToLocalCollections(p P, act vocab.Item, iris ...vocab.IRI) error {
+func (p P) disseminateToLocalCollections(ob vocab.Item, iris ...vocab.IRI) error {
 	if len(iris) == 0 {
 		return nil
-	}
-	colSaver, ok := p.s.(CollectionStore)
-	if !ok {
-		return errors.Newf("local storage %T does not support appending to collections", p.s)
 	}
 	g := make(groupError, 0)
 	for _, col := range iris {
@@ -85,7 +81,7 @@ func disseminateToLocalCollections(p P, act vocab.Item, iris ...vocab.IRI) error
 			continue
 		}
 		infoFn("Saving to local actor's collection %s", col)
-		if err := colSaver.AddTo(col, act.GetLink()); err != nil {
+		if err := p.AddItemToCollection(col, ob); err != nil {
 			g = append(g, err)
 		}
 	}
@@ -93,4 +89,33 @@ func disseminateToLocalCollections(p P, act vocab.Item, iris ...vocab.IRI) error
 		return g
 	}
 	return nil
+}
+
+// AddItemToCollection attempts to append "it" to collection "col"
+//
+// If the collection is not local, it doesn't do anything
+// If the item is a non-local IRI, it tries to dereference it, and then save a local representation of it.
+func (p P) AddItemToCollection(col vocab.IRI, it vocab.Item) error {
+	colSaver, ok := p.s.(CollectionStore)
+	if !ok {
+		// NOTE(marius): Invalid storage backend, unable to save to local collection
+		return nil
+	}
+	if !p.IsLocalIRI(col) {
+		return nil
+	}
+	if !p.IsLocal(it) {
+		if !vocab.IsObject(it) {
+			deref, err := p.c.LoadIRI(it.GetLink())
+			if err != nil {
+				errFn("unable to load remote object [%s]: %s", it.GetLink(), err)
+			} else {
+				it = deref
+			}
+		}
+		if _, err := p.s.Save(it); err != nil {
+			errFn("unable to save remote object [%s] locally: %s", it.GetLink(), err)
+		}
+	}
+	return colSaver.AddTo(col, it.GetLink())
 }

@@ -180,30 +180,12 @@ func finalizeFollowActivity(p P, a *vocab.Activity) error {
 	if !good.Contains(a.Type) {
 		return errors.NotValidf("Object Activity has wrong type %s, expected %v", a.Type, good)
 	}
-	colSaver, ok := p.s.(CollectionStore)
-	if !ok {
-		// NOTE(marius): Invalid storage backend, unable to save to local collection
-		return nil
-	}
-	disseminateToCollections := func(col vocab.IRI, ob vocab.Item) error {
-		if !p.IsLocalIRI(col) {
-			return nil
-		}
-		if !p.IsLocal(ob) {
-			if !vocab.IsObject(ob) {
-				ob, _ = p.c.LoadIRI(ob.GetLink())
-			}
-			p.s.Save(ob)
-		}
-		return colSaver.AddTo(col, ob.GetLink())
-	}
 
 	errs := make(multi, 0)
-
-	if err := disseminateToCollections(vocab.Followers.IRI(a.Object), a.Actor); err != nil {
+	if err := p.AddItemToCollection(vocab.Followers.IRI(a.Object), a.Actor); err != nil {
 		errs = append(errs, err)
 	}
-	if err := disseminateToCollections(vocab.Following.IRI(a.Actor), a.Object); err != nil {
+	if err := p.AddItemToCollection(vocab.Following.IRI(a.Actor), a.Object); err != nil {
 		errs = append(errs, err)
 	}
 	if len(errs) > 0 {
