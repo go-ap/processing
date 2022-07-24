@@ -8,6 +8,9 @@ import (
 )
 
 // ReactionsActivity processes matching activities
+//
+// https://www.w3.org/TR/activitystreams-vocabulary/#h-motivations-respond
+//
 // The Reactions use case primarily deals with reactions to content.
 // This can include activities such as liking or disliking content, ignoring updates,
 // flagging content as being inappropriate, accepting or rejecting objects, etc.

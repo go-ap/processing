@@ -23,10 +23,16 @@ func RelationshipManagementActivity(p P, act *vocab.Activity, receivedIn vocab.I
 	switch act.Type {
 	case vocab.FollowType:
 		return FollowActivity(p, act, receivedIn)
-	case vocab.BlockType:
+	case vocab.RejectType:
+		fallthrough
+	case vocab.TentativeRejectType:
+		return RejectActivity(p.s, act)
+	case vocab.TentativeAcceptType:
 		fallthrough
 	case vocab.AcceptType:
-		fallthrough
+		return AcceptActivity(p, act, receivedIn)
+	case vocab.BlockType:
+		return BlockActivity(p.s, act)
 	case vocab.AddType:
 		fallthrough
 	case vocab.CreateType:
@@ -36,8 +42,6 @@ func RelationshipManagementActivity(p P, act *vocab.Activity, receivedIn vocab.I
 	case vocab.IgnoreType:
 		fallthrough
 	case vocab.InviteType:
-		fallthrough
-	case vocab.RejectType:
 		fallthrough
 	default:
 		return act, errors.NotImplementedf("Activity %s is not implemented", act.GetType())
