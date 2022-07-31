@@ -7,6 +7,9 @@ import (
 	"github.com/go-ap/errors"
 )
 
+// TODO(marius): add more valid types
+var validUndoActivityTypes = vocab.ActivityVocabularyTypes{vocab.LikeType, vocab.DislikeType, vocab.BlockType, vocab.FollowType}
+
 // NegatingActivity processes matching activities
 //
 // https://www.w3.org/TR/activitystreams-vocabulary/#h-motivations-undo
@@ -39,14 +42,12 @@ func NegatingActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error
 	if !vocab.ActivityTypes.Contains(act.Object.GetType()) {
 		return act, errors.NotValidf("Activity object has wrong type %s, expected one of %v", act.Type, vocab.ActivityTypes)
 	}
-	err := vocab.OnActivity(act.Object, func(a *vocab.Activity) error {
-		if act.Actor.GetLink() != a.Actor.GetLink() {
-			return errors.NotValidf("The %s activity has a different actor than its object: %s, expected %s", act.Type, act.Actor.GetLink(), a.Actor.GetLink())
+	err := vocab.OnActivity(act.Object, func(objAct *vocab.Activity) error {
+		if act.Actor.GetLink().Equals(objAct.Actor.GetLink(), false) {
+			return errors.NotValidf("The %s activity has a different actor than its object: %s, expected %s", act.Type, act.Actor.GetLink(), objAct.Actor.GetLink())
 		}
-		// TODO(marius): add more valid types
-		good := vocab.ActivityVocabularyTypes{vocab.LikeType, vocab.DislikeType, vocab.BlockType, vocab.FollowType}
-		if !good.Contains(a.Type) {
-			return errors.NotValidf("Object Activity has wrong type %s, expected %v", a.Type, good)
+		if !validUndoActivityTypes.Contains(objAct.Type) {
+			return errors.NotValidf("Object Activity has wrong type %s, expected one of %v", objAct.Type, validUndoActivityTypes)
 		}
 		return nil
 	})

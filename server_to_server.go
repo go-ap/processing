@@ -45,7 +45,7 @@ type S2SProcessor interface {
 // property: Add, Remove.
 //
 // HTTP caching mechanisms [RFC7234] SHOULD be respected when appropriate, both when receiving responses from other
-// servers as well as sending responses to other servers.
+// servers and when sending responses to other servers.
 func (p P) ProcessServerActivity(it vocab.Item, receivedIn vocab.IRI) (vocab.Item, error) {
 	if it == nil {
 		return nil, errors.Newf("Unable to process nil activity")

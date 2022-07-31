@@ -176,14 +176,14 @@ func AcceptActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Acti
 			act.Object = firstOrItem(obj)
 		}
 	}
-	err := vocab.OnActivity(act.Object, func(a *vocab.Activity) error {
-		if a.GetType() != vocab.FollowType {
+	err := vocab.OnActivity(act.Object, func(objAct *vocab.Activity) error {
+		if objAct.GetType() != vocab.FollowType {
 			return nil
 		}
-		if !act.Actor.GetLink().Equals(a.Object.GetLink(), false) {
-			return errors.NotValidf("The %s activity has a different actor than its object: %s, expected %s", act.Type, act.Actor.GetLink(), a.Actor.GetLink())
+		if !act.Actor.GetLink().Equals(objAct.Actor.GetLink(), false) {
+			return errors.NotValidf("The %s activity has a different actor than its object: %s, expected %s", act.Type, act.Actor.GetLink(), objAct.Actor.GetLink())
 		}
-		return finalizeFollowActivity(p, a)
+		return finalizeFollowActivity(p, objAct)
 	})
 	return act, err
 }
