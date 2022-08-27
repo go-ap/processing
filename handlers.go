@@ -59,15 +59,14 @@ type RequestValidator interface {
 // ActivityHandlerFn is the type that we're using to represent handlers that process requests containing
 // an ActivityStreams Activity. It needs to implement the http.Handler interface.
 //
-// It is considered that following the execution of the handler, we return a pair formed of a HTTP status together with
+// It is considered that following the execution of the handler, we return a pair formed of an HTTP status together with
 //  an IRI representing a new Object - in the case of transitive activities that had a side effect, or
 //  an error.
 // In the case of intransitive activities the iri will always be empty.
 type ActivityHandlerFn func(vocab.IRI, *http.Request, Store) (vocab.Item, int, error)
 
-func (a ActivityHandlerFn) Storage(r *http.Request) (Store, error) {
-	ctxVal := r.Context().Value(RepositoryKey)
-	st, ok := ctxVal.(Store)
+func Storage(r *http.Request) (Store, error) {
+	st, ok := r.Context().Value(RepositoryKey).(Store)
 	if !ok {
 		return nil, errors.Newf("Unable to find storage repository")
 	}
@@ -100,7 +99,7 @@ func (a ActivityHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// TODO(marius): we need a better mechanism than loading the storage object from the Request Context
-	st, err := a.Storage(r)
+	st, err := Storage(r)
 	if err != nil {
 		errors.HandleError(err).ServeHTTP(w, r)
 		return
@@ -168,15 +167,6 @@ func (a ActivityHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // Collection or OrderedCollection objects. It needs to implement the http.Handler interface.
 type CollectionHandlerFn func(vocab.CollectionPath, *http.Request, ReadStore) (vocab.CollectionInterface, error)
 
-func (c CollectionHandlerFn) Storage(r *http.Request) (Store, error) {
-	ctxVal := r.Context().Value(RepositoryKey)
-	repo, ok := ctxVal.(Store)
-	if !ok {
-		return nil, errors.Newf("Unable to find Collection storage")
-	}
-	return repo, nil
-}
-
 // ValidMethod validates if the current handler can process the current request
 func (c CollectionHandlerFn) ValidMethod(r *http.Request) bool {
 	return r.Method == http.MethodGet || r.Method == http.MethodHead
@@ -203,7 +193,7 @@ func (c CollectionHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	st, err := c.Storage(r)
+	st, err := Storage(r)
 	if err != nil {
 		errors.HandleError(err).ServeHTTP(w, r)
 		return
@@ -244,15 +234,6 @@ func (c CollectionHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // objects. It needs to implement the http.Handler interface
 type ItemHandlerFn func(*http.Request, ReadStore) (vocab.Item, error)
 
-func (i ItemHandlerFn) Storage(r *http.Request) (Store, error) {
-	ctxVal := r.Context().Value(RepositoryKey)
-	st, ok := ctxVal.(Store)
-	if !ok {
-		return nil, errors.Newf("Unable to find Object storage")
-	}
-	return st, nil
-}
-
 // ValidMethod validates if the current handler can process the current request
 func (i ItemHandlerFn) ValidMethod(r *http.Request) bool {
 	return r.Method == http.MethodGet || r.Method == http.MethodHead
@@ -278,7 +259,7 @@ func (i ItemHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	st, err := i.Storage(r)
+	st, err := Storage(r)
 	if err != nil {
 		errors.HandleError(err).ServeHTTP(w, r)
 		return
