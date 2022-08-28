@@ -63,7 +63,7 @@ type RequestValidator interface {
 //  an IRI representing a new Object - in the case of transitive activities that had a side effect, or
 //  an error.
 // In the case of intransitive activities the iri will always be empty.
-type ActivityHandlerFn func(vocab.IRI, *http.Request, Store) (vocab.Item, int, error)
+type ActivityHandlerFn func(vocab.IRI, *http.Request) (vocab.Item, int, error)
 
 func Storage(r *http.Request) (Store, error) {
 	st, ok := r.Context().Value(RepositoryKey).(Store)
@@ -98,15 +98,8 @@ func (a ActivityHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO(marius): we need a better mechanism than loading the storage object from the Request Context
-	st, err := Storage(r)
-	if err != nil {
-		errors.HandleError(err).ServeHTTP(w, r)
-		return
-	}
-
 	iri := vocab.IRI(fmt.Sprintf("https://%s%s", r.Host, r.RequestURI))
-	if it, status, err = a(iri, r, st); err != nil {
+	if it, status, err = a(iri, r); err != nil {
 		errors.HandleError(err).ServeHTTP(w, r)
 		return
 	}
@@ -114,19 +107,10 @@ func (a ActivityHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	typ := it.GetType()
 	if vocab.ActivityTypes.Contains(typ) {
 		err = vocab.OnActivity(it, func(act *vocab.Activity) error {
-			if act.Object.IsLink() {
-				if it, _ := st.Load(act.Object.GetLink()); it != nil {
-					if it.IsCollection() {
-						vocab.OnCollectionIntf(it, func(c vocab.CollectionInterface) error {
-							act.Object = c.Collection()
-							return nil
-						})
-					} else {
-						act.Object = it
-					}
-				}
+			if vocab.IsIRI(act.Object) {
+				return nil
 			}
-			// For non-intransitive activities we want to output the object in the response
+			// For activities that contain an object which is not just an IRI we want to return it in the response
 			if dat, err = vocab.MarshalJSON(act.Object); err != nil {
 				return err
 			}
@@ -165,7 +149,7 @@ func (a ActivityHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // CollectionHandlerFn is the type that we're using to represent handlers that will return ActivityStreams
 // Collection or OrderedCollection objects. It needs to implement the http.Handler interface.
-type CollectionHandlerFn func(vocab.CollectionPath, *http.Request, ReadStore) (vocab.CollectionInterface, error)
+type CollectionHandlerFn func(vocab.CollectionPath, *http.Request) (vocab.CollectionInterface, error)
 
 // ValidMethod validates if the current handler can process the current request
 func (c CollectionHandlerFn) ValidMethod(r *http.Request) bool {
@@ -193,13 +177,7 @@ func (c CollectionHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	st, err := Storage(r)
-	if err != nil {
-		errors.HandleError(err).ServeHTTP(w, r)
-		return
-	}
-
-	col, err := c(Typer.Type(r), r, st)
+	col, err := c(Typer.Type(r), r)
 	if err != nil {
 		errors.HandleError(err).ServeHTTP(w, r)
 		return
@@ -232,7 +210,7 @@ func (c CollectionHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // ItemHandlerFn is the type that we're using to represent handlers that return ActivityStreams
 // objects. It needs to implement the http.Handler interface
-type ItemHandlerFn func(*http.Request, ReadStore) (vocab.Item, error)
+type ItemHandlerFn func(*http.Request) (vocab.Item, error)
 
 // ValidMethod validates if the current handler can process the current request
 func (i ItemHandlerFn) ValidMethod(r *http.Request) bool {
@@ -259,13 +237,7 @@ func (i ItemHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	st, err := Storage(r)
-	if err != nil {
-		errors.HandleError(err).ServeHTTP(w, r)
-		return
-	}
-
-	it, err := i(r, st)
+	it, err := i(r)
 	if err != nil {
 		errors.HandleError(err).ServeHTTP(w, r)
 		return
