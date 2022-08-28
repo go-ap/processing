@@ -1,7 +1,6 @@
 package processing
 
 import (
-	"context"
 	"fmt"
 	"net"
 	"net/netip"
@@ -582,15 +581,6 @@ func (p P) ValidateAudience(audience ...vocab.ItemCollection) error {
 		}
 	}
 	return errors.Newf("None of the audience elements is local")
-}
-
-var ValidatorKey = CtxtKey("__validator")
-
-func ValidatorFromContext(ctx context.Context) *P {
-	if p, ok := ctx.Value(ValidatorKey).(*P); ok {
-		return p
-	}
-	return nil
 }
 
 func (p *P) SetActor(a *vocab.Actor) {

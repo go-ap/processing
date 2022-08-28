@@ -11,11 +11,6 @@ import (
 	json "github.com/go-ap/jsonld"
 )
 
-// CtxtKey type alias for the key under which we're storing the Collection Storage in the Request's context
-type CtxtKey string
-
-var RepositoryKey = CtxtKey("__repo")
-
 // Typer is the static package variable that determines a CollectionPath type for a particular request
 // It can be overloaded from outside packages.
 // @TODO(marius): This should be moved as a property on an instantiable package object, instead of keeping it here
@@ -64,14 +59,6 @@ type RequestValidator interface {
 //  an error.
 // In the case of intransitive activities the iri will always be empty.
 type ActivityHandlerFn func(vocab.IRI, *http.Request) (vocab.Item, int, error)
-
-func Storage(r *http.Request) (Store, error) {
-	st, ok := r.Context().Value(RepositoryKey).(Store)
-	if !ok {
-		return nil, errors.Newf("Unable to find storage repository")
-	}
-	return st, nil
-}
 
 // ValidMethod validates if the current handler can process the current request
 func (a ActivityHandlerFn) ValidMethod(r *http.Request) bool {
