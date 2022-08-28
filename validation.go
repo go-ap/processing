@@ -221,10 +221,10 @@ func (p P) ValidateActivity(a vocab.Item, receivedIn vocab.IRI) error {
 
 func (p P) ValidateClientActivity(a vocab.Item, outbox vocab.IRI) error {
 	if !IsOutbox(outbox) {
-		return errors.NotValidf("Trying to validate a non outbox IRI %s", outbox)
+		return errors.NotValidf("trying to validate a non outbox IRI %s", outbox)
 	}
-	if p.auth == nil || p.auth.GetLink() == vocab.PublicNS {
-		return errors.Unauthorizedf("%s actor is not allowed posting to current outbox", name(p.auth))
+	if p.auth == nil || p.auth.ID == vocab.PublicNS {
+		return errors.Unauthorizedf("missing actor: not allowed to post to outbox")
 	}
 	if !IRIBelongsToActor(outbox, p.auth) {
 		return errors.Unauthorizedf("%s actor does not own the current outbox", name(p.auth))
