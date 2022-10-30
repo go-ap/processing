@@ -3,11 +3,11 @@ module github.com/go-ap/processing
 go 1.18
 
 require (
-	github.com/go-ap/activitypub v0.0.0-20220917143152-e4e7018838c0
-	github.com/go-ap/client v0.0.0-20220917143634-73d671c1b49e
+	github.com/go-ap/activitypub v0.0.0-20221030091545-e2b6e01b277c
+	github.com/go-ap/client v0.0.0-20221030091733-9f80b7f1efcc
 	github.com/go-ap/errors v0.0.0-20220917143055-4283ea5dae18
 	github.com/go-ap/httpsig v0.0.0-20210714162115-62a09257db51
-	github.com/go-ap/jsonld v0.0.0-20220917142617-76bf51585778
+	github.com/go-ap/jsonld v0.0.0-20221030091449-f2a191312c73
 	github.com/openshift/osin v1.0.1
 	golang.org/x/crypto v0.0.0-20210711020723-a769d52b0f97
 )
