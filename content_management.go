@@ -19,6 +19,8 @@ type (
 	IRIValidator func(i vocab.IRI) bool
 )
 
+func defaultLocalIRICheck(i vocab.IRI) bool { return false }
+
 var (
 	createID  IDGenerator
 	createKey vocab.WithActorFn = defaultKeyGenerator()
@@ -26,7 +28,7 @@ var (
 	// isLocalIRI is a function that can be passed from outside the module to determine
 	// if an IRI "is local". This usually means that the storage layer can dereference the IRI to an object
 	// that is stored locally.
-	isLocalIRI IRIValidator
+	isLocalIRI IRIValidator = defaultLocalIRICheck
 )
 
 func defaultKeyGenerator() vocab.WithActorFn {

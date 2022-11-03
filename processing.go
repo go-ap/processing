@@ -230,8 +230,8 @@ func keyType(key crypto.PrivateKey) (httpsig.Algorithm, error) {
 
 // BuildRecipientsList handles the dissemination of the received it Activity to the local collections,
 // it is addressed to:
-//  - the author's Outbox - if the author is local
-//  - the recipients' Inboxes - if they are local
+//   - the author's Outbox - if the author is local
+//   - the recipients' Inboxes - if they are local
 func (p P) BuildRecipientsList(it vocab.Item, receivedIn vocab.IRI) (vocab.ItemCollection, error) {
 	act, err := vocab.ToActivity(it)
 	if err != nil {
@@ -243,7 +243,7 @@ func (p P) BuildRecipientsList(it vocab.Item, receivedIn vocab.IRI) (vocab.ItemC
 	loader := p.s
 
 	allRecipients := make(vocab.ItemCollection, 0)
-	if act.Actor != nil && p.IsLocal(act.Actor) {
+	if !vocab.IsNil(act.Actor) && p.IsLocal(act.Actor) {
 		// NOTE(marius): this is needed only for client to server interactions
 		actIRI := act.Actor.GetLink()
 		outbox := vocab.Outbox.IRI(actIRI)
