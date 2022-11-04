@@ -180,8 +180,14 @@ func AcceptActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Acti
 		if objAct.GetType() != vocab.FollowType {
 			return nil
 		}
-		if !act.Actor.GetLink().Equals(objAct.Actor.GetLink(), false) {
-			return errors.NotValidf("The %s activity has a different actor than its object: %s, expected %s", act.Type, act.Actor.GetLink(), objAct.Actor.GetLink())
+		if !act.Actor.GetLink().Equals(objAct.Object.GetLink(), false) {
+			return errors.NotValidf(
+				"The %s activity has a different actor than the received %s's object: %s, expected %s",
+				act.Type,
+				objAct.Type,
+				act.Actor.GetLink(),
+				objAct.Object.GetLink(),
+			)
 		}
 		return finalizeFollowActivity(p, objAct)
 	})
