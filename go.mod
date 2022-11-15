@@ -3,9 +3,9 @@ module github.com/go-ap/processing
 go 1.18
 
 require (
-	github.com/go-ap/activitypub v0.0.0-20221104180111-f052192b39ff
-	github.com/go-ap/client v0.0.0-20221104180253-4c7979edb393
-	github.com/go-ap/errors v0.0.0-20221104152707-ab7424daf0ae
+	github.com/go-ap/activitypub v0.0.0-20221115052618-716ebebd22df
+	github.com/go-ap/client v0.0.0-20221115053031-f505d4098fbe
+	github.com/go-ap/errors v0.0.0-20221115052505-8aaa26f930b4
 	github.com/go-ap/httpsig v0.0.0-20210714162115-62a09257db51
 	github.com/go-ap/jsonld v0.0.0-20221030091449-f2a191312c73
 	github.com/openshift/osin v1.0.1
@@ -25,9 +25,9 @@ require (
 	github.com/rs/zerolog v1.28.0 // indirect
 	github.com/stretchr/testify v1.6.1 // indirect
 	github.com/valyala/fastjson v1.6.3 // indirect
-	golang.org/x/net v0.1.0 // indirect
-	golang.org/x/oauth2 v0.1.0 // indirect
-	golang.org/x/sys v0.1.0 // indirect
+	golang.org/x/net v0.2.0 // indirect
+	golang.org/x/oauth2 v0.2.0 // indirect
+	golang.org/x/sys v0.2.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 )
