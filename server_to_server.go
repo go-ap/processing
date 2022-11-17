@@ -18,10 +18,9 @@ type S2SProcessor interface {
 // (in which case it MAY omit the id).
 //
 // POST requests (eg. to the inbox) MUST be made with a Content-Type of
-//  'application/ld+json; profile="https://www.w3.org/ns/activitystreams"' and GET requests
-// (see also 3.2 Retrieving objects) with an Accept header of
-//  'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'.
-// Servers SHOULD interpret a Content-Type or Accept header of application/activity+json as equivalent to
+// 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"' and GET requests (see also 3.2 Retrieving objects)
+// with an Accept header of 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'.
+// Servers SHOULD interpret a Content-Type or Accept header of 'application/activity+json' as equivalent to
 // application/ld+json; profile="https://www.w3.org/ns/activitystreams" for server-to-server interactions.
 //
 // In order to propagate updates throughout the social graph, Activities are sent to the appropriate recipients.
@@ -32,7 +31,8 @@ type S2SProcessor interface {
 // used to update the object's like count);
 // deliver the Activity to recipients of the original object, to ensure updates are propagated to the whole social graph
 // (see inbox delivery).
-// Delivery is usually triggered by, for example:
+//
+// Delivery is usually triggered by one of:
 //
 // * an Activity being created in an actor's outbox with their Followers Collection as the recipient.
 // * an Activity being created in an actor's outbox with directly addressed recipients.
@@ -51,43 +51,63 @@ func (p P) ProcessServerActivity(it vocab.Item, receivedIn vocab.IRI) (vocab.Ite
 		return nil, errors.Newf("Unable to process nil activity")
 	}
 
-	if _, err := p.s.Save(it); err != nil {
+	err := saveRemoteActivityAndObject(p.s, it)
+	if err != nil {
 		return it, err
 	}
-
 	recipients, err := p.BuildRecipientsList(it, receivedIn)
 	if err != nil {
 		return it, err
 	}
-	if err := p.AddToLocalCollections(it, recipients); err != nil {
+	localCollections, err := p.BuildAdditionalCollections(it)
+	if err != nil {
 		errFn("error: %s", err)
 	}
+	recipients = append(recipients, localCollections...)
+
 	// NOTE(marius): the separation between transitive and intransitive activities overlaps the separation we're
 	// using in the processingClientActivity function between the ActivityStreams motivations separation.
 	// This means that 'it' should probably be treated as a vocab.Item until the last possible moment.
 	if vocab.IntransitiveActivityTypes.Contains(it.GetType()) {
-		return processServerIntransitiveActivity(p, it, receivedIn)
+		if it, err = processServerIntransitiveActivity(p, it, receivedIn); err != nil {
+			return it, err
+		}
 	}
-	return it, vocab.OnActivity(it, func(act *vocab.Activity) error {
+	err = vocab.OnActivity(it, func(act *vocab.Activity) error {
 		var err error
 		it, err = processServerActivity(p, act, receivedIn)
 		return err
 	})
-	return it, nil
+	if err != nil {
+		return it, err
+	}
+	return it, p.AddToLocalCollections(it, recipients)
+}
+
+func saveRemoteActivityAndObject(s WriteStore, act vocab.Item) error {
+	err := vocab.OnActivity(act, func(act *vocab.Activity) error {
+		_, err := s.Save(act.Object)
+		return err
+	})
+	if err != nil {
+		return err
+	}
+	_, err = s.Save(vocab.FlattenProperties(act))
+	return err
 }
 
 func processServerIntransitiveActivity(p P, it vocab.Item, receivedIn vocab.IRI) (vocab.Item, error) {
-	return it, nil
+	return it, errors.NotImplementedf("processing intransitive activities is not yet finished")
 }
 
 func processServerActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (vocab.Item, error) {
 	var err error
 	typ := act.GetType()
-	if vocab.ReactionsActivityTypes.Contains(typ) {
+	switch {
+	case vocab.DeleteType == typ:
+		act, err = DeleteActivity(p.s, act)
+	case vocab.ReactionsActivityTypes.Contains(typ):
 		act, err = ReactionsActivity(p, act, receivedIn)
 	}
-	if err != nil {
-		return act, err
-	}
-	return act, nil
+	return act, err
 }

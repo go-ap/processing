@@ -173,6 +173,11 @@ func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (voca
 	if err != nil {
 		return act, err
 	}
+	localCollections, err := p.BuildAdditionalCollections(act)
+	if err != nil {
+		errFn("error: %s", err)
+	}
+	recipients = append(recipients, localCollections...)
 
 	// Making a local copy of the activity in order to not lose information that could be required
 	// later in the call system.

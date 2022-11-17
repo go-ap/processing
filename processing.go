@@ -228,10 +228,9 @@ func keyType(key crypto.PrivateKey) (httpsig.Algorithm, error) {
 	return nil, errors.Errorf("Unknown private key type[%T] %v", key, key)
 }
 
-// BuildRecipientsList handles the dissemination of the received it Activity to the local collections,
-// it is addressed to:
-//   - the author's Outbox - if the author is local
-//   - the recipients' Inboxes - if they are local
+// BuildRecipientsList builds the recipients list of the received 'it' Activity is addressed to:
+//   - the author's Outbox
+//   - the recipients' Inboxes
 func (p P) BuildRecipientsList(it vocab.Item, receivedIn vocab.IRI) (vocab.ItemCollection, error) {
 	act, err := vocab.ToActivity(it)
 	if err != nil {
@@ -303,6 +302,27 @@ func (p P) BuildRecipientsList(it vocab.Item, receivedIn vocab.IRI) (vocab.ItemC
 		allRecipients.Append(receivedIn)
 	}
 	return vocab.ItemCollectionDeduplication(&allRecipients), nil
+}
+
+func (p P) BuildAdditionalCollections(it vocab.Item) (vocab.ItemCollection, error) {
+	act, err := vocab.ToActivity(it)
+	if err != nil {
+		return nil, err
+	}
+	collections := make(vocab.ItemCollection, 0)
+	err = vocab.OnObject(act.Object, func(o *vocab.Object) error {
+		if o.InReplyTo == nil {
+			return nil
+		}
+		if vocab.IsIRI(o.InReplyTo) {
+			collections = append(collections, vocab.Replies.IRI(o.InReplyTo.GetLink()))
+		}
+		return vocab.OnObject(o.InReplyTo, func(replyTo *vocab.Object) error {
+			collections = append(collections, vocab.Replies.IRI(replyTo.GetLink()))
+			return nil
+		})
+	})
+	return collections, err
 }
 
 func loadSharedInboxRecipients(p P, sharedInbox vocab.IRI) vocab.ItemCollection {

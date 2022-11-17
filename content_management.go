@@ -271,19 +271,6 @@ func updateSingleItem(l WriteStore, found vocab.Item, with vocab.Item) (vocab.It
 }
 
 func updateObjectForUpdate(l WriteStore, o *vocab.Object) error {
-	if o.InReplyTo != nil {
-		if colSaver, ok := l.(CollectionStore); ok {
-			if c, ok := o.InReplyTo.(vocab.ItemCollection); ok {
-				for _, repl := range c {
-					iri := vocab.Replies.IRI(repl.GetLink())
-					colSaver.AddTo(iri, o.GetLink())
-				}
-			} else {
-				iri := vocab.Replies.IRI(o.InReplyTo)
-				colSaver.AddTo(iri, o.GetLink())
-			}
-		}
-	}
 	// We're trying to automatically save tags as separate objects instead of storing them inline in the current
 	// Object.
 	return createNewTags(l, o.Tag)
