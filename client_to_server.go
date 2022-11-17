@@ -126,27 +126,28 @@ func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (voca
 	typ := act.GetType()
 	// TODO(marius): this does not work correctly if act.Object is an ItemCollection
 	//  First we process the activity to effect whatever changes we need to on the activity properties.
-	if vocab.ContentManagementActivityTypes.Contains(typ) && act.Object.GetType() != vocab.RelationshipType {
+	switch {
+	case vocab.ContentManagementActivityTypes.Contains(typ) && act.Object.GetType() != vocab.RelationshipType:
 		act, err = ContentManagementActivity(p.s, act, receivedIn)
-	} else if vocab.CollectionManagementActivityTypes.Contains(typ) {
+	case vocab.CollectionManagementActivityTypes.Contains(typ):
 		act, err = CollectionManagementActivity(p.s, act)
-	} else if vocab.ReactionsActivityTypes.Contains(typ) {
+	case vocab.ReactionsActivityTypes.Contains(typ):
 		act, err = ReactionsActivity(p, act, receivedIn)
-	} else if vocab.EventRSVPActivityTypes.Contains(typ) {
+	case vocab.EventRSVPActivityTypes.Contains(typ):
 		act, err = EventRSVPActivity(p.s, act)
-	} else if vocab.GroupManagementActivityTypes.Contains(typ) {
+	case vocab.GroupManagementActivityTypes.Contains(typ):
 		act, err = GroupManagementActivity(p.s, act)
-	} else if vocab.ContentExperienceActivityTypes.Contains(typ) {
+	case vocab.ContentExperienceActivityTypes.Contains(typ):
 		act, err = ContentExperienceActivity(p.s, act)
-	} else if vocab.GeoSocialEventsActivityTypes.Contains(typ) {
+	case vocab.GeoSocialEventsActivityTypes.Contains(typ):
 		act, err = GeoSocialEventsActivity(p.s, act)
-	} else if vocab.NotificationActivityTypes.Contains(typ) {
+	case vocab.NotificationActivityTypes.Contains(typ):
 		act, err = NotificationActivity(p.s, act)
-	} else if vocab.RelationshipManagementActivityTypes.Contains(typ) {
+	case vocab.RelationshipManagementActivityTypes.Contains(typ):
 		act, err = RelationshipManagementActivity(p, act, receivedIn)
-	} else if vocab.NegatingActivityTypes.Contains(typ) {
+	case vocab.NegatingActivityTypes.Contains(typ):
 		act, err = NegatingActivity(p.s, act)
-	} else if vocab.OffersActivityTypes.Contains(typ) {
+	case vocab.OffersActivityTypes.Contains(typ):
 		act, err = OffersActivity(p.s, act)
 	}
 	if err != nil {
@@ -168,23 +169,22 @@ func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (voca
 		vocab.OnObject(act, addNewObjectCollections)
 	}
 
+	recipients, err := p.BuildRecipientsList(act, receivedIn)
+	if err != nil {
+		return act, err
+	}
+
 	// Making a local copy of the activity in order to not lose information that could be required
 	// later in the call system.
 	toSave := *act
-
 	it, err = p.s.Save(vocab.FlattenProperties(&toSave))
 	if err != nil {
 		return act, err
 	}
-
-	recipients, err := p.BuildRecipientsList(it, receivedIn)
-	if err != nil {
-		return act, err
-	}
-	if err := p.AddToRemoteCollections(it, recipients); err != nil {
+	if err := p.AddToLocalCollections(it, recipients); err != nil {
 		errFn("error: %s", err)
 	}
-	if err := p.AddToLocalCollections(it, recipients); err != nil {
+	if err := p.AddToRemoteCollections(it, recipients); err != nil {
 		errFn("error: %s", err)
 	}
 	return act, nil
