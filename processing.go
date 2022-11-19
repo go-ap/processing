@@ -304,24 +304,24 @@ func (p P) BuildRecipientsList(it vocab.Item, receivedIn vocab.IRI) (vocab.ItemC
 	return vocab.ItemCollectionDeduplication(&allRecipients), nil
 }
 
-func (p P) BuildAdditionalCollections(it vocab.Item) (vocab.ItemCollection, error) {
-	act, err := vocab.ToActivity(it)
+func (p P) BuildReplyToCollections(it vocab.Item) (vocab.ItemCollection, error) {
+	ob, err := vocab.ToObject(it)
 	if err != nil {
 		return nil, err
 	}
 	collections := make(vocab.ItemCollection, 0)
-	err = vocab.OnObject(act.Object, func(o *vocab.Object) error {
-		if o.InReplyTo == nil {
-			return nil
-		}
-		if vocab.IsIRI(o.InReplyTo) {
-			collections = append(collections, vocab.Replies.IRI(o.InReplyTo.GetLink()))
-		}
-		return vocab.OnObject(o.InReplyTo, func(replyTo *vocab.Object) error {
+
+	if ob.InReplyTo == nil {
+		return nil, nil
+	}
+	if vocab.IsIRI(ob.InReplyTo) {
+		collections = append(collections, vocab.Replies.IRI(ob.InReplyTo.GetLink()))
+	} else {
+		err = vocab.OnObject(ob.InReplyTo, func(replyTo *vocab.Object) error {
 			collections = append(collections, vocab.Replies.IRI(replyTo.GetLink()))
 			return nil
 		})
-	})
+	}
 	return collections, err
 }
 

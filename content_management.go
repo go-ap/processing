@@ -77,20 +77,20 @@ func SetID(it vocab.Item, partOf vocab.Item, act vocab.Item) error {
 	return errors.Newf("no package ID generator was set")
 }
 
-// ContentManagementActivity processes matching activities.
+// ContentManagementActivityFromClient processes matching activities.
 // The Content Management use case primarily deals with activities that involve the creation,
 // modification or deletion of content.
 // This includes, for instance, activities such as "John created a new note",
 // "Sally updated an article", and "Joe deleted the photo".
-func ContentManagementActivity(l WriteStore, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activity, error) {
+func ContentManagementActivityFromClient(p P, act *vocab.Activity) (*vocab.Activity, error) {
 	var err error
 	switch act.Type {
 	case vocab.CreateType:
-		act, err = CreateActivity(l, act)
+		act, err = CreateActivityFromClient(p, act)
 	case vocab.UpdateType:
-		act, err = UpdateActivity(l, act)
+		act, err = UpdateActivity(p.s, act)
 	case vocab.DeleteType:
-		act, err = DeleteActivity(l, act)
+		act, err = DeleteActivity(p.s, act)
 	}
 	if err != nil && !isDuplicateKey(err) {
 		errFn("unable to save activity's object: %s", err)
@@ -158,7 +158,7 @@ func addNewItemCollections(it vocab.Item) (vocab.Item, error) {
 	return it, nil
 }
 
-// CreateActivity
+// CreateActivityFromClient
 //
 // https://www.w3.org/TR/activitypub/#create-activity-outbox
 //
@@ -176,7 +176,7 @@ func addNewItemCollections(it vocab.Item) (vocab.Item, error) {
 // Receiving a Create activity in an inbox has surprisingly few side effects; the activity should appear in the actor's
 // inbox and it is likely that the server will want to locally store a representation of this activity and its
 // accompanying object. However, this mostly happens in general with processing activities delivered to an inbox anyway.
-func CreateActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
+func CreateActivityFromClient(p P, act *vocab.Activity) (*vocab.Activity, error) {
 	if iri := act.Object.GetLink(); len(iri) == 0 {
 		if err := SetID(act.Object, vocab.Outbox.IRI(act.Actor), act); err != nil {
 			return act, nil
@@ -187,7 +187,7 @@ func CreateActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) 
 			return act, errors.Annotatef(err, "unable to generate private/public key pair for object %s", act.Object.GetLink())
 		}
 	}
-	err := updateCreateActivityObject(l, act.Object, act)
+	err := updateCreateActivityObject(p.s, act.Object, act)
 	if err != nil {
 		return act, errors.Annotatef(err, "unable to create activity's object %s", act.Object.GetLink())
 	}
@@ -195,9 +195,16 @@ func CreateActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) 
 	if err != nil {
 		return act, errors.Annotatef(err, "unable to add object collections to object %s", act.Object.GetLink())
 	}
-	act.Object, err = l.Save(act.Object)
+	act.Object, err = p.s.Save(act.Object)
+	if err != nil {
+		return act, errors.Annotatef(err, "unable to save object to storage %s", act.Object.GetLink())
+	}
+	return act, disseminateActivityObjectToLocalReplyToCollections(p, act)
+}
 
-	return act, err
+func CreateActivityFromServer(p P, act *vocab.Activity) (*vocab.Activity, error) {
+	// NOTE(marius): We don't need to persist to disk, as we do it higher in the call stack in ProcessServerActivity
+	return act, disseminateActivityObjectToLocalReplyToCollections(p, act)
 }
 
 // UpdateActivity
@@ -363,6 +370,7 @@ func DeleteActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) 
 				return nil
 			})
 		} else {
+			// TODO(marius): For S2S replace this with dereferencing the tombstone directly
 			err = replaceItemWithTombstone(loader, ob, &toRemove)
 		}
 	}

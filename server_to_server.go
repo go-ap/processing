@@ -48,22 +48,20 @@ type S2SProcessor interface {
 // servers and when sending responses to other servers.
 func (p P) ProcessServerActivity(it vocab.Item, receivedIn vocab.IRI) (vocab.Item, error) {
 	if it == nil {
-		return nil, errors.Newf("Unable to process nil activity")
+		return nil, errors.Newf("Unable to process nil Activity")
 	}
 
-	err := saveRemoteActivityAndObject(p.s, it)
-	if err != nil {
+	if err := saveRemoteActivityAndObjects(p.s, it); err != nil {
 		return it, err
 	}
 	recipients, err := p.BuildRecipientsList(it, receivedIn)
 	if err != nil {
 		return it, err
 	}
-	localCollections, err := p.BuildAdditionalCollections(it)
+	activityReplyToCollections, err := p.BuildReplyToCollections(it)
 	if err != nil {
-		errFn("error: %s", err)
+		errFn("unable to load inReplyTo collections for the activity: %s", err)
 	}
-	recipients = append(recipients, localCollections...)
 
 	// NOTE(marius): the separation between transitive and intransitive activities overlaps the separation we're
 	// using in the processingClientActivity function between the ActivityStreams motivations separation.
@@ -81,18 +79,55 @@ func (p P) ProcessServerActivity(it vocab.Item, receivedIn vocab.IRI) (vocab.Ite
 	if err != nil {
 		return it, err
 	}
-	return it, p.AddToLocalCollections(it, recipients)
+	return it, p.AddToLocalCollections(it, append(recipients, activityReplyToCollections...)...)
 }
 
-func saveRemoteActivityAndObject(s WriteStore, act vocab.Item) error {
+// ProcessServerInboxDelivery processes an incoming activity received in an actor's Inbox collection
+//
+// # Forwarding from Inbox
+//
+// https://www.w3.org/TR/activitypub/#inbox-forwarding
+//
+// NOTE: Forwarding to avoid the ghost replies problem
+// The following section is to mitigate the "ghost replies" problem which occasionally causes problems on federated
+// networks. This problem is best demonstrated with an example.
+//
+// Alyssa makes a post about her having successfully presented a paper at a conference and sends it to her followers
+// collection, which includes her friend Ben. Ben replies to Alyssa's message congratulating her and includes her
+// followers collection on the recipients. However, Ben has no access to see the members of Alyssa's followers
+// collection, so his server does not forward his messages to their inbox. Without the following mechanism, if Alyssa
+// were then to reply to Ben, her followers would see Alyssa replying to Ben without having ever seen Ben interacting.
+// This would be very confusing!
+//
+// When Activities are received in the inbox, the server needs to forward these to recipients that the origin was
+// unable to deliver them to. To do this, the server MUST target and deliver to the values of to, cc, and/or audience
+// if and only if all of the following are true:
+//
+// This is the first time the server has seen this Activity.
+// The values of to, cc, and/or audience contain a Collection owned by the server.
+// The values of inReplyTo, object, target and/or tag are objects owned by the server.
+// The server SHOULD recurse through these values to look for linked objects owned by the server, and SHOULD set a
+// maximum limit for recursion (ie. the point at which the thread is so deep the recipients followers may not mind if
+// they are no longer getting updates that don't directly involve the recipient). The server MUST only target the values
+// of to, cc, and/or audience on the original object being forwarded, and not pick up any new addressees whilst
+// recursing through the linked objects (in case these addressees were purposefully amended by or via the client).
+// The server MAY filter its delivery targets according to implementation-specific rules (for example, spam filtering).
+func (p P) ProcessServerInboxDelivery(it vocab.Item) (vocab.Item, error) {
+	return it, errors.NotImplementedf("ProcessServerInboxDelivery is not implemented yet")
+}
+
+func saveRemoteActivityAndObjects(s WriteStore, act vocab.Item) error {
 	err := vocab.OnActivity(act, func(act *vocab.Activity) error {
-		_, err := s.Save(act.Object)
+		if _, err := s.Save(act.Object); err != nil {
+			return err
+		}
+		if _, err := s.Save(act.Actor); err != nil {
+			return err
+		}
+		toSave := *act
+		_, err := s.Save(vocab.FlattenProperties(toSave))
 		return err
 	})
-	if err != nil {
-		return err
-	}
-	_, err = s.Save(vocab.FlattenProperties(act))
 	return err
 }
 
@@ -104,6 +139,8 @@ func processServerActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (voca
 	var err error
 	typ := act.GetType()
 	switch {
+	case vocab.CreateType == typ:
+		act, err = CreateActivityFromServer(p, act)
 	case vocab.DeleteType == typ:
 		act, err = DeleteActivity(p.s, act)
 	case vocab.ReactionsActivityTypes.Contains(typ):

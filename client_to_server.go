@@ -62,6 +62,21 @@ func (p P) ProcessClientActivity(it vocab.Item, receivedIn vocab.IRI) (vocab.Ite
 	})
 }
 
+// ProcessOutboxDelivery
+//
+// # Outbox Delivery Requirements for Server to Server
+//
+// https://www.w3.org/TR/activitypub/#outbox-delivery
+//
+// When objects are received in the outbox (for servers which support both Client to Server interactions and
+// Server to Server Interactions), the server MUST target and deliver to:
+//
+// The to, bto, cc, bcc or audience fields if their values are individuals or Collections owned by the actor.
+// These fields will have been populated appropriately by the client which posted the Activity to the outbox.
+func (p P) ProcessOutboxDelivery(it vocab.Item) (vocab.Item, error) {
+	return it, errors.NotImplementedf("ProcessOutboxDelivery is not implemented yet")
+}
+
 func processClientIntransitiveActivity(p P, it vocab.Item, receivedIn vocab.IRI) (vocab.Item, error) {
 	if len(it.GetLink()) == 0 {
 		if err := SetID(it, nil, nil); err != nil {
@@ -103,10 +118,10 @@ func processClientIntransitiveActivity(p P, it vocab.Item, receivedIn vocab.IRI)
 	if err != nil {
 		infoFn("error: %s", err)
 	}
-	if err := p.AddToLocalCollections(it, recipients); err != nil {
+	if err := p.AddToLocalCollections(it, recipients...); err != nil {
 		errFn("error: %s", err)
 	}
-	if err := p.AddToRemoteCollections(it, recipients); err != nil {
+	if err := p.AddToRemoteCollections(it, recipients...); err != nil {
 		errFn("error: %s", err)
 	}
 	return it, nil
@@ -128,7 +143,7 @@ func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (voca
 	//  First we process the activity to effect whatever changes we need to on the activity properties.
 	switch {
 	case vocab.ContentManagementActivityTypes.Contains(typ) && act.Object.GetType() != vocab.RelationshipType:
-		act, err = ContentManagementActivity(p.s, act, receivedIn)
+		act, err = ContentManagementActivityFromClient(p, act)
 	case vocab.CollectionManagementActivityTypes.Contains(typ):
 		act, err = CollectionManagementActivity(p.s, act)
 	case vocab.ReactionsActivityTypes.Contains(typ):
@@ -173,11 +188,7 @@ func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (voca
 	if err != nil {
 		return act, err
 	}
-	localCollections, err := p.BuildAdditionalCollections(act)
-	if err != nil {
-		errFn("error: %s", err)
-	}
-	recipients = append(recipients, localCollections...)
+	activityReplyToCollections, _ := p.BuildReplyToCollections(act)
 
 	// Making a local copy of the activity in order to not lose information that could be required
 	// later in the call system.
@@ -186,11 +197,12 @@ func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (voca
 	if err != nil {
 		return act, err
 	}
-	if err := p.AddToLocalCollections(it, recipients); err != nil {
+	if err := p.AddToLocalCollections(it, append(recipients, activityReplyToCollections...)...); err != nil {
 		errFn("error: %s", err)
 	}
-	if err := p.AddToRemoteCollections(it, recipients); err != nil {
+	if err := p.AddToRemoteCollections(it, recipients...); err != nil {
 		errFn("error: %s", err)
 	}
+
 	return act, nil
 }

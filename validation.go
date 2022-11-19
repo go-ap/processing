@@ -5,7 +5,7 @@ import (
 	"net"
 	"net/netip"
 	"net/url"
-	"path"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -152,11 +152,11 @@ func (p P) ValidateServerActivity(a vocab.Item, inbox vocab.IRI) error {
 }
 
 func IsOutbox(i vocab.IRI) bool {
-	return strings.ToLower(path.Base(i.String())) == strings.ToLower(string(vocab.Outbox))
+	return strings.ToLower(filepath.Base(i.String())) == strings.ToLower(string(vocab.Outbox))
 }
 
 func IsInbox(i vocab.IRI) bool {
-	return strings.ToLower(path.Base(i.String())) == strings.ToLower(string(vocab.Inbox))
+	return strings.ToLower(filepath.Base(i.String())) == strings.ToLower(string(vocab.Inbox))
 }
 
 // IRIBelongsToActor checks if the search iri represents any of the collections associated with the actor.
@@ -205,7 +205,7 @@ func name(a *vocab.Actor) vocab.LangRefValue {
 	if len(a.PreferredUsername) > 0 {
 		return a.PreferredUsername.First()
 	}
-	return vocab.LangRefValue{Value: vocab.Content(path.Base(string(a.ID)))}
+	return vocab.LangRefValue{Value: vocab.Content(filepath.Base(string(a.ID)))}
 }
 
 func (p P) ValidateActivity(a vocab.Item, receivedIn vocab.IRI) error {

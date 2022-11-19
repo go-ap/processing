@@ -7,41 +7,29 @@ import (
 
 // AddToRemoteCollections handles the dissemination of the received it Activity to the local collections,
 // it is addressed to:
-//  - the recipients' Inboxes
-func (p P) AddToRemoteCollections(it vocab.Item, recipients vocab.ItemCollection) error {
+//   - the recipients' Inboxes
+func (p P) AddToRemoteCollections(it vocab.Item, recipients ...vocab.Item) error {
 	remoteRecipients := make(vocab.IRIs, 0)
-	for _, recInb := range recipients {
-		if !p.IsLocal(recInb) {
-			remoteRecipients = append(remoteRecipients, recInb.GetLink())
+	for _, rec := range recipients {
+		recIRI := rec.GetLink()
+		if p.IsLocal(recIRI) || remoteRecipients.Contains(recIRI) {
+			continue
 		}
+		remoteRecipients.Append(recIRI)
 	}
 	return p.disseminateToRemoteCollection(it, remoteRecipients...)
-}
-
-// AddToLocalCollections handles the dissemination of the received it Activity to the local collections,
-// it is addressed to:
-//  - the author's Outbox
-//  - the recipients' Inboxes
-func (p P) AddToLocalCollections(it vocab.Item, recipients vocab.ItemCollection) error {
-	localRecipients := make(vocab.IRIs, 0)
-	for _, recInb := range recipients {
-		if p.IsLocal(recInb) {
-			localRecipients = append(localRecipients, recInb.GetLink())
-		}
-	}
-	return p.disseminateToLocalCollections(it, localRecipients...)
 }
 
 func (p P) disseminateToRemoteCollection(act vocab.Item, iris ...vocab.IRI) error {
 	if len(iris) == 0 {
 		return nil
 	}
+	if !p.IsLocalIRI(act.GetLink()) {
+		return errors.Newf("trying to disseminate local activity to local collection %s", act.GetLink())
+	}
 	keyLoader, ok := p.s.(KeyLoader)
 	if !ok {
 		return errors.Newf("local storage %T does not support loading private keys", p.s)
-	}
-	if !p.IsLocalIRI(act.GetLink()) {
-		return errors.Newf("trying to disseminate local activity to local collection %s", act.GetLink())
 	}
 	// TODO(marius): the processing module needs a method to see if an IRI is local or not
 	//    For each recipient we need to save the incoming activity to the actor's Inbox if the actor is local
@@ -51,6 +39,9 @@ func (p P) disseminateToRemoteCollection(act vocab.Item, iris ...vocab.IRI) erro
 		if p.IsLocalIRI(col) {
 			g = append(g, errors.Newf("trying to disseminate to local collection %s", col))
 			continue
+		}
+		if !IsInbox(col) {
+			errFn("trying to disseminate to remote collection that's not an Inbox: %s", col)
 		}
 
 		// TODO(marius): Move this function to either the go-ap/auth package, or in FedBOX itself.
@@ -68,6 +59,22 @@ func (p P) disseminateToRemoteCollection(act vocab.Item, iris ...vocab.IRI) erro
 		return g
 	}
 	return nil
+}
+
+// AddToLocalCollections handles the dissemination of the received it Activity to the local collections,
+// it is addressed to:
+//   - the author's Outbox
+//   - the recipients' Inboxes
+func (p P) AddToLocalCollections(it vocab.Item, recipients ...vocab.Item) error {
+	localRecipients := make(vocab.IRIs, 0)
+	for _, rec := range recipients {
+		recIRI := rec.GetLink()
+		if !p.IsLocal(recIRI) || localRecipients.Contains(recIRI) {
+			continue
+		}
+		localRecipients = append(localRecipients, recIRI)
+	}
+	return p.disseminateToLocalCollections(it, localRecipients...)
 }
 
 func (p P) disseminateToLocalCollections(ob vocab.Item, iris ...vocab.IRI) error {
@@ -105,17 +112,30 @@ func (p P) AddItemToCollection(col vocab.IRI, it vocab.Item) error {
 		return nil
 	}
 	if !p.IsLocal(it) {
-		if !vocab.IsObject(it) {
+		if vocab.IsIRI(it) {
 			deref, err := p.c.LoadIRI(it.GetLink())
 			if err != nil {
 				errFn("unable to load remote object [%s]: %s", it.GetLink(), err)
 			} else {
 				it = deref
 			}
-		}
-		if _, err := p.s.Save(it); err != nil {
-			errFn("unable to save remote object [%s] locally: %s", it.GetLink(), err)
+			if _, err := p.s.Save(it); err != nil {
+				errFn("unable to save remote object [%s] locally: %s", it.GetLink(), err)
+			}
 		}
 	}
 	return colSaver.AddTo(col, it.GetLink())
+}
+
+func disseminateActivityObjectToLocalReplyToCollections(p P, act *vocab.Activity) error {
+	return vocab.OnObject(act.Object, func(o *vocab.Object) error {
+		replyToCollections, err := p.BuildReplyToCollections(o)
+		if err != nil {
+			errFn("error: %s", errors.Annotatef(err, "unable to build replyTo collections"))
+		}
+		if err := p.AddToLocalCollections(o, replyToCollections...); err != nil {
+			errFn("error: %s", errors.Annotatef(err, "unable to add object to local replyTo collections"))
+		}
+		return nil
+	})
 }
