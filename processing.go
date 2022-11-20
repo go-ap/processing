@@ -316,9 +316,18 @@ func (p P) BuildReplyToCollections(it vocab.Item) (vocab.ItemCollection, error) 
 	}
 	if vocab.IsIRI(ob.InReplyTo) {
 		collections = append(collections, vocab.Replies.IRI(ob.InReplyTo.GetLink()))
-	} else {
+	}
+	if vocab.IsObject(ob.InReplyTo) {
 		err = vocab.OnObject(ob.InReplyTo, func(replyTo *vocab.Object) error {
 			collections = append(collections, vocab.Replies.IRI(replyTo.GetLink()))
+			return nil
+		})
+	}
+	if vocab.IsItemCollection(ob.InReplyTo) {
+		err = vocab.OnItemCollection(ob.InReplyTo, func(replyTos *vocab.ItemCollection) error {
+			for _, replyTo := range replyTos.Collection() {
+				collections = append(collections, vocab.Replies.IRI(replyTo.GetLink()))
+			}
 			return nil
 		})
 	}
