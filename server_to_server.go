@@ -51,16 +51,9 @@ func (p P) ProcessServerActivity(it vocab.Item, receivedIn vocab.IRI) (vocab.Ite
 		return nil, errors.Newf("Unable to process nil Activity")
 	}
 
-	if err := saveRemoteActivityAndObjects(p.s, it); err != nil {
-		return it, err
-	}
-	recipients, err := p.BuildRecipientsList(it, receivedIn)
+	err := saveRemoteActivityAndObjects(p.s, it)
 	if err != nil {
 		return it, err
-	}
-	activityReplyToCollections, err := p.BuildReplyToCollections(it)
-	if err != nil {
-		errFn("unable to load inReplyTo collections for the activity: %s", err)
 	}
 
 	// NOTE(marius): the separation between transitive and intransitive activities overlaps the separation we're
@@ -79,7 +72,7 @@ func (p P) ProcessServerActivity(it vocab.Item, receivedIn vocab.IRI) (vocab.Ite
 	if err != nil {
 		return it, err
 	}
-	return it, p.AddToLocalCollections(it, append(recipients, activityReplyToCollections...)...)
+	return it, p.ProcessServerInboxDelivery(it, receivedIn)
 }
 
 // ProcessServerInboxDelivery processes an incoming activity received in an actor's Inbox collection
@@ -103,17 +96,27 @@ func (p P) ProcessServerActivity(it vocab.Item, receivedIn vocab.IRI) (vocab.Ite
 // unable to deliver them to. To do this, the server MUST target and deliver to the values of to, cc, and/or audience
 // if and only if all of the following are true:
 //
-// This is the first time the server has seen this Activity.
-// The values of to, cc, and/or audience contain a Collection owned by the server.
-// The values of inReplyTo, object, target and/or tag are objects owned by the server.
-// The server SHOULD recurse through these values to look for linked objects owned by the server, and SHOULD set a
+// * This is the first time the server has seen this Activity.
+// * The values of to, cc, and/or audience contain a Collection owned by the server.
+// * The values of inReplyTo, object, target and/or tag are objects owned by the server.
+// * The server SHOULD recurse through these values to look for linked objects owned by the server, and SHOULD set a
 // maximum limit for recursion (ie. the point at which the thread is so deep the recipients followers may not mind if
 // they are no longer getting updates that don't directly involve the recipient). The server MUST only target the values
 // of to, cc, and/or audience on the original object being forwarded, and not pick up any new addressees whilst
 // recursing through the linked objects (in case these addressees were purposefully amended by or via the client).
+//
 // The server MAY filter its delivery targets according to implementation-specific rules (for example, spam filtering).
-func (p P) ProcessServerInboxDelivery(it vocab.Item) (vocab.Item, error) {
-	return it, errors.NotImplementedf("ProcessServerInboxDelivery is not implemented yet")
+func (p P) ProcessServerInboxDelivery(it vocab.Item, receivedIn vocab.IRI) error {
+	recipients, err := p.BuildInboxRecipientsList(it, receivedIn)
+	if err != nil {
+		return err
+	}
+	activityReplyToCollections, err := p.BuildReplyToCollections(it)
+	if err != nil {
+		errFn("unable to load inReplyTo collections for the activity: %s", err)
+	}
+	recipients = append(recipients, activityReplyToCollections...)
+	return p.AddToLocalCollections(it, recipients...)
 }
 
 func saveRemoteActivityAndObjects(s WriteStore, act vocab.Item) error {
@@ -147,4 +150,23 @@ func processServerActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (voca
 		act, err = ReactionsActivity(p, act, receivedIn)
 	}
 	return act, err
+}
+
+// BuildInboxRecipientsList builds the recipients list of the received 'it' Activity is addressed to:
+//   - the author's Outbox
+//   - the recipients' Inboxes
+func (p P) BuildInboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) (vocab.ItemCollection, error) {
+	allRecipients, err := p.BuildOutboxRecipientsList(it, receivedIn)
+	if err != nil {
+		return allRecipients, err
+	}
+
+	for _, rec := range loadSharedInboxRecipients(p, receivedIn) {
+		// NOTE(marius): load all actors that use 'receivedIn' as a sharedInbox
+		if allRecipients.Contains(rec.GetLink()) {
+			continue
+		}
+		allRecipients.Append(receivedIn)
+	}
+	return vocab.ItemCollectionDeduplication(&allRecipients), nil
 }

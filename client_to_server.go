@@ -73,8 +73,19 @@ func (p P) ProcessClientActivity(it vocab.Item, receivedIn vocab.IRI) (vocab.Ite
 //
 // The to, bto, cc, bcc or audience fields if their values are individuals or Collections owned by the actor.
 // These fields will have been populated appropriately by the client which posted the Activity to the outbox.
-func (p P) ProcessOutboxDelivery(it vocab.Item) (vocab.Item, error) {
-	return it, errors.NotImplementedf("ProcessOutboxDelivery is not implemented yet")
+func (p P) ProcessOutboxDelivery(it vocab.Item, receivedIn vocab.IRI) error {
+	recipients, err := p.BuildOutboxRecipientsList(it, receivedIn)
+	if err != nil {
+		infoFn("error: %s", err)
+	}
+	if err := p.AddToLocalCollections(it, recipients...); err != nil {
+		errFn("error: %s", err)
+	}
+	if err := p.AddToRemoteCollections(it, recipients...); err != nil {
+		errFn("error: %s", err)
+	}
+
+	return nil
 }
 
 func processClientIntransitiveActivity(p P, it vocab.Item, receivedIn vocab.IRI) (vocab.Item, error) {
@@ -114,17 +125,8 @@ func processClientIntransitiveActivity(p P, it vocab.Item, receivedIn vocab.IRI)
 	if it, err = p.s.Save(vocab.FlattenProperties(it)); err != nil {
 		return it, err
 	}
-	recipients, err := p.BuildRecipientsList(it, receivedIn)
-	if err != nil {
-		infoFn("error: %s", err)
-	}
-	if err := p.AddToLocalCollections(it, recipients...); err != nil {
-		errFn("error: %s", err)
-	}
-	if err := p.AddToRemoteCollections(it, recipients...); err != nil {
-		errFn("error: %s", err)
-	}
-	return it, nil
+
+	return it, p.ProcessOutboxDelivery(it, receivedIn)
 }
 
 func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (vocab.Item, error) {
@@ -184,7 +186,7 @@ func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (voca
 		vocab.OnObject(act, addNewObjectCollections)
 	}
 
-	recipients, err := p.BuildRecipientsList(act, receivedIn)
+	recipients, err := p.BuildOutboxRecipientsList(act, receivedIn)
 	if err != nil {
 		return act, err
 	}
@@ -205,4 +207,73 @@ func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (voca
 	}
 
 	return act, nil
+}
+
+// BuildOutboxRecipientsList builds the recipients list of the received 'it' Activity is addressed to:
+//   - the author's Outbox
+//   - the recipients' Inboxes
+func (p P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) (vocab.ItemCollection, error) {
+	act, err := vocab.ToActivity(it)
+	if err != nil {
+		return nil, err
+	}
+	if act == nil {
+		return nil, errors.Newf("Unable to process nil activity")
+	}
+	loader := p.s
+
+	allRecipients := make(vocab.ItemCollection, 0)
+	if !vocab.IsNil(act.Actor) && p.IsLocal(act.Actor) {
+		// NOTE(marius): this is needed only for client to server interactions
+		actIRI := act.Actor.GetLink()
+		outbox := vocab.Outbox.IRI(actIRI)
+
+		if !actIRI.Equals(vocab.PublicNS, true) && !act.GetLink().Contains(outbox, false) {
+			allRecipients = append(allRecipients, outbox)
+		}
+	}
+
+	for _, rec := range act.Recipients() {
+		recIRI := rec.GetLink()
+		if recIRI == vocab.PublicNS {
+			// NOTE(marius): if the activity is addressed to the Public NS, we store it to the local service's inbox
+			if len(p.baseIRI) > 0 {
+				allRecipients = append(allRecipients, vocab.Inbox.IRI(p.baseIRI[0]))
+			}
+			continue
+		}
+		if vocab.ValidCollectionIRI(recIRI) {
+			// TODO(marius): this step should happen at validation time
+			// Load all members if colIRI is a valid actor collection
+			members, err := loader.Load(recIRI)
+			if err != nil || vocab.IsNil(members) {
+				continue
+			}
+			vocab.OnCollectionIntf(members, func(col vocab.CollectionInterface) error {
+				for _, m := range col.Collection() {
+					if !vocab.ActorTypes.Contains(m.GetType()) || (p.IsLocalIRI(m.GetLink()) && isBlocked(loader, m, act.Actor)) {
+						continue
+					}
+					allRecipients = append(allRecipients, vocab.Inbox.IRI(m))
+				}
+				return nil
+			})
+		} else {
+			if p.IsLocalIRI(recIRI) && isBlocked(loader, recIRI, act.Actor) {
+				continue
+			}
+			inb := vocab.Inbox.IRI(recIRI)
+			if !allRecipients.Contains(inb) {
+				// TODO(marius): add check if IRI represents an actor (or rely on the collection saver to break if not)
+				allRecipients = append(allRecipients, inb)
+			}
+		}
+	}
+	if !allRecipients.Contains(receivedIn) {
+		// NOTE(marius): append the receivedIn collection to the list of recipients
+		// We do this, because it could be missing from the Activity's recipients fields (to, bto, cc, bcc)
+		allRecipients.Append(receivedIn)
+	}
+
+	return vocab.ItemCollectionDeduplication(&allRecipients), nil
 }
