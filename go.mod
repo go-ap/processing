@@ -3,8 +3,8 @@ module github.com/go-ap/processing
 go 1.18
 
 require (
-	github.com/go-ap/activitypub v0.0.0-20221126061933-ea245cac6043
-	github.com/go-ap/client v0.0.0-20221126062204-462866a3146a
+	github.com/go-ap/activitypub v0.0.0-20221126085132-87fc226acd00
+	github.com/go-ap/client v0.0.0-20221126085340-0f74b463b331
 	github.com/go-ap/errors v0.0.0-20221115052505-8aaa26f930b4
 	github.com/go-ap/httpsig v0.0.0-20210714162115-62a09257db51
 	github.com/go-ap/jsonld v0.0.0-20221030091449-f2a191312c73
