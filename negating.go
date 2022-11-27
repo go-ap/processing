@@ -28,14 +28,18 @@ func NegatingActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error
 		return act, errors.NotValidf("Activity has wrong type %s, expected %s", act.Type, vocab.UndoType)
 	}
 	// TODO(marius): a lot of validation logic should be moved to the validation package
-	if act.Object.IsLink() {
+	if vocab.IsIRI(act.Object) {
 		// dereference object activity
 		if actLoader, ok := l.(ReadStore); ok {
 			obj, err := actLoader.Load(act.Object.GetLink())
 			if err != nil {
+				return act, errors.NewNotValid(err, "Unable to dereference object: %s", act.Object.GetLink())
+			}
+			obj = firstOrItem(obj)
+			if !vocab.IsObject(obj) && !vocab.IsItemCollection(obj) {
 				return act, errors.NotValidf("Unable to dereference object: %s", act.Object.GetLink())
 			}
-			act.Object = firstOrItem(obj)
+			act.Object = obj
 		}
 	}
 	// the object of the activity needs to be an activity
