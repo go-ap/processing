@@ -44,6 +44,10 @@ func (p P) disseminateToRemoteCollection(act vocab.Item, iris ...vocab.IRI) erro
 			errFn("trying to disseminate to remote collection that's not an Inbox: %s", col)
 		}
 
+		if p.c == nil {
+			errFn("Unable to push to remote collections, S2S client is nil for %s", act.GetLink())
+			continue
+		}
 		// TODO(marius): Move this function to either the go-ap/auth package, or in FedBOX itself.
 		//   We should probably change the signature for client.RequestSignFn to accept an Actor/IRI as a param.
 		vocab.OnIntransitiveActivity(act, func(act *vocab.IntransitiveActivity) error {
