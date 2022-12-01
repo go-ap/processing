@@ -6,6 +6,7 @@ import (
 
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
+	"github.com/openshift/osin"
 )
 
 type (
@@ -202,8 +203,63 @@ func CreateActivityFromClient(p P, act *vocab.Activity) (*vocab.Activity, error)
 	return act, disseminateActivityObjectToLocalReplyToCollections(p, act)
 }
 
+func (p P) dereferenceActivityProperties(receivedIn vocab.IRI) func(act *vocab.Activity) error {
+	deref := func(it vocab.Item) (vocab.Item, error) {
+		if vocab.IsNil(it) {
+			return nil, nil
+		}
+		if it.IsLink() {
+			der, err := p.dereferenceIRIBasedOnInbox(it, receivedIn)
+			if err != nil {
+				return it, err
+			}
+			it = der
+		}
+		return it, nil
+	}
+	return func(act *vocab.Activity) error {
+		var err error
+		if act.Object, err = deref(act.Object); err != nil {
+			return err
+		}
+		if act.Actor, err = deref(act.Actor); err != nil {
+			return err
+		}
+		if act.Target, err = deref(act.Target); err != nil {
+			return err
+		}
+		return nil
+	}
+}
+
+func (p P) dereferenceIRIBasedOnInbox(ob vocab.Item, receivedIn vocab.IRI) (vocab.Item, error) {
+	maybeActor, maybeInbox := vocab.Split(receivedIn)
+	if maybeInbox == "" {
+		return ob, errors.Newf("unable find actor from collection: %s", receivedIn)
+	}
+	// NOTE(marius): De-referencing of the Activity's object is being done when storing the object
+	// in the local collections, when we can use the collection's owner to sign the de-referencing request.
+	if p.IsLocal(ob.GetLink()) {
+		if osinSt, ok := p.s.(osin.Storage); ok {
+			p.c.SignFn(c2sSignFn(osinSt, maybeActor.GetLink()))
+		} else {
+			errFn("storage type does not support loading OAuth2 token: %T", p.s)
+		}
+	} else {
+		if keyLoader, ok := p.s.(KeyLoader); ok {
+			p.c.SignFn(s2sSignFn(keyLoader, maybeActor.GetLink()))
+		} else {
+			errFn("storage type does not support loading HTTPSig public key: %T", p.s)
+		}
+	}
+	derefOb, err := p.c.LoadIRI(ob.GetLink())
+	if err != nil {
+		return ob, err
+	}
+	return derefOb, nil
+}
+
 func CreateActivityFromServer(p P, act *vocab.Activity) (*vocab.Activity, error) {
-	// NOTE(marius): We don't need to persist to disk, as we do it higher in the call stack in ProcessServerActivity
 	return act, disseminateActivityObjectToLocalReplyToCollections(p, act)
 }
 

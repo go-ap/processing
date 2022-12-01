@@ -107,6 +107,9 @@ func (p P) ValidateServerActivity(a vocab.Item, inbox vocab.IRI) error {
 	if !IsInbox(inbox) {
 		return errors.NotValidf("Trying to validate a non inbox IRI %s", inbox)
 	}
+	if vocab.IsNil(p.auth) {
+		return errors.Unauthorizedf("nil actor is not allowed posting to current inbox")
+	}
 	if p.auth.GetLink() == vocab.PublicNS {
 		return errors.Unauthorizedf("%s actor is not allowed posting to current inbox", p.auth.Name)
 	}
@@ -421,17 +424,19 @@ func (p P) ValidateLink(i vocab.IRI) error {
 	if _, err := i.URL(); err != nil {
 		return errors.Annotatef(err, "underlying URL could not be parsed: %s", i)
 	}
-	loadFn := p.c.LoadIRI
-	if p.IsLocalIRI(i) {
-		loadFn = p.s.Load
-	}
-	it, err := loadFn(i)
-	if err != nil {
-		return err
-	}
-	if vocab.IsNil(it) {
-		return InvalidIRI("Could not load: %s", i)
-	}
+	/*
+		loadFn := p.c.LoadIRI
+		if p.IsLocalIRI(i) {
+			loadFn = p.s.Load
+		}
+		it, err := loadFn(i)
+		if err != nil {
+			return err
+		}
+		if vocab.IsNil(it) {
+			return InvalidIRI("Could not load: %s", i)
+		}
+	*/
 	return nil
 }
 
@@ -449,18 +454,18 @@ func (p P) ValidateServerActor(a vocab.Item) (vocab.Item, error) {
 	if vocab.IsNil(a) {
 		return a, InvalidActivityActor("is nil")
 	}
-	var err error
 	if a.IsLink() {
 		iri := a.GetLink()
-		a, err = p.c.LoadIRI(iri)
+		act, err := p.c.LoadIRI(iri)
 		if err != nil {
 			return a, errors.NewNotFound(err, "invalid activity actor: %s", iri)
 		}
-		if a == nil {
+		if act == nil {
 			return a, errors.NotFoundf("invalid activity actor: %s", iri)
 		}
+		a = act
 	}
-	err = vocab.OnActor(a, func(act *vocab.Actor) error {
+	err := vocab.OnActor(a, func(act *vocab.Actor) error {
 		if !vocab.ActorTypes.Contains(act.GetType()) {
 			return InvalidActivityActor("invalid type %s", act.GetType())
 		}
@@ -509,21 +514,6 @@ func (p P) ValidateActor(a vocab.Item) (vocab.Item, error) {
 }
 
 func (p P) ValidateClientObject(o vocab.Item) (vocab.Item, error) {
-	return p.ValidateObject(o)
-}
-
-func (p P) ValidateServerObject(o vocab.Item) (vocab.Item, error) {
-	var err error
-	if o, err = p.ValidateObject(o); err != nil {
-		return o, err
-	}
-	if err = p.ValidateLink(o.GetLink()); err != nil {
-		return o, err
-	}
-	return o, nil
-}
-
-func (p P) ValidateObject(o vocab.Item) (vocab.Item, error) {
 	if o == nil {
 		return o, InvalidActivityObject("is nil")
 	}
@@ -533,28 +523,22 @@ func (p P) ValidateObject(o vocab.Item) (vocab.Item, error) {
 		if err != nil {
 			return o, err
 		}
-		var loadFn func(vocab.IRI) (vocab.Item, error)
 		if !p.IsLocalIRI(iri) {
-			loadFn = p.c.LoadIRI
-		} else {
-			// FIXME(marius): this does not work for the case where IRI is not a Public item
-			// We need to invent a way to pass the currently authorized actor to the ReadStore.Load
-			// The way we're doing it now is not great as it makes assumption that the underlying storage
-			// receives the authenticated actor as a basic auth user in the IRI. Maybe that's a safe
-			// assumption to make, but I'm not thrilled about it.
-			if p.auth != nil {
-				u, _ := iri.URL()
-				u.User = url.User(p.auth.ID.String())
-				iri = vocab.IRI(u.String())
-			}
-			loadFn = p.s.Load
+			return o, nil
 		}
-		if o, err = loadFn(iri); err != nil {
+		if o, err = p.s.Load(iri); err != nil {
 			return o, err
 		}
 		if vocab.IsNil(o) {
 			return o, errors.NotFoundf("Invalid activity object")
 		}
+	}
+	return o, nil
+}
+
+func (p P) ValidateServerObject(o vocab.Item) (vocab.Item, error) {
+	if err := p.ValidateLink(o.GetLink()); err != nil {
+		return o, err
 	}
 	return o, nil
 }

@@ -51,8 +51,11 @@ func (p P) ProcessServerActivity(it vocab.Item, receivedIn vocab.IRI) (vocab.Ite
 		return nil, errors.Newf("Unable to process nil Activity")
 	}
 
-	err := saveRemoteActivityAndObjects(p.s, it)
+	err := vocab.OnActivity(it, p.dereferenceActivityProperties(receivedIn))
 	if err != nil {
+		return it, err
+	}
+	if err := saveRemoteActivityAndObjects(p.s, it); err != nil {
 		return it, err
 	}
 

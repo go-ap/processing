@@ -91,6 +91,15 @@ func (p P) disseminateToLocalCollections(ob vocab.Item, iris ...vocab.IRI) error
 			g = append(g, errors.Newf("trying to save to remote collection %s", col))
 			continue
 		}
+		if vocab.IsIRI(ob) {
+			var err error
+			infoFn("object requires de-referencing from remote IRI %s", ob.GetLink())
+			ob, err = p.dereferenceIRIBasedOnInbox(ob, col)
+			if err != nil {
+				g = append(g, errors.Annotatef(err, "unable to load remote object: %s", col))
+				continue
+			}
+		}
 		infoFn("Saving to local actor's collection %s", col)
 		if err := p.AddItemToCollection(col, ob); err != nil {
 			g = append(g, err)
