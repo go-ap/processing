@@ -449,12 +449,13 @@ func (p P) ValidateServerActor(a vocab.Item) (vocab.Item, error) {
 	}
 	var err error
 	if a.IsLink() {
-		a, err = p.c.LoadIRI(a.GetLink())
+		iri := a.GetLink()
+		a, err = p.c.LoadIRI(iri)
 		if err != nil {
-			return a, err
+			return a, errors.NewNotFound(err, "invalid activity actor: %s", iri)
 		}
 		if a == nil {
-			return a, errors.NotFoundf("Invalid activity actor")
+			return a, errors.NotFoundf("invalid activity actor: %s", iri)
 		}
 	}
 	err = vocab.OnActor(a, func(act *vocab.Actor) error {
@@ -463,7 +464,7 @@ func (p P) ValidateServerActor(a vocab.Item) (vocab.Item, error) {
 		}
 		if p.auth != nil {
 			if !p.auth.GetLink().Equals(act.GetLink(), false) {
-				return InvalidActivityActor("current activity's actor doesn't match the authenticated one")
+				return InvalidActivityActor("the activity's actor doesn't match the authenticated one")
 			}
 		}
 		a = act
