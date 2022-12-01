@@ -3,9 +3,9 @@ module github.com/go-ap/processing
 go 1.18
 
 require (
-	github.com/go-ap/activitypub v0.0.0-20221129071730-d68022eb490b
-	github.com/go-ap/client v0.0.0-20221129072953-019c2679a04b
-	github.com/go-ap/errors v0.0.0-20221115052505-8aaa26f930b4
+	github.com/go-ap/activitypub v0.0.0-20221201010522-ff602be9ffba
+	github.com/go-ap/client v0.0.0-20221201010656-b9f7f02d0c3a
+	github.com/go-ap/errors v0.0.0-20221201010224-09b9c5d09ea9
 	github.com/go-ap/httpsig v0.0.0-20210714162115-62a09257db51
 	github.com/go-ap/jsonld v0.0.0-20221030091449-f2a191312c73
 	github.com/openshift/osin v1.0.1
