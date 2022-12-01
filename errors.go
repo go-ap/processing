@@ -33,9 +33,11 @@ type groupError []error
 
 func (g groupError) Error() string {
 	s := strings.Builder{}
-	for _, err := range g {
+	for i, err := range g {
+		if i > 0 {
+			s.WriteString(": ")
+		}
 		s.WriteString(err.Error())
-		s.WriteByte('\n')
 	}
 	return s.String()
 }

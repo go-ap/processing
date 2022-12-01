@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
-	"net/url"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -108,11 +107,11 @@ func (p P) ValidateServerActivity(a vocab.Item, inbox vocab.IRI) error {
 	if !IsInbox(inbox) {
 		return errors.NotValidf("Trying to validate a non inbox IRI %s", inbox)
 	}
-	//if p.auth.GetLink() == vocab.PublicNS {
-	//	return errors.Unauthorizedf("%s actor is not allowed posting to current inbox", p.auth.Name)
-	//}
+	if p.auth.GetLink() == vocab.PublicNS {
+		return errors.Unauthorizedf("%s actor is not allowed posting to current inbox", p.auth.Name)
+	}
 	if a == nil {
-		return InvalidActivityActor("received nil activity")
+		return InvalidActivity("received nil")
 	}
 	if a.IsLink() {
 		return p.ValidateLink(a.GetLink())
@@ -417,18 +416,21 @@ func (p P) IsLocalIRI(i vocab.IRI) bool {
 
 func (p P) ValidateLink(i vocab.IRI) error {
 	if i.Equals(vocab.PublicNS, false) {
-		return InvalidIRI("Public namespace is not a local IRI")
+		return InvalidIRI("Public namespace is not a valid IRI")
 	}
-	var loadFn func(vocab.IRI) (vocab.Item, error) = p.s.Load
-	if !p.IsLocalIRI(i) {
-		loadFn = p.c.LoadIRI
+	if _, err := i.URL(); err != nil {
+		return errors.Annotatef(err, "underlying URL could not be parsed: %s", i)
+	}
+	loadFn := p.c.LoadIRI
+	if p.IsLocalIRI(i) {
+		loadFn = p.s.Load
 	}
 	it, err := loadFn(i)
 	if err != nil {
 		return err
 	}
 	if vocab.IsNil(it) {
-		return InvalidIRI("%s could not be found locally", i)
+		return InvalidIRI("Could not load: %s", i)
 	}
 	return nil
 }
@@ -444,7 +446,7 @@ func (p P) ValidateClientActor(a vocab.Item) (vocab.Item, error) {
 }
 
 func (p P) ValidateServerActor(a vocab.Item) (vocab.Item, error) {
-	if a == nil {
+	if vocab.IsNil(a) {
 		return a, InvalidActivityActor("is nil")
 	}
 	var err error

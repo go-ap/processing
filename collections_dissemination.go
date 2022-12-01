@@ -119,12 +119,12 @@ func (p P) AddItemToCollection(col vocab.IRI, it vocab.Item) error {
 		if vocab.IsIRI(it) {
 			deref, err := p.c.LoadIRI(it.GetLink())
 			if err != nil {
-				errFn("unable to load remote object [%s]: %s", it.GetLink(), err)
+				errFn("unable to load remote object [%s]: %s", it.GetLink(), err.Error())
 			} else {
 				it = deref
 			}
 			if _, err := p.s.Save(it); err != nil {
-				errFn("unable to save remote object [%s] locally: %s", it.GetLink(), err)
+				errFn("unable to save remote object [%s] locally: %s", it.GetLink(), err.Error())
 			}
 		}
 	}
@@ -135,10 +135,10 @@ func disseminateActivityObjectToLocalReplyToCollections(p P, act *vocab.Activity
 	return vocab.OnObject(act.Object, func(o *vocab.Object) error {
 		replyToCollections, err := p.BuildReplyToCollections(o)
 		if err != nil {
-			errFn("error: %s", errors.Annotatef(err, "unable to build replyTo collections"))
+			errFn(errors.Annotatef(err, "unable to build replyTo collections").Error())
 		}
 		if err := p.AddToLocalCollections(o, replyToCollections...); err != nil {
-			errFn("error: %s", errors.Annotatef(err, "unable to add object to local replyTo collections"))
+			errFn(errors.Annotatef(err, "unable to add object to local replyTo collections").Error())
 		}
 		return nil
 	})

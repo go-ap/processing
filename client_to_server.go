@@ -76,13 +76,14 @@ func (p P) ProcessClientActivity(it vocab.Item, receivedIn vocab.IRI) (vocab.Ite
 func (p P) ProcessOutboxDelivery(it vocab.Item, receivedIn vocab.IRI) error {
 	recipients, err := p.BuildOutboxRecipientsList(it, receivedIn)
 	if err != nil {
-		infoFn("error: %s", err)
+		infoFn(err.Error())
+		return nil
 	}
 	if err := p.AddToLocalCollections(it, recipients...); err != nil {
-		errFn("error: %s", err)
+		errFn(err.Error())
 	}
 	if err := p.AddToRemoteCollections(it, recipients...); err != nil {
-		errFn("error: %s", err)
+		errFn(err.Error())
 	}
 
 	return nil
@@ -200,10 +201,10 @@ func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (voca
 		return act, err
 	}
 	if err := p.AddToLocalCollections(it, append(recipients, activityReplyToCollections...)...); err != nil {
-		errFn("error: %s", err)
+		errFn(err.Error())
 	}
 	if err := p.AddToRemoteCollections(it, recipients...); err != nil {
-		errFn("error: %s", err)
+		errFn(err.Error())
 	}
 
 	return act, nil
