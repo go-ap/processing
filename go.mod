@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/go-ap/activitypub v0.0.0-20221201100613-364a4fe06e5e
-	github.com/go-ap/client v0.0.0-20221201102051-1799bc2868bf
+	github.com/go-ap/client v0.0.0-20221202030558-ce3149e63c67
 	github.com/go-ap/errors v0.0.0-20221201010224-09b9c5d09ea9
 	github.com/go-ap/httpsig v0.0.0-20210714162115-62a09257db51
 	github.com/go-ap/jsonld v0.0.0-20221030091449-f2a191312c73
