@@ -117,7 +117,7 @@ func (p P) ValidateServerActivity(a vocab.Item, inbox vocab.IRI) error {
 		return InvalidActivity("received nil")
 	}
 	if a.IsLink() {
-		return p.ValidateLink(a.GetLink())
+		return p.ValidateIRI(a.GetLink())
 	}
 	if !vocab.ActivityTypes.Contains(a.GetType()) {
 		return InvalidActivity("invalid type %s", a.GetType())
@@ -235,7 +235,7 @@ func (p P) ValidateClientActivity(a vocab.Item, outbox vocab.IRI) error {
 		return InvalidActivityActor("received nil activity")
 	}
 	if a.IsLink() {
-		return p.ValidateLink(a.GetLink())
+		return p.ValidateIRI(a.GetLink())
 	}
 	validActivityTypes := append(vocab.ActivityTypes, vocab.IntransitiveActivityTypes...)
 	if !validActivityTypes.Contains(a.GetType()) {
@@ -417,29 +417,6 @@ func (p P) IsLocalIRI(i vocab.IRI) bool {
 	return isLocalIRI(i) || p.validateLocalIRI(i) == nil
 }
 
-func (p P) ValidateLink(i vocab.IRI) error {
-	if i.Equals(vocab.PublicNS, false) {
-		return InvalidIRI("Public namespace is not a valid IRI")
-	}
-	if _, err := i.URL(); err != nil {
-		return errors.Annotatef(err, "underlying URL could not be parsed: %s", i)
-	}
-	/*
-		loadFn := p.c.LoadIRI
-		if p.IsLocalIRI(i) {
-			loadFn = p.s.Load
-		}
-		it, err := loadFn(i)
-		if err != nil {
-			return err
-		}
-		if vocab.IsNil(it) {
-			return InvalidIRI("Could not load: %s", i)
-		}
-	*/
-	return nil
-}
-
 func (p P) ValidateClientActor(a vocab.Item) (vocab.Item, error) {
 	if a == nil {
 		return a, MissingActivityActor("")
@@ -448,6 +425,16 @@ func (p P) ValidateClientActor(a vocab.Item) (vocab.Item, error) {
 		return a, InvalidActivityActor("%s is not local", a.GetLink())
 	}
 	return p.ValidateActor(a)
+}
+
+func (p P) ValidateIRI(i vocab.IRI) error {
+	if i.Equals(vocab.PublicNS, false) {
+		return InvalidIRI("Public namespace is not a valid IRI")
+	}
+	if _, err := i.URL(); err != nil {
+		return errors.Annotatef(err, "underlying URL could not be parsed: %s", i)
+	}
+	return nil
 }
 
 func (p P) ValidateServerActor(a vocab.Item) (vocab.Item, error) {
@@ -486,7 +473,7 @@ func (p P) ValidateActor(a vocab.Item) (vocab.Item, error) {
 	}
 	if a.IsLink() {
 		iri := a.GetLink()
-		err := p.ValidateLink(iri)
+		err := p.ValidateIRI(iri)
 		if err != nil {
 			return a, err
 		}
@@ -519,7 +506,7 @@ func (p P) ValidateClientObject(o vocab.Item) (vocab.Item, error) {
 	}
 	if o.IsLink() {
 		iri := o.GetLink()
-		err := p.ValidateLink(iri)
+		err := p.ValidateIRI(iri)
 		if err != nil {
 			return o, err
 		}
@@ -537,7 +524,7 @@ func (p P) ValidateClientObject(o vocab.Item) (vocab.Item, error) {
 }
 
 func (p P) ValidateServerObject(o vocab.Item) (vocab.Item, error) {
-	if err := p.ValidateLink(o.GetLink()); err != nil {
+	if err := p.ValidateIRI(o.GetLink()); err != nil {
 		return o, err
 	}
 	return o, nil
@@ -548,7 +535,7 @@ func (p P) ValidateTarget(t vocab.Item) error {
 		return InvalidActivityObject("is nil")
 	}
 	if t.IsLink() {
-		return p.ValidateLink(t.GetLink())
+		return p.ValidateIRI(t.GetLink())
 	}
 	if !(vocab.ObjectTypes.Contains(t.GetType()) || vocab.ActorTypes.Contains(t.GetType()) || vocab.ActivityTypes.Contains(t.GetType())) {
 		return InvalidActivityObject("invalid type %s", t.GetType())
