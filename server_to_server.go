@@ -55,6 +55,9 @@ func (p P) ProcessServerActivity(it vocab.Item, receivedIn vocab.IRI) (vocab.Ite
 	if err != nil {
 		return it, err
 	}
+	if err := p.ValidateServerActivity(it, receivedIn); err != nil {
+		return it, err
+	}
 	if err := saveRemoteActivityAndObjects(p.s, it); err != nil {
 		return it, err
 	}

@@ -49,6 +49,10 @@ func (p P) ProcessClientActivity(it vocab.Item, receivedIn vocab.IRI) (vocab.Ite
 	if it == nil {
 		return nil, errors.Newf("Unable to process nil activity")
 	}
+
+	if err := p.ValidateClientActivity(it, receivedIn); err != nil {
+		return it, err
+	}
 	// NOTE(marius): the separation between transitive and intransitive activities overlaps the separation we're
 	// using in the processingClientActivity function between the ActivityStreams motivations separation.
 	// This means that 'it' should probably be treated as a vocab.Item until the last possible moment.
