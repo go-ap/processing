@@ -47,7 +47,7 @@ func NegatingActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error
 		return act, errors.NotValidf("Activity object has wrong type %s, expected one of %v", act.Type, vocab.ActivityTypes)
 	}
 	err := vocab.OnActivity(act.Object, func(objAct *vocab.Activity) error {
-		if act.Actor.GetLink().Equals(objAct.Actor.GetLink(), false) {
+		if !act.Actor.GetLink().Equals(objAct.Actor.GetLink(), false) {
 			return errors.NotValidf("The %s activity has a different actor than its object: %s, expected %s", act.Type, act.Actor.GetLink(), objAct.Actor.GetLink())
 		}
 		if !validUndoActivityTypes.Contains(objAct.Type) {
