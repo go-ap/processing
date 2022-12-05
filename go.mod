@@ -4,9 +4,9 @@ go 1.18
 
 require (
 	git.sr.ht/~mariusor/lw v0.0.0-20221202111053-2dd31f3348e7
-	github.com/go-ap/activitypub v0.0.0-20221205033012-80bb22c4b3ee
-	github.com/go-ap/client v0.0.0-20221205034133-b8e0a0089dad
-	github.com/go-ap/errors v0.0.0-20221201010224-09b9c5d09ea9
+	github.com/go-ap/activitypub v0.0.0-20221205051756-24cd0c1e821c
+	github.com/go-ap/client v0.0.0-20221205054214-f9aeaaccc6c8
+	github.com/go-ap/errors v0.0.0-20221205040414-01c1adfc98ea
 	github.com/go-ap/httpsig v0.0.0-20210714162115-62a09257db51
 	github.com/go-ap/jsonld v0.0.0-20221030091449-f2a191312c73
 	github.com/openshift/osin v1.0.1
