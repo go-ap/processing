@@ -29,6 +29,7 @@ type P struct {
 	auth    *vocab.Actor
 	c       c.Basic
 	s       Store
+	l       lw.Logger
 }
 
 func New(o ...optionFn) (*P, error) {
@@ -54,6 +55,12 @@ func WithActorKeyGenerator(genFn vocab.WithActorFn) optionFn {
 		createKey = genFn
 	})
 	return func(_ *P) {}
+}
+
+func WithLogger(l lw.Logger) optionFn {
+	return func(p *P) {
+		p.l = l
+	}
 }
 
 func WithInfoLogger(logFn c.LogFn) optionFn {
