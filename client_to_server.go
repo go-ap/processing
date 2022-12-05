@@ -233,8 +233,8 @@ func (p P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) (vocab
 		actIRI := act.Actor.GetLink()
 		outbox := vocab.Outbox.IRI(actIRI)
 
-		if !actIRI.Equals(vocab.PublicNS, true) && !act.GetLink().Contains(outbox, false) {
-			allRecipients = append(allRecipients, outbox)
+		if !actIRI.Equals(vocab.PublicNS, true) {
+			allRecipients.Append(outbox)
 		}
 	}
 
@@ -242,14 +242,13 @@ func (p P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) (vocab
 		recIRI := rec.GetLink()
 		if recIRI == vocab.PublicNS {
 			// NOTE(marius): if the activity is addressed to the Public NS, we store it to the local service's inbox
+			// TODO(marius): this basically needs to add the shared inbox of the Service corresponding to our server
 			if len(p.baseIRI) > 0 {
-				allRecipients = append(allRecipients, vocab.Inbox.IRI(p.baseIRI[0]))
+				allRecipients.Append(vocab.Inbox.IRI(p.baseIRI[0]))
 			}
 			continue
 		}
 		if vocab.ValidCollectionIRI(recIRI) {
-			// TODO(marius): this step should happen at validation time
-			// Load all members if colIRI is a valid actor collection
 			members, err := loader.Load(recIRI)
 			if err != nil || vocab.IsNil(members) {
 				continue
@@ -259,7 +258,14 @@ func (p P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) (vocab
 					if !vocab.ActorTypes.Contains(m.GetType()) || (p.IsLocalIRI(m.GetLink()) && isBlocked(loader, m, act.Actor)) {
 						continue
 					}
-					allRecipients = append(allRecipients, vocab.Inbox.IRI(m))
+					vocab.OnActor(m, func(act *vocab.Actor) error {
+						if act.Endpoints != nil && !vocab.IsNil(act.Endpoints.SharedInbox) {
+							allRecipients.Append(act.Endpoints.SharedInbox.GetLink())
+						} else {
+							allRecipients.Append(vocab.Inbox.IRI(m))
+						}
+						return nil
+					})
 				}
 				return nil
 			})
@@ -267,18 +273,13 @@ func (p P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) (vocab
 			if p.IsLocalIRI(recIRI) && isBlocked(loader, recIRI, act.Actor) {
 				continue
 			}
-			inb := vocab.Inbox.IRI(recIRI)
-			if !allRecipients.Contains(inb) {
-				// TODO(marius): add check if IRI represents an actor (or rely on the collection saver to break if not)
-				allRecipients = append(allRecipients, inb)
-			}
+			// TODO(marius): add check if IRI represents an actor (or rely on the collection saver to break if not)
+			allRecipients.Append(vocab.Inbox.IRI(recIRI))
 		}
 	}
-	if !allRecipients.Contains(receivedIn) {
-		// NOTE(marius): append the receivedIn collection to the list of recipients
-		// We do this, because it could be missing from the Activity's recipients fields (to, bto, cc, bcc)
-		allRecipients.Append(receivedIn)
-	}
+	// NOTE(marius): append the receivedIn collection to the list of recipients
+	// We do this, because it could be missing from the Activity's recipients fields (to, bto, cc, bcc)
+	allRecipients.Append(receivedIn)
 
 	return vocab.ItemCollectionDeduplication(&allRecipients), nil
 }
