@@ -229,7 +229,15 @@ func s2sSignFn(keyLoader KeyLoader, actor vocab.Item) func(r *http.Request) erro
 			return err
 		}
 	}
-	keyId := actor.GetID() + "#main-key"
+	// NOTE(marius): this is needed to accomodate for the FedBOX service user which usually resides
+	// at the root of a domain, and it might miss a valid path. This trips the parsing of keys with id
+	// of form https://example.com#main-key
+	u, _ := actor.GetLink().URL()
+	if u.Path == "" {
+		u.Path = "/"
+	}
+	u.Fragment = "main-key"
+	keyId := u.String()
 	return func(r *http.Request) error {
 		bodyBuf := bytes.Buffer{}
 		if r.Body != nil {
@@ -237,7 +245,7 @@ func s2sSignFn(keyLoader KeyLoader, actor vocab.Item) func(r *http.Request) erro
 				r.Body = io.NopCloser(&bodyBuf)
 			}
 		}
-		return signer.SignRequest(key, keyId.String(), r, bodyBuf.Bytes())
+		return signer.SignRequest(key, keyId, r, bodyBuf.Bytes())
 	}
 }
 
