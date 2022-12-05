@@ -101,17 +101,17 @@ func UndoActivity(r WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
 			// TODO(marius): Dislikes should not trigger a removal from Likes/Liked collections
 			fallthrough
 		case vocab.LikeType:
-			UndoAppreciationActivity(r, toUndo)
+			_, err = UndoAppreciationActivity(r, toUndo)
 		case vocab.FollowType:
 			fallthrough
 		case vocab.BlockType:
 			fallthrough
-		case vocab.FlagType:
-			fallthrough
 		case vocab.IgnoreType:
-			return errors.NotImplementedf("Undoing %s is not implemented", toUndo.GetType())
+			fallthrough
+		case vocab.FlagType:
+			_, err = UndoRelationshipManagementActivity(r, toUndo)
 		}
-		return nil
+		return err
 	})
 	if err != nil {
 		return act, err
@@ -138,6 +138,57 @@ func UndoAppreciationActivity(r WriteStore, act *vocab.Activity) (*vocab.Activit
 	removeFromCols = append(removeFromCols, vocab.Outbox.IRI(act.Actor))
 	removeFromCols = append(removeFromCols, vocab.Liked.IRI(act.Actor))
 	removeFromCols = append(removeFromCols, vocab.Likes.IRI(act.Object))
+	for _, rec := range allRec {
+		iri := rec.GetLink()
+		if iri == vocab.PublicNS {
+			continue
+		}
+		if !vocab.ValidCollectionIRI(iri) {
+			// if not a valid collection, then the current iri represents an actor, and we need their inbox
+			removeFromCols = append(removeFromCols, vocab.Inbox.IRI(iri))
+		}
+	}
+	for _, iri := range removeFromCols {
+		if err := colSaver.RemoveFrom(iri, rem); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if len(errs) > 0 {
+		msgs := make([]string, len(errs))
+		for i, e := range errs {
+			msgs[i] = e.Error()
+		}
+		return act, errors.Newf("%s", strings.Join(msgs, ", "))
+	}
+	return act, nil
+}
+
+// UndoRelationshipManagementActivity
+//
+// Removes the side effects of an existing RelationshipActivity activity (Follow, Block, Ignore, Flag)
+// Currently this means the removal of the objet from the collection corresponding to the original Activity type.
+// Follow - removes the original object from the actor's followers collection.
+// Block - removes the original object from the actor's blocked collection.
+// Ignore - removes the original object from the actor's ignored collection.
+// Flag - is a special case where there isn't a specific collection that needs to be operated on.
+func UndoRelationshipManagementActivity(r WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
+	errs := make([]error, 0)
+	rem := act.GetLink()
+	colSaver, ok := r.(CollectionStore)
+	if !ok {
+		return act, nil
+	}
+	allRec := act.Recipients()
+	removeFromCols := make(vocab.IRIs, 0)
+	removeFromCols = append(removeFromCols, vocab.Outbox.IRI(act.Actor))
+	switch act.Object.GetType() {
+	case vocab.FollowType:
+		removeFromCols = append(removeFromCols, vocab.Followers.IRI(act.Actor))
+	case vocab.BlockType:
+		removeFromCols = append(removeFromCols, BlockedCollection.IRI(act.Actor))
+	case vocab.IgnoreType:
+		removeFromCols = append(removeFromCols, IgnoredCollection.IRI(act.Actor))
+	}
 	for _, rec := range allRec {
 		iri := rec.GetLink()
 		if iri == vocab.PublicNS {
