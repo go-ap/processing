@@ -1,21 +1,21 @@
 package processing
 
 import (
+	"bytes"
 	"crypto"
-	"crypto/rsa"
-	"fmt"
+	"io"
 	"net/http"
 	"net/netip"
 	"path"
 	"sync"
 	"time"
 
+	"git.sr.ht/~mariusor/lw"
 	vocab "github.com/go-ap/activitypub"
 	c "github.com/go-ap/client"
 	"github.com/go-ap/errors"
-	"github.com/go-ap/httpsig"
+	"github.com/go-fed/httpsig"
 	"github.com/openshift/osin"
-	"golang.org/x/crypto/ed25519"
 )
 
 var (
@@ -202,32 +202,39 @@ func c2sSignFn(storage osin.Storage, act vocab.Item) func(r *http.Request) error
 }
 
 func s2sSignFn(keyLoader KeyLoader, actor vocab.Item) func(r *http.Request) error {
-	return func(r *http.Request) error {
-		key, err := keyLoader.LoadKey(actor.GetLink())
-		if err != nil {
+	key, err := keyLoader.LoadKey(actor.GetLink())
+	if err != nil {
+		return func(r *http.Request) error {
 			return errors.Annotatef(err, "unable to load the actor's private key")
 		}
-		typ, err := keyType(key)
-		if err != nil {
+	}
+	if key == nil {
+		return func(r *http.Request) error {
+			return errors.Newf("invalid private key for actor")
+		}
+	}
+	prefs := []httpsig.Algorithm{httpsig.ED25519, httpsig.RSA_SHA512, httpsig.RSA_SHA256}
+	digestAlgorithm := httpsig.DigestSha256
+	headersToSign := []string{httpsig.RequestTarget, "host", "date"}
+	signer, _, err := httpsig.NewSigner(prefs, digestAlgorithm, headersToSign, httpsig.Signature, int64(time.Hour.Seconds()))
+	if err != nil {
+		return func(r *http.Request) error {
 			return err
 		}
-
-		signHdrs := []string{"(request-target)", "host", "date"}
-		keyId := fmt.Sprintf("%s#main-key", actor.GetID())
-		return httpsig.NewSigner(keyId, key, typ, signHdrs).Sign(r)
+	}
+	keyId := actor.GetID() + "#main-key"
+	return func(r *http.Request) error {
+		bodyBuf := bytes.Buffer{}
+		if r.Body != nil {
+			if _, err := io.Copy(&bodyBuf, r.Body); err == nil {
+				r.Body = io.NopCloser(&bodyBuf)
+			}
+		}
+		return signer.SignRequest(key, keyId.String(), r, bodyBuf.Bytes())
 	}
 }
 
-func keyType(key crypto.PrivateKey) (httpsig.Algorithm, error) {
-	switch key.(type) {
-	case *rsa.PrivateKey:
-		return httpsig.RSASHA256, nil
-	case ed25519.PrivateKey:
-		return httpsig.Ed25519, nil
-	}
-	return nil, errors.Errorf("Unknown private key type[%T] %v", key, key)
-}
-
+// BuildReplyToCollections builds the list of objects that it is inReplyTo
 func (p P) BuildReplyToCollections(it vocab.Item) (vocab.ItemCollection, error) {
 	ob, err := vocab.ToObject(it)
 	if err != nil {
