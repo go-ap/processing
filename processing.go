@@ -42,53 +42,53 @@ func New(o ...optionFn) (*P, error) {
 
 type optionFn func(s *P)
 
-func SetIDGenerator(genFn IDGenerator) optionFn {
+func WithIDGenerator(genFn IDGenerator) optionFn {
 	new(sync.Once).Do(func() {
 		createID = genFn
 	})
 	return func(_ *P) {}
 }
 
-func SetActorKeyGenerator(genFn vocab.WithActorFn) optionFn {
+func WithActorKeyGenerator(genFn vocab.WithActorFn) optionFn {
 	new(sync.Once).Do(func() {
 		createKey = genFn
 	})
 	return func(_ *P) {}
 }
 
-func SetInfoLogger(logFn c.LogFn) optionFn {
+func WithInfoLogger(logFn c.LogFn) optionFn {
 	new(sync.Once).Do(func() {
 		infoFn = logFn
 	})
 	return func(_ *P) {}
 }
 
-func SetErrorLogger(logFn c.LogFn) optionFn {
+func WithErrorLogger(logFn c.LogFn) optionFn {
 	new(sync.Once).Do(func() {
 		errFn = logFn
 	})
 	return func(_ *P) {}
 }
 
-func SetClient(c c.Basic) optionFn {
+func WithClient(c c.Basic) optionFn {
 	return func(p *P) {
 		p.c = c
 	}
 }
 
-func SetStorage(s Store) optionFn {
+func WithStorage(s Store) optionFn {
 	return func(p *P) {
 		p.s = s
 	}
 }
 
-func SetIRI(i ...vocab.IRI) optionFn {
+func WithIRI(i ...vocab.IRI) optionFn {
 	return func(p *P) {
 		p.baseIRI = i
 	}
 }
 
-func SetLocalIRIChecker(isLocalFn IRIValidator) optionFn {
+func WithLocalIRIChecker(isLocalFn IRIValidator) optionFn {
 	new(sync.Once).Do(func() {
 		isLocalIRI = isLocalFn
 	})
