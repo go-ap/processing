@@ -78,6 +78,10 @@ func (p P) ProcessServerActivity(it vocab.Item, receivedIn vocab.IRI) (vocab.Ite
 	if err != nil {
 		return it, err
 	}
+
+	if it, err = p.s.Save(vocab.FlattenProperties(it)); err != nil {
+		return it, err
+	}
 	return it, p.ProcessServerInboxDelivery(it, receivedIn)
 }
 
@@ -133,9 +137,7 @@ func saveRemoteActivityAndObjects(s WriteStore, act vocab.Item) error {
 		if _, err := s.Save(act.Actor); err != nil {
 			return err
 		}
-		toSave := *act
-		_, err := s.Save(vocab.FlattenProperties(toSave))
-		return err
+		return nil
 	})
 	return err
 }
