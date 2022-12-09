@@ -56,6 +56,9 @@ func (p P) disseminateToRemoteCollection(act vocab.Item, iris ...vocab.IRI) erro
 		})
 		infoFn("Pushing to remote actor's collection %s", col)
 		if _, _, err := p.c.ToCollection(col, act); err != nil {
+			if errors.IsConflict(err) {
+				continue
+			}
 			g = append(g, err)
 		}
 	}

@@ -4,8 +4,8 @@ go 1.18
 
 require (
 	git.sr.ht/~mariusor/lw v0.0.0-20221202111053-2dd31f3348e7
-	github.com/go-ap/activitypub v0.0.0-20221207073405-5d6d22cbc42e
-	github.com/go-ap/client v0.0.0-20221208073834-049d7599ebe3
+	github.com/go-ap/activitypub v0.0.0-20221209114049-1ceafda50f9f
+	github.com/go-ap/client v0.0.0-20221209114704-ee9adde8b2c2
 	github.com/go-ap/errors v0.0.0-20221205040414-01c1adfc98ea
 	github.com/go-ap/jsonld v0.0.0-20221030091449-f2a191312c73
 	github.com/go-fed/httpsig v1.1.0
