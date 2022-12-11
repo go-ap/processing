@@ -222,14 +222,14 @@ func s2sSignFn(keyLoader KeyLoader, actor vocab.Item) func(r *http.Request) erro
 	}
 	prefs := []httpsig.Algorithm{httpsig.ED25519, httpsig.RSA_SHA512, httpsig.RSA_SHA256}
 	digestAlgorithm := httpsig.DigestSha256
-	headersToSign := []string{httpsig.RequestTarget, "host", "date"}
+	headersToSign := []string{httpsig.RequestTarget, "host", "date", "digest"}
 	signer, _, err := httpsig.NewSigner(prefs, digestAlgorithm, headersToSign, httpsig.Signature, int64(time.Hour.Seconds()))
 	if err != nil {
 		return func(r *http.Request) error {
 			return err
 		}
 	}
-	// NOTE(marius): this is needed to accomodate for the FedBOX service user which usually resides
+	// NOTE(marius): this is needed to accommodate for the FedBOX service user which usually resides
 	// at the root of a domain, and it might miss a valid path. This trips the parsing of keys with id
 	// of form https://example.com#main-key
 	u, _ := actor.GetLink().URL()
