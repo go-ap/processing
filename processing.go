@@ -209,7 +209,7 @@ func c2sSignFn(storage osin.Storage, act vocab.Item) func(r *http.Request) error
 }
 
 var (
-	prefs               = []httpsig.Algorithm{httpsig.RSA_SHA256, httpsig.RSA_SHA512, httpsig.ED25519}
+	prefs               = []httpsig.Algorithm{httpsig.ED25519, httpsig.RSA_SHA512, httpsig.RSA_SHA256}
 	digestAlgorithm     = httpsig.DigestSha256
 	headersToSign       = []string{httpsig.RequestTarget, "Host", "Date"}
 	signatureExpiration = int64(time.Hour.Seconds())
