@@ -24,6 +24,10 @@ func (p P) disseminateToRemoteCollection(act vocab.Item, iris ...vocab.IRI) erro
 	if len(iris) == 0 {
 		return nil
 	}
+	signer, _, err := signerWithDigest()
+	if err != nil {
+		return errors.Annotatef(err, "unable to initialize HTTP signer")
+	}
 	if !p.IsLocalIRI(act.GetLink()) {
 		return errors.Newf("trying to disseminate local activity to local collection %s", act.GetLink())
 	}
@@ -51,7 +55,7 @@ func (p P) disseminateToRemoteCollection(act vocab.Item, iris ...vocab.IRI) erro
 		// TODO(marius): Move this function to either the go-ap/auth package, or in FedBOX itself.
 		//   We should probably change the signature for client.RequestSignFn to accept an Actor/IRI as a param.
 		vocab.OnIntransitiveActivity(act, func(act *vocab.IntransitiveActivity) error {
-			p.c.SignFn(s2sSignFn(keyLoader, act.Actor))
+			p.c.SignFn(s2sSignFn(keyLoader, signer, act.Actor))
 			return nil
 		})
 		infoFn("Pushing to remote actor's collection %s", col)
