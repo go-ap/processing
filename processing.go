@@ -219,35 +219,39 @@ var (
 	signatureExpiration = int64(time.Hour.Seconds())
 )
 
-type signer []httpsig.Signer
+type signer map[httpsig.Algorithm]httpsig.Signer
 
 func newSigner(headers []string) (signer, error) {
 	s := make(signer, 0)
 	for _, alg := range prefs {
-		signer, _, err := httpsig.NewSigner([]httpsig.Algorithm{alg}, digestAlgorithm, headers, httpsig.Signature, signatureExpiration)
+		signer, alg, err := httpsig.NewSigner([]httpsig.Algorithm{alg}, digestAlgorithm, headers, httpsig.Signature, signatureExpiration)
 		if err == nil {
-			s = append(s, signer)
+			s[alg] = signer
 		}
 	}
 	return s, nil
 }
 
 func (s signer) SignRequest(pKey crypto.PrivateKey, pubKeyId string, r *http.Request, body []byte) error {
-	for _, v := range s {
+	algs := make([]string, 0)
+	for a, v := range s {
+		algs = append(algs, string(a))
 		if err := v.SignRequest(pKey, pubKeyId, r, body); err == nil {
 			return nil
 		}
 	}
-	return errors.Newf("no suitable request signer for public key %s", pubKeyId)
+	return errors.Newf("no suitable request signer for public key[%T] %s, tried %+v", pKey, pubKeyId, algs)
 }
 
 func (s signer) SignResponse(pKey crypto.PrivateKey, pubKeyId string, r http.ResponseWriter, body []byte) error {
-	for _, v := range s {
+	algs := make([]string, 0)
+	for a, v := range s {
+		algs = append(algs, string(a))
 		if err := v.SignResponse(pKey, pubKeyId, r, body); err == nil {
 			return nil
 		}
 	}
-	return errors.Newf("no suitable response signer for public key %s", pubKeyId)
+	return errors.Newf("no suitable response signer for public key[%T] %s, tried %+v", pKey, pubKeyId, algs)
 }
 
 func signerWithoutDigest() (httpsig.Signer, error) {
