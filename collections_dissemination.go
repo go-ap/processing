@@ -24,7 +24,7 @@ func (p P) disseminateToRemoteCollection(act vocab.Item, iris ...vocab.IRI) erro
 	if len(iris) == 0 {
 		return nil
 	}
-	signer, _, err := signerWithDigest()
+	signer, err := signerWithDigest()
 	if err != nil {
 		return errors.Annotatef(err, "unable to initialize HTTP signer")
 	}

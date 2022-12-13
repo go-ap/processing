@@ -238,7 +238,7 @@ func (p P) dereferenceIRIBasedOnInbox(ob vocab.Item, receivedIn vocab.IRI) (voca
 		return ob, errors.Newf("unable find actor from collection: %s", receivedIn)
 	}
 
-	signer, _, err := signerWithoutDigest()
+	signer, err := signerWithoutDigest()
 	if err != nil {
 		errFn("unable to initialize HTTP signer: %+s", err)
 	}
