@@ -264,7 +264,8 @@ func signerWithDigest() (httpsig.Signer, error) {
 }
 
 func s2sSignFn(keyLoader KeyLoader, signer httpsig.Signer, actor vocab.Item) func(r *http.Request) error {
-	key, err := keyLoader.LoadKey(actor.GetLink())
+	actorIRI := actor.GetLink()
+	key, err := keyLoader.LoadKey(actorIRI)
 	if err != nil {
 		return func(r *http.Request) error {
 			return errors.Annotatef(err, "unable to load the actor's private key")
@@ -278,7 +279,7 @@ func s2sSignFn(keyLoader KeyLoader, signer httpsig.Signer, actor vocab.Item) fun
 	// NOTE(marius): this is needed to accommodate for the FedBOX service user which usually resides
 	// at the root of a domain, and it might miss a valid path. This trips the parsing of keys with id
 	// of form https://example.com#main-key
-	u, _ := actor.GetLink().URL()
+	u, _ := actorIRI.URL()
 	if u.Path == "" {
 		u.Path = "/"
 	}
