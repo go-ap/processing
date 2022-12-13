@@ -246,7 +246,7 @@ func (p P) dereferenceIRIBasedOnInbox(ob vocab.Item, receivedIn vocab.IRI) (voca
 	// in the local collections, when we can use the collection's owner to sign the de-referencing request.
 	if p.IsLocal(ob.GetLink()) {
 		if osinSt, ok := p.s.(osin.Storage); ok {
-			p.c.SignFn(c2sSignFn(osinSt, maybeActor.GetLink()))
+			p.c.SignFn(c2sSignFn(osinSt, maybeActor))
 		} else {
 			errFn("storage type does not support loading OAuth2 token: %T", p.s)
 		}
