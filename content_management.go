@@ -238,10 +238,6 @@ func (p P) dereferenceIRIBasedOnInbox(ob vocab.Item, receivedIn vocab.IRI) (voca
 		return ob, errors.Newf("unable find actor from collection: %s", receivedIn)
 	}
 
-	signer, err := signerWithoutDigest()
-	if err != nil {
-		errFn("unable to initialize HTTP signer: %+s", err)
-	}
 	// NOTE(marius): De-referencing of the Activity's object is being done when storing the object
 	// in the local collections, when we can use the collection's owner to sign the de-referencing request.
 	if p.IsLocal(ob.GetLink()) {
@@ -251,8 +247,8 @@ func (p P) dereferenceIRIBasedOnInbox(ob vocab.Item, receivedIn vocab.IRI) (voca
 			errFn("storage type does not support loading OAuth2 token: %T", p.s)
 		}
 	} else {
-		if keyLoader, ok := p.s.(KeyLoader); ok && signer != nil {
-			p.c.SignFn(s2sSignFn(keyLoader, signer, maybeActor.GetLink()))
+		if keyLoader, ok := p.s.(KeyLoader); ok {
+			p.c.SignFn(s2sSignFn(keyLoader, maybeActor.GetLink(), signerWithoutDigest))
 		} else {
 			errFn("storage type does not support loading HTTPSig public key: %T", p.s)
 		}

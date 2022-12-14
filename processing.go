@@ -3,6 +3,9 @@ package processing
 import (
 	"bytes"
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	"crypto/rsa"
 	"io"
 	"net/http"
 	"net/netip"
@@ -213,7 +216,6 @@ func c2sSignFn(storage osin.Storage, it vocab.Item) func(r *http.Request) error 
 }
 
 var (
-	prefs               = []httpsig.Algorithm{httpsig.ED25519, httpsig.RSA_SHA512, httpsig.RSA_SHA256}
 	digestAlgorithm     = httpsig.DigestSha256
 	headersToSign       = []string{httpsig.RequestTarget, "Host", "Date"}
 	signatureExpiration = int64(time.Hour.Seconds())
@@ -221,9 +223,19 @@ var (
 
 type signer map[httpsig.Algorithm]httpsig.Signer
 
-func newSigner(headers []string) (signer, error) {
+func newSigner(pubKey crypto.PrivateKey, headers []string) (signer, error) {
 	s := make(signer, 0)
-	for _, alg := range prefs {
+
+	algos := make([]httpsig.Algorithm, 0)
+	switch pubKey.(type) {
+	case *rsa.PrivateKey:
+		algos = append(algos, httpsig.RSA_SHA256, httpsig.RSA_SHA512)
+	case *ecdsa.PrivateKey:
+		algos = append(algos, httpsig.ECDSA_SHA512, httpsig.ECDSA_SHA256)
+	case ed25519.PrivateKey:
+		algos = append(algos, httpsig.ED25519)
+	}
+	for _, alg := range algos {
 		signer, alg, err := httpsig.NewSigner([]httpsig.Algorithm{alg}, digestAlgorithm, headers, httpsig.Signature, signatureExpiration)
 		if err == nil {
 			s[alg] = signer
@@ -254,16 +266,18 @@ func (s signer) SignResponse(pKey crypto.PrivateKey, pubKeyId string, r http.Res
 	return errors.Newf("no suitable response signer for public key[%T] %s, tried %+v", pKey, pubKeyId, algs)
 }
 
-func signerWithoutDigest() (httpsig.Signer, error) {
-	return newSigner(headersToSign)
+type signerInitFn func(crypto.PrivateKey) (httpsig.Signer, error)
+
+func signerWithoutDigest(prvKey crypto.PrivateKey) (httpsig.Signer, error) {
+	return newSigner(prvKey, headersToSign)
 }
 
-func signerWithDigest() (httpsig.Signer, error) {
+func signerWithDigest(prvKey crypto.PrivateKey) (httpsig.Signer, error) {
 	headersToSign = append(headersToSign, "Digest")
-	return newSigner(headersToSign)
+	return newSigner(prvKey, headersToSign)
 }
 
-func s2sSignFn(keyLoader KeyLoader, signer httpsig.Signer, actor vocab.Item) func(r *http.Request) error {
+func s2sSignFn(keyLoader KeyLoader, actor vocab.Item, initSignerFn signerInitFn) func(r *http.Request) error {
 	actorIRI := actor.GetLink()
 	key, err := keyLoader.LoadKey(actorIRI)
 	if err != nil {
@@ -274,6 +288,12 @@ func s2sSignFn(keyLoader KeyLoader, signer httpsig.Signer, actor vocab.Item) fun
 	if key == nil {
 		return func(r *http.Request) error {
 			return errors.Newf("invalid private key for actor")
+		}
+	}
+	signer, err := initSignerFn(key)
+	if err != nil {
+		return func(r *http.Request) error {
+			return errors.Annotatef(err, "unable to initialize HTTP signer")
 		}
 	}
 	// NOTE(marius): this is needed to accommodate for the FedBOX service user which usually resides
