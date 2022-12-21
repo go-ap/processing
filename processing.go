@@ -273,8 +273,7 @@ func signerWithoutDigest(prvKey crypto.PrivateKey) (httpsig.Signer, error) {
 }
 
 func signerWithDigest(prvKey crypto.PrivateKey) (httpsig.Signer, error) {
-	headersToSign = append(headersToSign, "Digest")
-	return newSigner(prvKey, headersToSign)
+	return newSigner(prvKey, append(headersToSign, "Digest"))
 }
 
 func s2sSignFn(keyLoader KeyLoader, actor vocab.Item, initSignerFn signerInitFn) func(r *http.Request) error {
