@@ -248,7 +248,7 @@ func (p P) dereferenceIRIBasedOnInbox(ob vocab.Item, receivedIn vocab.IRI) (voca
 		}
 	} else {
 		if keyLoader, ok := p.s.(KeyLoader); ok {
-			p.c.SignFn(s2sSignFn(keyLoader, maybeActor.GetLink(), signerWithoutDigest))
+			p.c.SignFn(s2sSignFn(keyLoader, maybeActor.GetLink(), signerWithoutDigest(p.l)))
 		} else {
 			errFn("storage type does not support loading HTTPSig public key: %T", p.s)
 		}
