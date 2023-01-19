@@ -107,6 +107,8 @@ func WithLocalIRIChecker(isLocalFn IRIValidator) optionFn {
 
 // ProcessActivity processes an Activity received
 func (p P) ProcessActivity(it vocab.Item, receivedIn vocab.IRI) (vocab.Item, error) {
+	p.l.Debugf("Processing %q activity in %q", it.GetType(), receivedIn)
+
 	if IsOutbox(receivedIn) {
 		return p.ProcessClientActivity(it, receivedIn)
 	}
@@ -255,7 +257,7 @@ func (s signer) SignRequest(pKey crypto.PrivateKey, pubKeyId string, r *http.Req
 		if err := v.SignRequest(pKey, pubKeyId, r, body); err == nil {
 			return nil
 		} else {
-			s.logger.Errorf("invalid signer algo %s:%T %+s", a, v, err)
+			s.logger.Debugf("invalid signer algo %s:%T %+s", a, v, err)
 		}
 	}
 	return errors.Newf("no suitable request signer for public key[%T] %s, tried %+v", pKey, pubKeyId, algs)
@@ -268,7 +270,7 @@ func (s signer) SignResponse(pKey crypto.PrivateKey, pubKeyId string, r http.Res
 		if err := v.SignResponse(pKey, pubKeyId, r, body); err == nil {
 			return nil
 		} else {
-			s.logger.Errorf("invalid signer algo %s:%T %+s", a, v, err)
+			s.logger.Debugf("invalid signer algo %s:%T %+s", a, v, err)
 		}
 	}
 	return errors.Newf("no suitable response signer for public key[%T] %s, tried %+v", pKey, pubKeyId, algs)

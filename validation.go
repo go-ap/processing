@@ -108,10 +108,10 @@ func (p P) ValidateServerActivity(a vocab.Item, inbox vocab.IRI) error {
 		return errors.NotValidf("Trying to validate a non inbox IRI %s", inbox)
 	}
 	if vocab.IsNil(p.auth) {
-		return errors.Unauthorizedf("nil actor is not allowed posting to current inbox")
+		return errors.Unauthorizedf("nil actor is not allowed posting to current inbox: %s", inbox)
 	}
 	if p.auth.GetLink() == vocab.PublicNS {
-		return errors.Unauthorizedf("%s actor is not allowed posting to current inbox", p.auth.Name)
+		return errors.Unauthorizedf("%s actor is not allowed posting to current inbox: %s", p.auth.Name, inbox)
 	}
 	if a == nil {
 		return InvalidActivity("received nil")
