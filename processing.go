@@ -202,18 +202,14 @@ func genOAuth2Token(c osin.Storage, actor *vocab.Actor, cl vocab.Item) (string, 
 }
 
 func c2sSignFn(storage osin.Storage, it vocab.Item) func(r *http.Request) error {
-	actor, err := vocab.ToActor(it)
-	if err != nil {
-		return func(req *http.Request) error {
-			return err
-		}
-	}
 	return func(req *http.Request) error {
-		tok, err := genOAuth2Token(storage, actor, nil)
-		if len(tok) > 0 {
-			req.Header.Set("Authorization", "Bearer "+tok)
-		}
-		return err
+		return vocab.OnActor(it, func(actor *vocab.Actor) error {
+			tok, err := genOAuth2Token(storage, actor, nil)
+			if len(tok) > 0 {
+				req.Header.Set("Authorization", "Bearer "+tok)
+			}
+			return err
+		})
 	}
 }
 
