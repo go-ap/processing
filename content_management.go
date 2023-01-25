@@ -39,24 +39,22 @@ func defaultKeyGenerator() vocab.WithActorFn {
 func defaultIDGenerator(base vocab.IRI) IDGenerator {
 	timeIDFn := func(t time.Time) string { return fmt.Sprintf("%d", t.UnixMilli()) }
 
-	return func(it vocab.Item, col vocab.Item, _ vocab.Item) (vocab.ID, error) {
+	return func(it vocab.Item, col vocab.Item, byActivity vocab.Item) (vocab.ID, error) {
 		var colIRI vocab.IRI
 
-		if col != nil && len(col.GetLink()) > 0 {
+		if !vocab.IsNil(col) {
 			colIRI = col.GetLink()
+		} else {
+			colIRI = vocab.Outbox.IRI(base)
 		}
+
 		when := time.Now()
-		// NOTE(marius): we're using the non-generic function here,
-		// as the generic one introduces about 50 microsecond delay
 		vocab.OnObject(it, func(o *vocab.Object) error {
 			if !o.Published.IsZero() {
 				when = o.Published
 			}
 			if o.AttributedTo != nil {
 				base = o.AttributedTo.GetLink()
-			}
-			if len(colIRI) == 0 {
-				colIRI = vocab.Outbox.IRI(base)
 			}
 			return nil
 		})
@@ -233,7 +231,7 @@ func (p P) dereferenceActivityProperties(receivedIn vocab.IRI) func(act *vocab.A
 }
 
 func (p P) dereferenceIRIBasedOnInbox(ob vocab.Item, receivedIn vocab.IRI) (vocab.Item, error) {
-	maybeActor, maybeInbox := vocab.Split(receivedIn)
+	maybeActorIRI, maybeInbox := vocab.Split(receivedIn)
 	if maybeInbox == "" {
 		return ob, errors.Newf("unable find actor from collection: %s", receivedIn)
 	}
@@ -242,13 +240,18 @@ func (p P) dereferenceIRIBasedOnInbox(ob vocab.Item, receivedIn vocab.IRI) (voca
 	// in the local collections, when we can use the collection's owner to sign the de-referencing request.
 	if p.IsLocal(ob.GetLink()) {
 		if osinSt, ok := p.s.(osin.Storage); ok {
-			p.c.SignFn(c2sSignFn(osinSt, maybeActor))
+			act, err := p.s.Load(maybeActorIRI)
+			if err != nil {
+				errFn("unable to load local actor: %+s", err)
+			} else if !vocab.IsNil(act) {
+				p.c.SignFn(c2sSignFn(osinSt, act))
+			}
 		} else {
 			errFn("storage type does not support loading OAuth2 token: %T", p.s)
 		}
 	} else {
 		if keyLoader, ok := p.s.(KeyLoader); ok {
-			p.c.SignFn(s2sSignFn(keyLoader, maybeActor.GetLink(), signerWithoutDigest(p.l)))
+			p.c.SignFn(s2sSignFn(keyLoader, maybeActorIRI, signerWithoutDigest(p.l)))
 		} else {
 			errFn("storage type does not support loading HTTPSig public key: %T", p.s)
 		}
