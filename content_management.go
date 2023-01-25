@@ -12,9 +12,9 @@ import (
 type (
 	// IDGenerator takes an ActivityStreams object, a collection to store it in, and the activity that has it as object:
 	//  "it" is the object we want to generate the ID for.
-	//  "partOf" represents the Collection that it is a part of.
+	//  "partOf" represents the IRI of the Collection that it is a part of.
 	//  "by" represents the Activity that generated the object
-	IDGenerator func(it vocab.Item, partOf vocab.Item, by vocab.Item) (vocab.ID, error)
+	IDGenerator func(it vocab.Item, receivedIn vocab.Item, byActivity vocab.Item) (vocab.ID, error)
 	// IRIValidator designates the type for a function that can validate an IRI
 	// It's currently used as the type for var isLocalIRI
 	IRIValidator func(i vocab.IRI) bool
@@ -65,15 +65,12 @@ func defaultIDGenerator(base vocab.IRI) IDGenerator {
 	}
 }
 
-func SetID(it vocab.Item, partOf vocab.Item, act vocab.Item) error {
-	if createID != nil {
-		return vocab.OnObject(it, func(o *vocab.Object) error {
-			var err error
-			o.ID, err = createID(it, partOf, act)
-			return err
-		})
+func SetID(it vocab.Item, partOf vocab.Item, parentActivity vocab.Item) error {
+	if createID == nil {
+		return errors.Newf("no ID generator was set")
 	}
-	return errors.Newf("no package ID generator was set")
+	_, err := createID(it, partOf, parentActivity)
+	return err
 }
 
 // ContentManagementActivityFromClient processes matching activities.

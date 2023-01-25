@@ -55,8 +55,7 @@ type RequestValidator interface {
 // an ActivityStreams Activity. It needs to implement the http.Handler interface.
 //
 // It is considered that following the execution of the handler, we return a pair formed of an HTTP status together with
-//  an IRI representing a new Object - in the case of transitive activities that had a side effect, or
-//  an error.
+// an IRI representing a new Object - in the case of transitive activities that had a side effect, or an error.
 // In the case of intransitive activities the iri will always be empty.
 type ActivityHandlerFn func(vocab.IRI, *http.Request) (vocab.Item, int, error)
 
