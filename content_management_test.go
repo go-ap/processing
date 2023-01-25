@@ -240,7 +240,7 @@ func Test_defaultIDGenerator(t *testing.T) {
 				nil,
 				nil,
 			},
-			want: vocab.Outbox.IRI(defaultActor.GetLink()).AddPath(fmt.Sprintf("%d", publishedAt.UnixMilli())),
+			want: vocab.Outbox.IRI(vocab.IRI("https://example.com")).AddPath(fmt.Sprintf("%d", publishedAt.UnixMilli())),
 		},
 	}
 	for _, tt := range tests {
