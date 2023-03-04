@@ -162,10 +162,6 @@ type KeyLoader interface {
 	LoadKey(vocab.IRI) (crypto.PrivateKey, error)
 }
 
-type KeySaver interface {
-	GenKey(vocab.IRI) error
-}
-
 const OAuthOOBRedirectURN = "urn:ietf:wg:oauth:2.0:oob:auto"
 
 var defaultSignFn c.RequestSignFn = func(*http.Request) error { return nil }
