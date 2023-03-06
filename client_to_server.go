@@ -136,7 +136,7 @@ func processClientIntransitiveActivity(p P, it vocab.Item, receivedIn vocab.IRI)
 
 func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (vocab.Item, error) {
 	if len(act.GetLink()) == 0 {
-		if err := SetID(act, nil, nil); err != nil {
+		if err := SetID(act, receivedIn, nil); err != nil {
 			return act, err
 		}
 	}
