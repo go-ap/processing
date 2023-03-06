@@ -172,6 +172,10 @@ func IRIBelongsToActor(iri vocab.IRI, actor *vocab.Actor) bool {
 	if vocab.Outbox.IRI(actor).Equals(iri, false) {
 		return true
 	}
+	// If it exists the sharedInbox IRI is a valid collection associated with the actor.
+	if actor.Endpoints != nil && actor.Endpoints.SharedInbox != nil {
+		return actor.Endpoints.SharedInbox.GetLink().Equals(iri, false)
+	}
 	// The following should not really come into question at any point.
 	// This function should be used for checking inbox/outbox/sharedInbox IRIS
 	if vocab.Following.IRI(actor).Equals(iri, false) {
@@ -190,9 +194,6 @@ func IRIBelongsToActor(iri vocab.IRI, actor *vocab.Actor) bool {
 		return true
 	}
 	if vocab.Likes.IRI(actor).Equals(iri, false) {
-		return true
-	}
-	if actor.Endpoints != nil && actor.Endpoints.SharedInbox.GetLink().Equals(iri, false) {
 		return true
 	}
 	return false
