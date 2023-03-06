@@ -490,7 +490,8 @@ func (p P) ValidateActor(a vocab.Item) (vocab.Item, error) {
 			return a, errors.NotFoundf("Invalid activity actor")
 		}
 	}
-	return a, vocab.OnActor(a, func(act *vocab.Actor) error {
+	err := vocab.OnActor(a, func(act *vocab.Actor) error {
+		a = act
 		if !vocab.ActorTypes.Contains(act.GetType()) {
 			return InvalidActivityActor("invalid type %s", act.GetType())
 		}
@@ -499,6 +500,7 @@ func (p P) ValidateActor(a vocab.Item) (vocab.Item, error) {
 		}
 		return InvalidActivityActor("current activity's actor doesn't match the authenticated one")
 	})
+	return a, err
 }
 
 func (p P) ValidateClientObject(o vocab.Item) (vocab.Item, error) {
