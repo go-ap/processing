@@ -226,10 +226,10 @@ func (p P) ValidateClientActivity(a vocab.Item, outbox vocab.IRI) error {
 		return errors.NotValidf("trying to validate a non outbox IRI %s", outbox)
 	}
 	if p.auth == nil || p.auth.ID == vocab.PublicNS {
-		return errors.Unauthorizedf("missing actor: not allowed to post to outbox")
+		return errors.Unauthorizedf("missing actor: not allowed to post to outbox %s", outbox)
 	}
 	if !IRIBelongsToActor(outbox, p.auth) {
-		return errors.Unauthorizedf("%s actor does not own the current outbox", name(p.auth))
+		return errors.Unauthorizedf("actor %q does not own the current outbox %s", name(p.auth), outbox)
 	}
 	if a == nil {
 		return InvalidActivityActor("received nil activity")
