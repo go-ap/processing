@@ -283,35 +283,55 @@ func UpdateActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) 
 	var err error
 	ob := act.Object
 
-	if loader, ok := l.(ReadStore); ok {
-		if vocab.IsItemCollection(ob) {
-			foundCol := make(vocab.ItemCollection, 0)
-			vocab.OnCollectionIntf(ob, func(col vocab.CollectionInterface) error {
-				for _, it := range col.Collection() {
-					old, err := loader.Load(it.GetLink())
-					if err != nil {
-						continue
-					}
-					if old, err = updateSingleItem(l, old, it); err != nil {
-						continue
-					}
-					foundCol = append(foundCol, old)
+	loader, ok := l.(Store)
+	if !ok {
+		return act, nil
+	}
+
+	if vocab.IsItemCollection(ob) {
+		foundCol := make(vocab.ItemCollection, 0)
+		err := vocab.OnCollectionIntf(ob, func(col vocab.CollectionInterface) error {
+			for _, it := range col.Collection() {
+				old, err := loadAndUpdateSingleItem(loader, it)
+				if err != nil {
+					return err
 				}
-				act.Object = foundCol
-				return nil
-			})
-		} else {
-			old, err := loader.Load(ob.GetLink())
-			if err != nil {
-				return act, err
+				foundCol = append(foundCol, old)
 			}
-			if old, err = updateSingleItem(l, old, ob); err != nil {
-				return act, err
-			}
-			act.Object = old
+			act.Object = foundCol
+			return nil
+		})
+		if err != nil {
+			return act, err
 		}
+	} else {
+		old, err := loadAndUpdateSingleItem(loader, ob)
+		if err != nil {
+			return act, err
+		}
+		act.Object = old
 	}
 	return act, err
+}
+
+func loadAndUpdateSingleItem(l Store, it vocab.Item) (vocab.Item, error) {
+	old, err := l.Load(it.GetLink())
+	if err != nil {
+		return it, err
+	}
+	if vocab.IsItemCollection(old) {
+		err := vocab.OnItemCollection(old, func(col *vocab.ItemCollection) error {
+			old = col.First()
+			return nil
+		})
+		if err != nil {
+			return it, err
+		}
+	}
+	if old, err = updateSingleItem(l, old, it); err != nil {
+		return it, err
+	}
+	return old, nil
 }
 
 func updateSingleItem(l WriteStore, found vocab.Item, with vocab.Item) (vocab.Item, error) {
