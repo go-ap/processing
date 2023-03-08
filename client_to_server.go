@@ -95,7 +95,7 @@ func (p P) ProcessOutboxDelivery(it vocab.Item, receivedIn vocab.IRI) error {
 
 func processClientIntransitiveActivity(p P, it vocab.Item, receivedIn vocab.IRI) (vocab.Item, error) {
 	if len(it.GetLink()) == 0 {
-		if err := SetID(it, nil, nil); err != nil {
+		if err := SetID(it, receivedIn, nil); err != nil {
 			return it, err
 		}
 	}
@@ -177,7 +177,7 @@ func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (voca
 	}
 	if act.Tag != nil {
 		// Try to save tags as set on the activity
-		createNewTags(p.s, act.Tag)
+		createNewTags(p.s, act.Tag, act)
 	}
 
 	if act.Published.IsZero() {

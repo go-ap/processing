@@ -119,7 +119,7 @@ func (p P) ProcessActivity(it vocab.Item, receivedIn vocab.IRI) (vocab.Item, err
 	return nil, errors.MethodNotAllowedf("unable to process activities at current IRI: %s", receivedIn)
 }
 
-func createNewTags(l WriteStore, tags vocab.ItemCollection) error {
+func createNewTags(l WriteStore, tags vocab.ItemCollection, parent vocab.Item) error {
 	if len(tags) == 0 {
 		return nil
 	}
@@ -134,7 +134,7 @@ func createNewTags(l WriteStore, tags vocab.ItemCollection) error {
 		if id := tag.GetID(); len(id) > 0 {
 			continue
 		}
-		if err := SetID(tag, nil, nil); err == nil {
+		if err := SetID(tag, nil, parent); err == nil {
 			l.Save(tag)
 		}
 	}

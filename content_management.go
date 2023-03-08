@@ -357,7 +357,7 @@ func updateSingleItem(l WriteStore, found vocab.Item, with vocab.Item) (vocab.It
 func updateObjectForUpdate(l WriteStore, o *vocab.Object) error {
 	// We're trying to automatically save tags as separate objects instead of storing them inline in the current
 	// Object.
-	return createNewTags(l, o.Tag)
+	return createNewTags(l, o.Tag, o)
 }
 
 func updateUpdateActivityObject(l WriteStore, o vocab.Item) error {
