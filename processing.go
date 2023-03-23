@@ -145,16 +145,14 @@ func isBlocked(loader ReadStore, rec, act vocab.Item) bool {
 	// Check if any of the local recipients are blocking the actor, we assume rec is local
 	blockedIRI := BlockedCollection.IRI(rec)
 	blockedAct, err := loader.Load(blockedIRI)
-	if err != nil {
+	if err != nil || vocab.IsNil(blockedAct) {
 		return false
 	}
 	blocked := false
-	if blockedAct.IsCollection() {
-		vocab.OnCollectionIntf(blockedAct, func(c vocab.CollectionInterface) error {
-			blocked = c.Contains(act)
-			return nil
-		})
-	}
+	vocab.OnCollectionIntf(blockedAct, func(c vocab.CollectionInterface) error {
+		blocked = c.Contains(act)
+		return nil
+	})
 	return blocked
 }
 
