@@ -4,8 +4,8 @@ go 1.18
 
 require (
 	git.sr.ht/~mariusor/lw v0.0.0-20230317075520-07e173563bf8
-	github.com/go-ap/activitypub v0.0.0-20230322094353-528fa9e2ca42
-	github.com/go-ap/client v0.0.0-20230322094433-d3a5b06d1f78
+	github.com/go-ap/activitypub v0.0.0-20230323123728-77b329013634
+	github.com/go-ap/client v0.0.0-20230323123805-a1114dc5ba4f
 	github.com/go-ap/errors v0.0.0-20221205040414-01c1adfc98ea
 	github.com/go-ap/jsonld v0.0.0-20221030091449-f2a191312c73
 	github.com/go-fed/httpsig v1.1.0
@@ -17,7 +17,7 @@ require (
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
-	github.com/mattn/go-isatty v0.0.17 // indirect
+	github.com/mattn/go-isatty v0.0.18 // indirect
 	github.com/pborman/uuid v1.2.0 // indirect
 	github.com/rs/xid v1.4.0 // indirect
 	github.com/rs/zerolog v1.29.0 // indirect
