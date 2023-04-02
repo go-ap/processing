@@ -2,6 +2,7 @@ package processing
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	vocab "github.com/go-ap/activitypub"
@@ -65,11 +66,40 @@ func defaultIDGenerator(base vocab.IRI) IDGenerator {
 	}
 }
 
+type multiErr []error
+
+func (e multiErr) Error() string {
+	s := strings.Builder{}
+	for i, err := range e {
+		s.WriteString(err.Error())
+		if i < len(e)-1 {
+			s.WriteString(": ")
+		}
+	}
+	return s.String()
+}
+
 func SetID(it vocab.Item, partOf vocab.Item, parentActivity vocab.Item) error {
 	if createID == nil {
 		return errors.Newf("no ID generator was set")
 	}
-	_, err := createID(it, partOf, parentActivity)
+	var err error
+	if vocab.IsItemCollection(it) {
+		err = vocab.OnItemCollection(it, func(col *vocab.ItemCollection) error {
+			m := make(multiErr, 0)
+			for _, c := range *col {
+				if _, err := createID(c, partOf, parentActivity); err != nil {
+					m = append(m, err)
+				}
+			}
+			if len(m) > 0 {
+				return m
+			}
+			return nil
+		})
+	} else {
+		_, err = createID(it, partOf, parentActivity)
+	}
 	return err
 }
 
