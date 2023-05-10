@@ -85,7 +85,10 @@ func SetIDIfMissing(it vocab.Item, partOf vocab.Item, parentActivity vocab.Item)
 		return errors.Newf("no ID generator was set")
 	}
 	var err error
-	if !vocab.IsItemCollection(it) && len(it.GetID()) == 0 {
+	if !vocab.IsItemCollection(it) {
+		if len(it.GetID()) > 0 {
+			return nil
+		}
 		_, err = createID(it, partOf, parentActivity)
 		return err
 	}
