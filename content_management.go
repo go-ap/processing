@@ -2,6 +2,7 @@ package processing
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -79,28 +80,42 @@ func (e multiErr) Error() string {
 	return s.String()
 }
 
-func SetID(it vocab.Item, partOf vocab.Item, parentActivity vocab.Item) error {
+func SetIDIfMissing(it vocab.Item, partOf vocab.Item, parentActivity vocab.Item) error {
 	if createID == nil {
 		return errors.Newf("no ID generator was set")
 	}
 	var err error
-	if vocab.IsItemCollection(it) {
-		err = vocab.OnItemCollection(it, func(col *vocab.ItemCollection) error {
-			m := make(multiErr, 0)
-			for _, c := range *col {
-				if _, err := createID(c, partOf, parentActivity); err != nil {
-					m = append(m, err)
-				}
-			}
-			if len(m) > 0 {
-				return m
-			}
+	if !vocab.IsItemCollection(it) && len(it.GetID()) == 0 {
+		_, err = createID(it, partOf, parentActivity)
+		return err
+	}
+	colCreateId := func(it vocab.Item, receivedIn vocab.Item, byActivity vocab.Item, idx int) (vocab.ID, error) {
+		iri, err := createID(it, receivedIn, byActivity)
+		if err != nil {
+			return iri, err
+		}
+		it.GetID().AddPath(strconv.Itoa(idx))
+		err = vocab.OnObject(it, func(ob *vocab.Object) error {
+			ob.ID = iri
 			return nil
 		})
-	} else {
-		_, err = createID(it, partOf, parentActivity)
+		return iri, err
 	}
-	return err
+	return vocab.OnItemCollection(it, func(col *vocab.ItemCollection) error {
+		m := make(multiErr, 0)
+		for i, c := range *col {
+			if len(c.GetID()) > 0 {
+				continue
+			}
+			if _, err := colCreateId(c, partOf, parentActivity, i); err != nil {
+				m = append(m, err)
+			}
+		}
+		if len(m) > 0 {
+			return m
+		}
+		return nil
+	})
 }
 
 // ContentManagementActivityFromClient processes matching activities.
@@ -203,10 +218,8 @@ func addNewItemCollections(it vocab.Item) (vocab.Item, error) {
 // inbox and it is likely that the server will want to locally store a representation of this activity and its
 // accompanying object. However, this mostly happens in general with processing activities delivered to an inbox anyway.
 func CreateActivityFromClient(p P, act *vocab.Activity) (*vocab.Activity, error) {
-	if iri := act.Object.GetLink(); len(iri) == 0 {
-		if err := SetID(act.Object, vocab.Outbox.IRI(act.Actor), act); err != nil {
-			return act, nil
-		}
+	if err := SetIDIfMissing(act.Object, vocab.Outbox.IRI(act.Actor), act); err != nil {
+		return act, nil
 	}
 	if vocab.ActorTypes.Contains(act.Object.GetType()) {
 		if err := vocab.OnActor(act.Object, createKey); err != nil {

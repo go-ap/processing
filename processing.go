@@ -134,7 +134,7 @@ func createNewTags(l WriteStore, tags vocab.ItemCollection, parent vocab.Item) e
 		if id := tag.GetID(); len(id) > 0 {
 			continue
 		}
-		if err := SetID(tag, nil, parent); err == nil {
+		if err := SetIDIfMissing(tag, nil, parent); err == nil {
 			l.Save(tag)
 		}
 	}

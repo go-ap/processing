@@ -29,7 +29,7 @@ func saveQuestionAnswers(l WriteStore, q *vocab.Question) func(col *vocab.ItemCo
 		var err error
 		for _, ans := range col.Collection() {
 			if iri := ans.GetLink(); len(iri) == 0 {
-				err = SetID(ans, nil, q)
+				err = SetIDIfMissing(ans, nil, q)
 			}
 
 			vocab.OnActivity(q, func(act *vocab.Activity) error {
