@@ -126,9 +126,9 @@ func createNewTags(l WriteStore, tags vocab.ItemCollection, parent vocab.Item) e
 	// According to the example in the Implementation Notes on the Activity Streams Vocabulary spec,
 	// tag objects are ActivityStreams Objects without a type, that's why we use an empty string valid type:
 	// https://www.w3.org/TR/activitystreams-vocabulary/#microsyntaxes
-	validTypes := vocab.ActivityVocabularyTypes{vocab.MentionType, vocab.ObjectType, vocab.ActivityVocabularyType("")}
+	validTagTypes := vocab.ActivityVocabularyTypes{vocab.MentionType, vocab.ObjectType, vocab.ActivityVocabularyType("")}
 	for _, tag := range tags {
-		if typ := tag.GetType(); !validTypes.Contains(typ) {
+		if typ := tag.GetType(); !validTagTypes.Contains(typ) {
 			continue
 		}
 		if id := tag.GetID(); len(id) > 0 {

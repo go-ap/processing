@@ -138,6 +138,11 @@ func ContentManagementActivityFromClient(p P, act *vocab.Activity) (*vocab.Activ
 		return act, err
 	}
 
+	if act.Type != vocab.DeleteType && act.Tag != nil {
+		// Try to save tags as set on the activity
+		createNewTags(p.s, act.Tag, act)
+	}
+
 	return act, err
 }
 

@@ -175,10 +175,6 @@ func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (voca
 	if err != nil {
 		return act, err
 	}
-	if act.Tag != nil {
-		// Try to save tags as set on the activity
-		createNewTags(p.s, act.Tag, act)
-	}
 
 	if act.Published.IsZero() {
 		act.Published = time.Now().UTC()
