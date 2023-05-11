@@ -97,7 +97,7 @@ func SetIDIfMissing(it vocab.Item, partOf vocab.Item, parentActivity vocab.Item)
 		if err != nil {
 			return iri, err
 		}
-		it.GetID().AddPath(strconv.Itoa(idx))
+		iri = iri.AddPath(strconv.Itoa(idx + 1))
 		err = vocab.OnObject(it, func(ob *vocab.Object) error {
 			ob.ID = iri
 			return nil
