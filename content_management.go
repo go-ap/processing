@@ -412,6 +412,9 @@ func updateObjectForUpdate(l WriteStore, o *vocab.Object) error {
 }
 
 func updateUpdateActivityObject(l WriteStore, o vocab.Item) error {
+	if vocab.IsLink(o) {
+		return nil
+	}
 	return vocab.OnObject(o, func(o *vocab.Object) error {
 		return updateObjectForUpdate(l, o)
 	})
@@ -459,6 +462,9 @@ func updateObjectForCreate(l WriteStore, o *vocab.Object, act *vocab.Activity) e
 }
 
 func updateCreateActivityObject(l WriteStore, o vocab.Item, act *vocab.Activity) error {
+	if vocab.IsLink(o) {
+		return nil
+	}
 	return vocab.OnObject(o, func(o *vocab.Object) error {
 		return updateObjectForCreate(l, o, act)
 	})
