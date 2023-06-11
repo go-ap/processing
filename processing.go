@@ -385,7 +385,7 @@ func loadSharedInboxRecipients(p P, sharedInbox vocab.IRI) vocab.ItemCollection 
 		vocab.OnCollectionIntf(col, func(col vocab.CollectionInterface) error {
 			for _, act := range col.Collection() {
 				vocab.OnActor(act, func(act *vocab.Actor) error {
-					if act.Endpoints != nil {
+					if act.Endpoints != nil && act.Endpoints.SharedInbox != nil {
 						if sharedInbox.Equals(act.Endpoints.SharedInbox.GetLink(), false) && !actors.Contains(act.GetLink()) {
 							actors = append(actors, act)
 						}
