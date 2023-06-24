@@ -247,6 +247,7 @@ func (s signer) SignRequest(pKey crypto.PrivateKey, pubKeyId string, r *http.Req
 		if err := v.SignRequest(pKey, pubKeyId, r, body); err == nil {
 			return nil
 		} else {
+			r.Header.Del("Digest")
 			s.logger.Debugf("invalid signer algo %s:%T %+s", a, v, err)
 		}
 	}
