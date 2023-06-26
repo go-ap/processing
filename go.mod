@@ -4,8 +4,8 @@ go 1.18
 
 require (
 	git.sr.ht/~mariusor/lw v0.0.0-20230317075520-07e173563bf8
-	github.com/go-ap/activitypub v0.0.0-20230623140027-da408bbcc578
-	github.com/go-ap/client v0.0.0-20230623140942-8775194a9f6a
+	github.com/go-ap/activitypub v0.0.0-20230626173101-16e4163853e3
+	github.com/go-ap/client v0.0.0-20230626173150-f30f1cc74140
 	github.com/go-ap/errors v0.0.0-20221205040414-01c1adfc98ea
 	github.com/go-ap/jsonld v0.0.0-20221030091449-f2a191312c73
 	github.com/go-fed/httpsig v1.1.0
@@ -27,5 +27,5 @@ require (
 	golang.org/x/oauth2 v0.9.0 // indirect
 	golang.org/x/sys v0.9.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/protobuf v1.30.0 // indirect
+	google.golang.org/protobuf v1.31.0 // indirect
 )
