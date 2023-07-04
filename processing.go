@@ -255,6 +255,7 @@ func (s signer) SignRequest(pKey crypto.PrivateKey, pubKeyId string, r *http.Req
 	}
 	s.logger.WithContext(lw.Ctx{
 		"method":  r.Method,
+		"host":    r.Host,
 		"headers": r.Header,
 		"url":     r.URL,
 	}).Errorf("No valid signers could be used with key %s", pubKeyId)
