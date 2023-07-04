@@ -209,7 +209,7 @@ func c2sSignFn(storage osin.Storage, it vocab.Item) func(r *http.Request) error 
 
 var (
 	digestAlgorithm     = httpsig.DigestSha256
-	headersToSign       = []string{httpsig.RequestTarget, "Host", "Date"}
+	headersToSign       = []string{httpsig.RequestTarget, "host", "date"}
 	signatureExpiration = int64(time.Hour.Seconds())
 )
 
@@ -232,10 +232,12 @@ func newSigner(pubKey crypto.PrivateKey, headers []string, l lw.Logger) (signer,
 		algos = append(algos, httpsig.ED25519)
 	}
 	for _, alg := range algos {
-		signer, alg, err := httpsig.NewSigner([]httpsig.Algorithm{alg}, digestAlgorithm, headers, httpsig.Signature, signatureExpiration)
-		if err == nil {
-			s.signers[alg] = signer
+		signer, _, err := httpsig.NewSigner([]httpsig.Algorithm{alg}, digestAlgorithm, headers, httpsig.Signature, signatureExpiration)
+		if err != nil {
+			l.Warnf("Failed to initialize signer %s:%s %s, expiring in %s", alg, digestAlgorithm, headers)
+			continue
 		}
+		s.signers[alg] = signer
 	}
 	return s, nil
 }
@@ -247,10 +249,15 @@ func (s signer) SignRequest(pKey crypto.PrivateKey, pubKeyId string, r *http.Req
 		if err := v.SignRequest(pKey, pubKeyId, r, body); err == nil {
 			return nil
 		} else {
-			r.Header.Del("Digest")
-			s.logger.Debugf("invalid signer algo %s:%T %+s", a, v, err)
+			r.Header.Del("digest")
+			s.logger.Debugf("Invalid signer algo %s:%T %+s", a, v, err)
 		}
 	}
+	s.logger.WithContext(lw.Ctx{
+		"method":  r.Method,
+		"headers": r.Header,
+		"url":     r.URL,
+	}).Errorf("No valid signers could be used with key %s", pubKeyId)
 	return errors.Newf("no suitable request signer for public key[%T] %s, tried %+v", pKey, pubKeyId, algs)
 }
 
@@ -276,8 +283,9 @@ func signerWithoutDigest(l lw.Logger) func(prvKey crypto.PrivateKey) (httpsig.Si
 }
 
 func signerWithDigest(l lw.Logger) func(prvKey crypto.PrivateKey) (httpsig.Signer, error) {
+	headersWithDigest := append(headersToSign, "digest")
 	return func(prvKey crypto.PrivateKey) (httpsig.Signer, error) {
-		return newSigner(prvKey, append(headersToSign, "Digest"), l)
+		return newSigner(prvKey, headersWithDigest, l)
 	}
 }
 

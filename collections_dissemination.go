@@ -24,6 +24,7 @@ func (p P) disseminateToRemoteCollection(act vocab.Item, iris ...vocab.IRI) erro
 	if len(iris) == 0 {
 		return nil
 	}
+	p.l.Debugf("Starting remote actor's dissemination.")
 	if !p.IsLocalIRI(act.GetLink()) {
 		return errors.Newf("trying to disseminate local activity to local collection %s", act.GetLink())
 	}
@@ -41,20 +42,21 @@ func (p P) disseminateToRemoteCollection(act vocab.Item, iris ...vocab.IRI) erro
 			continue
 		}
 		if !IsInbox(col) {
-			errFn("trying to disseminate to remote collection that's not an Inbox: %s", col)
+			p.l.Errorf("trying to disseminate to remote collection that's not an Inbox: %s", col)
 		}
 
 		if p.c == nil {
-			errFn("Unable to push to remote collections, S2S client is nil for %s", act.GetLink())
+			p.l.Errorf("Unable to push to remote collections, S2S client is nil for %s", act.GetLink())
 			continue
 		}
 		// TODO(marius): Move this function to either the go-ap/auth package, or in FedBOX itself.
 		//   We should probably change the signature for client.RequestSignFn to accept an Actor/IRI as a param.
 		vocab.OnIntransitiveActivity(act, func(act *vocab.IntransitiveActivity) error {
+			p.l.Debugf("Signing request for actor %s", act.Actor.GetLink())
 			p.c.SignFn(s2sSignFn(keyLoader, act.Actor, signerWithDigest(p.l)))
 			return nil
 		})
-		infoFn("Pushing to remote actor's collection %s", col)
+		p.l.Infof("Pushing to remote actor's collection %s", col)
 		if _, _, err := p.c.ToCollection(col, act); err != nil {
 			if errors.IsConflict(err) {
 				continue
@@ -65,6 +67,7 @@ func (p P) disseminateToRemoteCollection(act vocab.Item, iris ...vocab.IRI) erro
 	if len(g) > 0 {
 		return g
 	}
+	p.l.Debugf("Finished remote actor's dissemination successfully.")
 	return nil
 }
 
