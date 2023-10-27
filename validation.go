@@ -64,8 +64,7 @@ type invalidActivity struct {
 }
 
 type ipCache struct {
-	addr map[string][]netip.Addr
-	m    sync.RWMutex
+	addr sync.Map
 }
 
 var localAddressCache ipCache
@@ -478,7 +477,9 @@ func (p P) ValidateActor(a vocab.Item) (vocab.Item, error) {
 		if err != nil {
 			return a, err
 		}
-		var loadFn func(vocab.IRI) (vocab.Item, error) = p.s.Load
+		var loadFn func(vocab.IRI) (vocab.Item, error) = func(iri vocab.IRI) (vocab.Item, error) {
+			return p.s.Load(iri)
+		}
 		if !p.IsLocalIRI(iri) {
 			loadFn = p.c.LoadIRI
 		}
@@ -588,29 +589,33 @@ func (p P) validateLocalIRI(i vocab.IRI) error {
 	if err != nil {
 		return errors.Annotatef(err, "%s is not a local IRI", i)
 	}
-	localAddressCache.m.Lock()
-	defer localAddressCache.m.Unlock()
-	if _, ok := localAddressCache.addr[u.Host]; !ok {
+	if _, ok := localAddressCache.addr.Load(u.Host); !ok {
 		h, _ := hostSplit(u.Host)
 
 		if ip, err := netip.ParseAddr(h); err == nil && !ip.IsUnspecified() {
-			localAddressCache.addr[u.Host] = []netip.Addr{ip}
+			localAddressCache.addr.Store(u.Host, []netip.Addr{ip})
 		} else {
 			addrs, err := net.LookupHost(u.Host)
 			if err != nil {
 				return errors.Annotatef(err, "%s is not a local IRI", i)
 			}
-			localAddressCache.addr[u.Host] = make([]netip.Addr, len(addrs))
+			hosts := make([]netip.Addr, len(addrs))
 			for i, a := range addrs {
 				if ip, err = netip.ParseAddr(a); err == nil && !ip.IsUnspecified() {
-					localAddressCache.addr[u.Host][i] = ip
+					hosts[i] = ip
 				}
 			}
+			localAddressCache.addr.Store(u.Host, hosts)
 		}
 	}
-	for _, ip := range localAddressCache.addr[u.Host] {
-		if ip.IsLoopback() {
-			return nil
+
+	if v, found := localAddressCache.addr.Load(u.Host); found {
+		if ips, ok := v.([]netip.Addr); ok {
+			for _, ip := range ips {
+				if ip.IsLoopback() {
+					return nil
+				}
+			}
 		}
 	}
 	return InvalidIRI("%s is not a local IRI", i)

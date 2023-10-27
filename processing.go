@@ -8,7 +8,6 @@ import (
 	"crypto/rsa"
 	"io"
 	"net/http"
-	"net/netip"
 	"path"
 	"sync"
 	"time"
@@ -40,7 +39,7 @@ func New(o ...optionFn) (*P, error) {
 	for _, fn := range o {
 		fn(p)
 	}
-	localAddressCache = ipCache{addr: make(map[string][]netip.Addr)}
+	localAddressCache = ipCache{addr: sync.Map{}}
 	return p, nil
 }
 

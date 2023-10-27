@@ -1,7 +1,7 @@
 package processing
 
 import (
-	"net/netip"
+	"sync"
 	"testing"
 
 	vocab "github.com/go-ap/activitypub"
@@ -111,7 +111,7 @@ func Test_defaultValidator_validateLocalIRI(t *testing.T) {
 	}
 	infoFn = tInfFn(t)
 	errFn = tErrFn(t)
-	localAddressCache = ipCache{addr: make(map[string][]netip.Addr)}
+	localAddressCache = ipCache{addr: sync.Map{}}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
