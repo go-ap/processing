@@ -10,18 +10,16 @@ type Store interface {
 	WriteStore
 }
 
-type FilterFn filters.Fn
-
-// ReadStore
-type ReadStore interface {
+// OldReadStore
+type OldReadStore interface {
 	// Load returns an Item or an ItemCollection from an IRI
 	Load(vocab.IRI) (vocab.Item, error)
 }
 
-type FilteredReadStore interface {
-	// FilteredLoad returns an Item or an ItemCollection from an IRI
+type ReadStore interface {
+	// Load returns an Item or an ItemCollection from an IRI
 	// after filtering it through the FilterFn list of filtering functions. Eg ANY()
-	FilteredLoad(vocab.IRI, ...FilterFn) (vocab.Item, error)
+	Load(vocab.IRI, ...filters.Fn) (vocab.Item, error)
 }
 
 // WriteStore saves ActivityStreams objects.

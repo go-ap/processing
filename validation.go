@@ -10,6 +10,7 @@ import (
 
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
+	"github.com/go-ap/filters"
 )
 
 type Validator interface {
@@ -379,15 +380,8 @@ func ValidateClientRelationshipManagementActivity(l ReadStore, act *vocab.Activi
 				return errors.Conflictf("%s already exists for this actor/object pair", act.Type)
 			}
 		}
-	case vocab.AddType:
-	case vocab.BlockType:
-	case vocab.CreateType:
-	case vocab.DeleteType:
-	case vocab.IgnoreType:
-	case vocab.InviteType:
-	case vocab.AcceptType:
-		fallthrough
-	case vocab.RejectType:
+	case vocab.AddType, vocab.BlockType, vocab.CreateType, vocab.DeleteType,
+		vocab.IgnoreType, vocab.InviteType, vocab.AcceptType, vocab.RejectType:
 		// TODO(marius): either the actor or the object needs to be local for this action to be valid
 		//   in the case of C2S... the actor needs to be local
 		//   in the case of S2S... the object needs to be local
@@ -477,11 +471,11 @@ func (p P) ValidateActor(a vocab.Item) (vocab.Item, error) {
 		if err != nil {
 			return a, err
 		}
-		var loadFn func(vocab.IRI) (vocab.Item, error) = func(iri vocab.IRI) (vocab.Item, error) {
-			return p.s.Load(iri)
-		}
+		var loadFn = p.s.Load
 		if !p.IsLocalIRI(iri) {
-			loadFn = p.c.LoadIRI
+			loadFn = func(iri vocab.IRI, _ ...filters.Fn) (vocab.Item, error) {
+				return p.c.LoadIRI(iri)
+			}
 		}
 		if a, err = loadFn(iri); err != nil {
 			return a, err
