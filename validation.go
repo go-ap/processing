@@ -238,11 +238,13 @@ func (p P) ValidateClientActivity(a vocab.Item, outbox vocab.IRI) error {
 	if a.IsLink() {
 		return p.ValidateIRI(a.GetLink())
 	}
+
 	validActivityTypes := append(vocab.ActivityTypes, vocab.IntransitiveActivityTypes...)
 	if !validActivityTypes.Contains(a.GetType()) {
 		return InvalidActivity("invalid type %s", a.GetType())
 	}
-	return vocab.OnActivity(a, func(act *vocab.Activity) error {
+
+	err := vocab.OnIntransitiveActivity(a, func(act *vocab.IntransitiveActivity) error {
 		var err error
 		if act.Actor, err = p.ValidateClientActor(act.Actor); err != nil {
 			if missingActor.Is(err) && p.auth != nil {
@@ -251,46 +253,62 @@ func (p P) ValidateClientActivity(a vocab.Item, outbox vocab.IRI) error {
 				return err
 			}
 		}
-		if !vocab.IntransitiveActivityTypes.Contains(a.GetType()) {
+		if act.Target != nil {
+			if act.Target, err = p.ValidateClientObject(act.Target); err != nil {
+				return err
+			}
+		}
+		return err
+	})
+	if err != nil {
+		return err
+	}
+
+	if vocab.QuestionActivityTypes.Contains(a.GetType()) {
+		err = vocab.OnQuestion(a, func(q *vocab.Question) error {
+			return ValidateClientQuestionActivity(p.s, q)
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	if vocab.ActivityTypes.Contains(a.GetType()) {
+		err = vocab.OnActivity(a, func(act *vocab.Activity) error {
 			// @TODO(marius): this needs to be extended by a ValidateActivityClientObject
 			//   because the first step would be to test the object in the context of the activity
 			//   The ValidateActivityClientObject could then validate just the object itself.
 			if act.Object, err = p.ValidateClientObject(act.Object); err != nil {
 				return err
 			}
-		}
-		if act.Target != nil {
-			if act.Target, err = p.ValidateClientObject(act.Target); err != nil {
-				return err
+
+			if vocab.ContentManagementActivityTypes.Contains(act.GetType()) && act.Object.GetType() != vocab.RelationshipType {
+				err = ValidateClientContentManagementActivity(p.s, act)
+			} else if vocab.CollectionManagementActivityTypes.Contains(act.GetType()) {
+				err = ValidateClientCollectionManagementActivity(p.s, act)
+			} else if vocab.ReactionsActivityTypes.Contains(act.GetType()) {
+				err = ValidateClientReactionsActivity(p.s, act)
+			} else if vocab.EventRSVPActivityTypes.Contains(act.GetType()) {
+				err = ValidateClientEventRSVPActivity(p.s, act)
+			} else if vocab.GroupManagementActivityTypes.Contains(act.GetType()) {
+				err = ValidateClientGroupManagementActivity(p.s, act)
+			} else if vocab.ContentExperienceActivityTypes.Contains(act.GetType()) {
+				err = ValidateClientContentExperienceActivity(p.s, act)
+			} else if vocab.GeoSocialEventsActivityTypes.Contains(act.GetType()) {
+				err = ValidateClientGeoSocialEventsActivity(p.s, act)
+			} else if vocab.NotificationActivityTypes.Contains(act.GetType()) {
+				err = ValidateClientNotificationActivity(p.s, act)
+			} else if vocab.RelationshipManagementActivityTypes.Contains(act.GetType()) {
+				err = ValidateClientRelationshipManagementActivity(p.s, act)
+			} else if vocab.NegatingActivityTypes.Contains(act.GetType()) {
+				err = ValidateClientNegatingActivity(p.s, act)
+			} else if vocab.OffersActivityTypes.Contains(act.GetType()) {
+				err = ValidateClientOffersActivity(p.s, act)
 			}
-		}
-		if vocab.ContentManagementActivityTypes.Contains(act.GetType()) && act.Object.GetType() != vocab.RelationshipType {
-			err = ValidateClientContentManagementActivity(p.s, act)
-		} else if vocab.CollectionManagementActivityTypes.Contains(act.GetType()) {
-			err = ValidateClientCollectionManagementActivity(p.s, act)
-		} else if vocab.ReactionsActivityTypes.Contains(act.GetType()) {
-			err = ValidateClientReactionsActivity(p.s, act)
-		} else if vocab.EventRSVPActivityTypes.Contains(act.GetType()) {
-			err = ValidateClientEventRSVPActivity(p.s, act)
-		} else if vocab.GroupManagementActivityTypes.Contains(act.GetType()) {
-			err = ValidateClientGroupManagementActivity(p.s, act)
-		} else if vocab.ContentExperienceActivityTypes.Contains(act.GetType()) {
-			err = ValidateClientContentExperienceActivity(p.s, act)
-		} else if vocab.GeoSocialEventsActivityTypes.Contains(act.GetType()) {
-			err = ValidateClientGeoSocialEventsActivity(p.s, act)
-		} else if vocab.NotificationActivityTypes.Contains(act.GetType()) {
-			err = ValidateClientNotificationActivity(p.s, act)
-		} else if vocab.QuestionActivityTypes.Contains(act.GetType()) {
-			err = ValidateClientQuestionActivity(p.s, act)
-		} else if vocab.RelationshipManagementActivityTypes.Contains(act.GetType()) {
-			err = ValidateClientRelationshipManagementActivity(p.s, act)
-		} else if vocab.NegatingActivityTypes.Contains(act.GetType()) {
-			err = ValidateClientNegatingActivity(p.s, act)
-		} else if vocab.OffersActivityTypes.Contains(act.GetType()) {
-			err = ValidateClientOffersActivity(p.s, act)
-		}
-		return err
-	})
+			return err
+		})
+	}
+	return err
 }
 
 // ValidateClientContentManagementActivity
@@ -367,7 +385,7 @@ func ValidateClientNotificationActivity(l ReadStore, act *vocab.Activity) error 
 }
 
 // ValidateClientQuestionActivity
-func ValidateClientQuestionActivity(l ReadStore, act *vocab.Activity) error {
+func ValidateClientQuestionActivity(l ReadStore, act *vocab.Question) error {
 	return nil
 }
 
