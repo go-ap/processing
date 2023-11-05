@@ -19,7 +19,7 @@ type OldReadStore interface {
 type ReadStore interface {
 	// Load returns an Item or an ItemCollection from an IRI
 	// after filtering it through the FilterFn list of filtering functions. Eg ANY()
-	Load(vocab.IRI, ...filters.Fn) (vocab.Item, error)
+	Load(vocab.IRI, ...filters.Check) (vocab.Item, error)
 }
 
 // WriteStore saves ActivityStreams objects.

@@ -491,7 +491,7 @@ func (p P) ValidateActor(a vocab.Item) (vocab.Item, error) {
 		}
 		var loadFn = p.s.Load
 		if !p.IsLocalIRI(iri) {
-			loadFn = func(iri vocab.IRI, _ ...filters.Fn) (vocab.Item, error) {
+			loadFn = func(iri vocab.IRI, _ ...filters.Check) (vocab.Item, error) {
 				return p.c.LoadIRI(iri)
 			}
 		}
