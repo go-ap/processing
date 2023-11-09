@@ -19,7 +19,7 @@ type Validator interface {
 
 type ClientActivityValidator interface {
 	ValidateClientActivity(vocab.Item, vocab.IRI) error
-	//ValidateClientObject(vocab.Item) error
+	ValidateClientObject(vocab.Item) error
 	ValidateClientActor(vocab.Item) error
 	//ValidateClientTarget(vocab.Item) error
 	//ValidateClientAudience(...vocab.ItemCollection) error
@@ -27,7 +27,7 @@ type ClientActivityValidator interface {
 
 type ServerActivityValidator interface {
 	ValidateServerActivity(vocab.Item, vocab.IRI) error
-	//ValidateServerObject(vocab.Item) error
+	ValidateServerObject(vocab.Item) error
 	ValidateServerActor(vocab.Item) error
 	//ValidateServerTarget(vocab.Item) error
 	//ValidateServerAudience(...vocab.ItemCollection) error
@@ -60,47 +60,31 @@ type ActorValidator interface {
 //	ValidTarget(vocab.Item) error
 //}
 
-type invalidActivity struct {
-	errors.Err
-}
-
 type ipCache struct {
 	addr sync.Map
 }
 
 var localAddressCache ipCache
 
-type ActivityPubError struct {
-	errors.Err
-}
+var ValidationError = errors.BadRequestf
 
-type MissingActorError struct {
-	errors.Err
+var InvalidActivity = func(s string, p ...interface{}) error {
+	return ValidationError(fmt.Sprintf("Activity is not valid: %s", s), p...)
 }
-
-var InvalidActivity = func(s string, p ...interface{}) ActivityPubError {
-	return ActivityPubError{wrapErr(nil, fmt.Sprintf("Activity is not valid: %s", s), p...)}
+var MissingActivityActor = func(s string, p ...interface{}) error {
+	return ValidationError(fmt.Sprintf("Missing actor %s", s), p...)
 }
-var MissingActivityActor = func(s string, p ...interface{}) MissingActorError {
-	return MissingActorError{wrapErr(nil, fmt.Sprintf("Missing actor %s", s), p...)}
+var InvalidActivityActor = func(s string, p ...interface{}) error {
+	return ValidationError(fmt.Sprintf("Actor is not valid: %s", s), p...)
 }
-var InvalidActivityActor = func(s string, p ...interface{}) ActivityPubError {
-	return ActivityPubError{wrapErr(nil, fmt.Sprintf("Actor is not valid: %s", s), p...)}
+var InvalidActivityObject = func(s string, p ...interface{}) error {
+	return ValidationError(fmt.Sprintf("Object is not valid: %s", s), p...)
 }
-var InvalidActivityObject = func(s string, p ...interface{}) errors.Err {
-	return wrapErr(nil, fmt.Sprintf("Object is not valid: %s", s), p...)
+var InvalidIRI = func(s string, p ...interface{}) error {
+	return ValidationError(fmt.Sprintf("IRI is not valid: %s", s), p...)
 }
-var InvalidIRI = func(s string, p ...interface{}) errors.Err {
-	return wrapErr(nil, fmt.Sprintf("IRI is not valid: %s", s), p...)
-}
-var InvalidTarget = func(s string, p ...interface{}) ActivityPubError {
-	return ActivityPubError{wrapErr(nil, fmt.Sprintf("Target is not valid: %s", s), p...)}
-}
-
-func (m *MissingActorError) Is(e error) bool {
-	_, okp := e.(*MissingActorError)
-	_, oks := e.(MissingActorError)
-	return okp || oks
+var InvalidTarget = func(s string, p ...interface{}) error {
+	return ValidationError(fmt.Sprintf("Target is not valid: %s", s), p...)
 }
 
 func (p P) ValidateServerActivity(a vocab.Item, inbox vocab.IRI) error {
@@ -135,7 +119,7 @@ func (p P) ValidateServerActivity(a vocab.Item, inbox vocab.IRI) error {
 			return errors.NotFoundf("")
 		}
 		if act.Actor, err = p.ValidateServerActor(act.Actor); err != nil {
-			if missingActor.Is(err) && p.auth != nil {
+			if errors.IsBadRequest(err) && p.auth != nil {
 				act.Actor = p.auth
 			} else {
 				return err
@@ -199,8 +183,6 @@ func IRIBelongsToActor(iri vocab.IRI, actor *vocab.Actor) bool {
 	return false
 }
 
-var missingActor = new(MissingActorError)
-
 func name(a *vocab.Actor) vocab.LangRefValue {
 	if a == nil {
 		return vocab.LangRefValue{}
@@ -253,7 +235,7 @@ func (p P) ValidateClientActivity(a vocab.Item, outbox vocab.IRI) error {
 	err := vocab.OnIntransitiveActivity(a, func(act *vocab.IntransitiveActivity) error {
 		var err error
 		if act.Actor, err = p.ValidateClientActor(act.Actor); err != nil {
-			if missingActor.Is(err) && p.auth != nil {
+			if errors.IsBadRequest(err) && p.auth != nil {
 				act.Actor = p.auth
 			} else {
 				return err
