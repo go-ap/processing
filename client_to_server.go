@@ -4,7 +4,6 @@ import (
 	"time"
 
 	vocab "github.com/go-ap/activitypub"
-	"github.com/go-ap/errors"
 )
 
 // C2SProcessor
@@ -46,8 +45,8 @@ type C2SProcessor interface {
 // HTTP caching mechanisms [RFC7234] SHOULD be respected when appropriate, both in clients receiving responses from
 // servers as well as servers sending responses to clients.
 func (p P) ProcessClientActivity(it vocab.Item, receivedIn vocab.IRI) (vocab.Item, error) {
-	if it == nil {
-		return nil, errors.Newf("Unable to process nil activity")
+	if vocab.IsNil(it) {
+		return nil, InvalidActivity("is nil")
 	}
 
 	if err := p.ValidateClientActivity(it, receivedIn); err != nil {
@@ -140,8 +139,8 @@ func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (voca
 			return act, err
 		}
 	}
-	if act.Object == nil {
-		return act, errors.BadRequestf("Invalid %s: object is nil", act.Type)
+	if vocab.IsNil(act.Object) {
+		return act, InvalidActivityObject("is nil")
 	}
 
 	var err error
@@ -219,7 +218,7 @@ func (p P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) (vocab
 		return nil, err
 	}
 	if act == nil {
-		return nil, errors.Newf("Unable to process nil activity")
+		return nil, InvalidActivity("is nil")
 	}
 	loader := p.s
 

@@ -228,7 +228,7 @@ func (i ItemHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		errors.HandleError(err).ServeHTTP(w, r)
 		return
 	}
-	if it == nil {
+	if vocab.IsNil(it) {
 		errors.HandleError(errors.NotFoundf("")).ServeHTTP(w, r)
 		return
 	}

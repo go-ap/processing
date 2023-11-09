@@ -113,7 +113,7 @@ func (p P) ValidateServerActivity(a vocab.Item, inbox vocab.IRI) error {
 	if p.auth.GetLink() == vocab.PublicNS {
 		return errors.Unauthorizedf("%s actor is not allowed posting to current inbox: %s", p.auth.Name, inbox)
 	}
-	if a == nil {
+	if vocab.IsNil(a) {
 		return InvalidActivity("received nil")
 	}
 	if a.IsLink() {
@@ -202,6 +202,9 @@ func IRIBelongsToActor(iri vocab.IRI, actor *vocab.Actor) bool {
 var missingActor = new(MissingActorError)
 
 func name(a *vocab.Actor) vocab.LangRefValue {
+	if a == nil {
+		return vocab.LangRefValue{}
+	}
 	if len(a.Name) > 0 {
 		return a.Name.First()
 	}
@@ -212,6 +215,9 @@ func name(a *vocab.Actor) vocab.LangRefValue {
 }
 
 func (p P) ValidateActivity(a vocab.Item, receivedIn vocab.IRI) error {
+	if vocab.IsNil(a) {
+		return InvalidActivityActor("received nil activity")
+	}
 	if IsOutbox(receivedIn) {
 		return p.ValidateClientActivity(a, receivedIn)
 	}
@@ -232,7 +238,7 @@ func (p P) ValidateClientActivity(a vocab.Item, outbox vocab.IRI) error {
 	if !IRIBelongsToActor(outbox, p.auth) {
 		return errors.Unauthorizedf("actor %q does not own the current outbox %s", name(p.auth), outbox)
 	}
-	if a == nil {
+	if vocab.IsNil(a) {
 		return InvalidActivityActor("received nil activity")
 	}
 	if a.IsLink() {
@@ -313,7 +319,7 @@ func (p P) ValidateClientActivity(a vocab.Item, outbox vocab.IRI) error {
 
 // ValidateClientContentManagementActivity
 func ValidateClientContentManagementActivity(l ReadStore, act *vocab.Activity) error {
-	if act.Object == nil {
+	if vocab.IsNil(act.Object) {
 		return errors.NotValidf("nil object for %s activity", act.Type)
 	}
 	ob := act.Object
@@ -430,8 +436,8 @@ func (p P) IsLocalIRI(i vocab.IRI) bool {
 }
 
 func (p P) ValidateClientActor(a vocab.Item) (vocab.Item, error) {
-	if a == nil {
-		return a, MissingActivityActor("")
+	if vocab.IsNil(a) {
+		return a, InvalidActivityActor("is nil")
 	}
 	if err := p.validateLocalIRI(a.GetLink()); err != nil {
 		return a, InvalidActivityActor("%s is not local", a.GetLink())
@@ -459,7 +465,7 @@ func (p P) ValidateServerActor(a vocab.Item) (vocab.Item, error) {
 		if err != nil {
 			return a, errors.NewNotFound(err, "invalid activity actor: %s", iri)
 		}
-		if act == nil {
+		if vocab.IsNil(act) {
 			return a, errors.NotFoundf("invalid activity actor: %s", iri)
 		}
 		a = act
@@ -480,7 +486,7 @@ func (p P) ValidateServerActor(a vocab.Item) (vocab.Item, error) {
 }
 
 func (p P) ValidateActor(a vocab.Item) (vocab.Item, error) {
-	if a == nil {
+	if vocab.IsNil(a) {
 		return a, InvalidActivityActor("is nil")
 	}
 	if a.IsLink() {
@@ -517,8 +523,8 @@ func (p P) ValidateActor(a vocab.Item) (vocab.Item, error) {
 }
 
 func (p P) ValidateClientObject(o vocab.Item) (vocab.Item, error) {
-	if o == nil {
-		return o, InvalidActivityObject("is nil")
+	if vocab.IsNil(o) {
+		return nil, InvalidActivityObject("is nil")
 	}
 	if o.IsLink() {
 		iri := o.GetLink()
@@ -540,6 +546,9 @@ func (p P) ValidateClientObject(o vocab.Item) (vocab.Item, error) {
 }
 
 func (p P) ValidateServerObject(o vocab.Item) (vocab.Item, error) {
+	if vocab.IsNil(o) {
+		return o, InvalidActivityObject("is nil")
+	}
 	if err := p.ValidateIRI(o.GetLink()); err != nil {
 		return o, err
 	}
@@ -547,7 +556,7 @@ func (p P) ValidateServerObject(o vocab.Item) (vocab.Item, error) {
 }
 
 func (p P) ValidateTarget(t vocab.Item) error {
-	if t == nil {
+	if vocab.IsNil(t) {
 		return InvalidActivityObject("is nil")
 	}
 	if t.IsLink() {

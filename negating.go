@@ -18,10 +18,10 @@ var validUndoActivityTypes = vocab.ActivityVocabularyTypes{vocab.LikeType, vocab
 // See 5.5 Inverse Activities and "Undo" for more information:
 // https://www.w3.org/TR/activitystreams-vocabulary/#inverse
 func NegatingActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
-	if act.Object == nil {
+	if vocab.IsNil(act.Object) {
 		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
 	}
-	if act.Actor == nil {
+	if vocab.IsNil(act.Actor) {
 		return act, errors.NotValidf("Missing actor for %s Activity", act.Type)
 	}
 	if act.Type != vocab.UndoType {

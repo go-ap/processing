@@ -420,11 +420,8 @@ func loadSharedInboxRecipients(p P, sharedInbox vocab.IRI) vocab.ItemCollection 
 // This includes, for instance, activities such as "Sally added a file to Folder A",
 // "John moved the file from Folder A to Folder B", etc.
 func CollectionManagementActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
-	if act.Object == nil {
+	if vocab.IsNil(act.Object) {
 		return act, errors.NotValidf("Missing object for Activity")
-	}
-	if act.Target == nil {
-		return act, errors.NotValidf("Missing target collection for Activity")
 	}
 	switch act.Type {
 	case vocab.AddType:
@@ -439,7 +436,7 @@ func CollectionManagementActivity(l WriteStore, act *vocab.Activity) (*vocab.Act
 // EventRSVPActivity processes matching activities
 // The Event RSVP use case primarily deals with invitations to events and RSVP type responses.
 func EventRSVPActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
-	if act.Object == nil {
+	if vocab.IsNil(act.Object) {
 		return act, errors.NotValidf("Missing object for Activity")
 	}
 	switch act.Type {

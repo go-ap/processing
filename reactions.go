@@ -64,10 +64,10 @@ func (m multi) As(e any) bool {
 // The Like(and Dislike) activity indicates the actor likes the object.
 // The side effect of receiving this in an outbox is that the server SHOULD add the object to the actor's liked Collection.
 func AppreciationActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
-	if act.Object == nil {
+	if vocab.IsNil(act.Object) {
 		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
 	}
-	if act.Actor == nil {
+	if vocab.IsNil(act.Actor) {
 		return act, errors.NotValidf("Missing actor for %s Activity", act.Type)
 	}
 	good := vocab.ActivityVocabularyTypes{vocab.LikeType, vocab.DislikeType}
@@ -155,10 +155,10 @@ func firstOrItem(it vocab.Item) vocab.Item {
 // If the object of an Accept received to an inbox is a Follow activity previously sent by the receiver, the server
 // SHOULD add the actor to the receiver's Following Collection.
 func AcceptActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activity, error) {
-	if act.Object == nil {
+	if vocab.IsNil(act.Object) {
 		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
 	}
-	if act.Actor == nil {
+	if vocab.IsNil(act.Actor) {
 		return act, errors.NotValidf("Missing actor for %s Activity", act.Type)
 	}
 	good := vocab.ActivityVocabularyTypes{vocab.AcceptType, vocab.TentativeAcceptType}
@@ -214,10 +214,10 @@ func finalizeFollowActivity(p P, a *vocab.Activity) error {
 }
 
 func RejectActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
-	if act.Object == nil {
+	if vocab.IsNil(act.Object) {
 		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
 	}
-	if act.Actor == nil {
+	if vocab.IsNil(act.Actor) {
 		return act, errors.NotValidf("Missing actor for %s Activity", act.Type)
 	}
 	good := vocab.ActivityVocabularyTypes{vocab.RejectType, vocab.TentativeRejectType}
@@ -251,10 +251,10 @@ const BlockedCollection = vocab.CollectionPath("blocked")
 //
 // Servers SHOULD NOT deliver Block Activities to their object.
 func BlockActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activity, error) {
-	if act.Object == nil {
+	if vocab.IsNil(act.Object) {
 		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
 	}
-	if act.Actor == nil {
+	if vocab.IsNil(act.Actor) {
 		return act, errors.NotValidf("Missing actor for %s Activity", act.Type)
 	}
 	if act.Type != vocab.BlockType {
@@ -276,10 +276,10 @@ func BlockActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activ
 // From the list of recipients we remove the Object itself if it represents an Actor being flagged,
 // or its author if it's another type of object.
 func FlagActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
-	if act.Object == nil {
+	if vocab.IsNil(act.Object) {
 		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
 	}
-	if act.Actor == nil {
+	if vocab.IsNil(act.Actor) {
 		return act, errors.NotValidf("Missing actor for %s Activity", act.Type)
 	}
 	if act.Type != vocab.FlagType {
@@ -315,10 +315,10 @@ const IgnoredCollection = vocab.CollectionPath("ignored")
 // This relies on custom behavior for the repository, which would allow for an ignored collection,
 // where we save these
 func IgnoreActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
-	if act.Object == nil {
+	if vocab.IsNil(act.Object) {
 		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
 	}
-	if act.Actor == nil {
+	if vocab.IsNil(act.Actor) {
 		return act, errors.NotValidf("Missing actor for %s Activity", act.Type)
 	}
 	if act.Type != vocab.IgnoreType {

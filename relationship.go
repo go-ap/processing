@@ -14,10 +14,10 @@ import (
 // See 5.2 Representing Relationships Between Entities for more information:
 // https://www.w3.org/TR/activitystreams-vocabulary/#connections
 func RelationshipManagementActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activity, error) {
-	if act.Object == nil {
+	if vocab.IsNil(act.Object) {
 		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
 	}
-	if act.Actor == nil {
+	if vocab.IsNil(act.Actor) {
 		return act, errors.NotValidf("Missing actor for %s Activity", act.Type)
 	}
 	switch act.Type {
