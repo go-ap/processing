@@ -106,6 +106,9 @@ func WithLocalIRIChecker(isLocalFn IRIValidator) optionFn {
 
 // ProcessActivity processes an Activity received
 func (p P) ProcessActivity(it vocab.Item, receivedIn vocab.IRI) (vocab.Item, error) {
+	if vocab.IsNil(it) {
+		return nil, errors.BadRequestf("nil activity received")
+	}
 	p.l.Debugf("Processing %q activity in %s", it.GetType(), receivedIn)
 
 	if IsOutbox(receivedIn) {
