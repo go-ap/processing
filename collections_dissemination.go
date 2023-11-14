@@ -143,7 +143,7 @@ func (p P) AddItemToCollection(col vocab.IRI, it vocab.Item) error {
 			}
 		}
 	}
-	return colSaver.AddTo(col, it.GetLink())
+	return colSaver.AddTo(col, it)
 }
 
 func disseminateActivityObjectToLocalReplyToCollections(p P, act *vocab.Activity) error {
