@@ -76,6 +76,9 @@ func (p P) ProcessClientActivity(it vocab.Item, receivedIn vocab.IRI) (vocab.Ite
 //
 // The to, bto, cc, bcc or audience fields if their values are individuals or Collections owned by the actor.
 // These fields will have been populated appropriately by the client which posted the Activity to the outbox.
+//
+// Additional recommendation from the ActivityPub mailing list: Activities addressed to `Public` usually appear
+// only in the inboxes of actors that follow the activity's `actor` property.
 func (p P) ProcessOutboxDelivery(it vocab.Item, receivedIn vocab.IRI) error {
 	recipients, err := p.BuildOutboxRecipientsList(it, receivedIn)
 	if err != nil {
@@ -199,6 +202,8 @@ func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (voca
 	if err != nil {
 		return act, err
 	}
+	// Additional recommendation from the ActivityPub mailing list: Activities addressed to `Public` usually appear
+	// only in the inboxes of actors that follow the activity's `actor` property.
 	if err := p.AddToLocalCollections(it, append(recipients, activityReplyToCollections...)...); err != nil {
 		errFn(err.Error())
 	}
