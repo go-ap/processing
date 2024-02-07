@@ -122,6 +122,9 @@ func SetIDIfMissing(it vocab.Item, partOf vocab.Item, parentActivity vocab.Item)
 }
 
 // ContentManagementActivityFromClient processes matching activities.
+//
+// https://www.w3.org/TR/activitystreams-vocabulary/#h-motivations-crud
+//
 // The Content Management use case primarily deals with activities that involve the creation,
 // modification or deletion of content.
 // This includes, for instance, activities such as "John created a new note",

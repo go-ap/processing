@@ -415,6 +415,9 @@ func loadSharedInboxRecipients(p P, sharedInbox vocab.IRI) vocab.ItemCollection 
 }
 
 // CollectionManagementActivity processes matching activities
+//
+// https://www.w3.org/TR/activitystreams-vocabulary/#h-motivations-collections
+//
 // The Collection Management use case primarily deals with activities involving the management of content within collections.
 // Examples of collections include things like folders, albums, friend lists, etc.
 // This includes, for instance, activities such as "Sally added a file to Folder A",
@@ -434,6 +437,9 @@ func CollectionManagementActivity(l WriteStore, act *vocab.Activity) (*vocab.Act
 }
 
 // EventRSVPActivity processes matching activities
+//
+// https://www.w3.org/TR/activitystreams-vocabulary/#h-motivations-rsvp
+//
 // The Event RSVP use case primarily deals with invitations to events and RSVP type responses.
 func EventRSVPActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
 	if vocab.IsNil(act.Object) {
@@ -453,6 +459,9 @@ func EventRSVPActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, erro
 }
 
 // GroupManagementActivity processes matching activities
+//
+// https://www.w3.org/TR/activitystreams-vocabulary/#h-motivations-group
+//
 // The Group Management use case primarily deals with management of groups.
 // It can include, for instance, activities such as "John added Sally to Group A", "Sally joined Group A",
 // "Joe left Group A", etc.
@@ -462,6 +471,9 @@ func GroupManagementActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity
 }
 
 // ContentExperienceActivity processes matching activities
+//
+// https://www.w3.org/TR/activitystreams-vocabulary/#h-motivations-experience
+//
 // The Content Experience use case primarily deals with describing activities involving listening to,
 // reading, or viewing content. For instance, "Sally read the article", "Joe listened to the song".
 func ContentExperienceActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
@@ -470,6 +482,9 @@ func ContentExperienceActivity(l WriteStore, act *vocab.Activity) (*vocab.Activi
 }
 
 // GeoSocialEventsActivity processes matching activities
+//
+// https://www.w3.org/TR/activitystreams-vocabulary/#h-motivations-geo
+//
 // The Geo-Social Events use case primarily deals with activities involving geo-tagging type activities. For instance,
 // it can include activities such as "Joe arrived at work", "Sally left work", and "John is travel from home to work".
 func GeoSocialEventsActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
@@ -478,6 +493,9 @@ func GeoSocialEventsActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity
 }
 
 // GeoSocialEventsIntransitiveActivity processes matching activities
+//
+// https://www.w3.org/TR/activitystreams-vocabulary/#h-motivations-geo
+//
 // The Geo-Social Events use case primarily deals with activities involving geo-tagging type activities. For instance,
 // it can include activities such as "Joe arrived at work", "Sally left work", and "John is travel from home to work".
 func GeoSocialEventsIntransitiveActivity(l WriteStore, act *vocab.IntransitiveActivity) (*vocab.IntransitiveActivity, error) {
@@ -486,6 +504,9 @@ func GeoSocialEventsIntransitiveActivity(l WriteStore, act *vocab.IntransitiveAc
 }
 
 // NotificationActivity processes matching activities
+//
+// https://www.w3.org/TR/activitystreams-vocabulary/#h-motivations-notification
+//
 // The Notification use case primarily deals with calling attention to particular objects or notifications.
 func NotificationActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
 	// TODO(marius):
@@ -493,6 +514,8 @@ func NotificationActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, e
 }
 
 // OffersActivity processes matching activities
+//
+// https://www.w3.org/TR/activitystreams-vocabulary/#h-motivations-offer
 //
 // The Offers use case deals with activities involving offering one object to another. It can include, for instance,
 // activities such as "Company A is offering a discount on purchase of Product Z to Sally",
