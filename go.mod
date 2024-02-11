@@ -4,10 +4,10 @@ go 1.18
 
 require (
 	git.sr.ht/~mariusor/lw v0.0.0-20230317075520-07e173563bf8
-	github.com/go-ap/activitypub v0.0.0-20240210142307-6872961eb180
-	github.com/go-ap/client v0.0.0-20240210142450-02ea3070dc69
+	github.com/go-ap/activitypub v0.0.0-20240211124657-820024a66b78
+	github.com/go-ap/client v0.0.0-20240211124832-961fcce8d438
 	github.com/go-ap/errors v0.0.0-20231003111023-183eef4b31b7
-	github.com/go-ap/filters v0.0.0-20240210142437-bf62766d3898
+	github.com/go-ap/filters v0.0.0-20240211125015-2de118fbc889
 	github.com/go-ap/jsonld v0.0.0-20221030091449-f2a191312c73
 	github.com/go-fed/httpsig v1.1.0
 	github.com/openshift/osin v1.0.1
