@@ -564,10 +564,6 @@ func (p P) ValidateAudience(audience ...vocab.ItemCollection) error {
 	return errors.Newf("None of the audience elements is local")
 }
 
-func (p *P) SetActor(a *vocab.Actor) {
-	p.auth = a
-}
-
 func hostSplit(h string) (string, string) {
 	pieces := strings.Split(h, ":")
 	if len(pieces) == 0 {

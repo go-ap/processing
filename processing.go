@@ -104,6 +104,12 @@ func WithLocalIRIChecker(isLocalFn IRIValidator) optionFn {
 	return func(_ *P) {}
 }
 
+func WithAuthorizedActor(act *vocab.Actor) optionFn {
+	return func(p *P) {
+		p.auth = act
+	}
+}
+
 // ProcessActivity processes an Activity received
 func (p P) ProcessActivity(it vocab.Item, receivedIn vocab.IRI) (vocab.Item, error) {
 	if vocab.IsNil(it) {

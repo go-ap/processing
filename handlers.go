@@ -72,6 +72,14 @@ func (a ActivityHandlerFn) ValidateRequest(r *http.Request) (int, error) {
 	return http.StatusOK, nil
 }
 
+func reqIRI(r *http.Request) vocab.IRI {
+	proto := "https"
+	if r.TLS == nil {
+		proto = "http"
+	}
+	return vocab.IRI(fmt.Sprintf("%s://%s%s", proto, r.Host, r.RequestURI))
+}
+
 // ServeHTTP implements the http.Handler interface for the ActivityHandlerFn type
 func (a ActivityHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var dat []byte
@@ -84,12 +92,7 @@ func (a ActivityHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	proto := "https"
-	if r.TLS == nil {
-		proto = "http"
-	}
-	iri := vocab.IRI(fmt.Sprintf("%s://%s%s", proto, r.Host, r.RequestURI))
-	if it, status, err = a(iri, r); err != nil {
+	if it, status, err = a(reqIRI(r), r); err != nil {
 		errors.HandleError(err).ServeHTTP(w, r)
 		return
 	}
