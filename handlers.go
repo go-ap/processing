@@ -84,7 +84,11 @@ func (a ActivityHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	iri := vocab.IRI(fmt.Sprintf("https://%s%s", r.Host, r.RequestURI))
+	proto := "https"
+	if r.TLS == nil {
+		proto = "http"
+	}
+	iri := vocab.IRI(fmt.Sprintf("%s://%s%s", proto, r.Host, r.RequestURI))
 	if it, status, err = a(iri, r); err != nil {
 		errors.HandleError(err).ServeHTTP(w, r)
 		return
