@@ -34,13 +34,13 @@ type P struct {
 	l       lw.Logger
 }
 
-func New(o ...optionFn) (*P, error) {
-	p := new(P)
+func New(o ...optionFn) P {
+	p := P{}
 	for _, fn := range o {
-		fn(p)
+		fn(&p)
 	}
 	localAddressCache = ipCache{addr: sync.Map{}}
-	return p, nil
+	return p
 }
 
 type optionFn func(s *P)
