@@ -24,6 +24,9 @@ func (p P) disseminateToRemoteCollection(act vocab.Item, iris ...vocab.IRI) erro
 	if len(iris) == 0 {
 		return nil
 	}
+	if vocab.IsNil(act) {
+		return InvalidActivity("is nil")
+	}
 	p.l.Debugf("Starting remote actor's dissemination.")
 	if !p.IsLocalIRI(act.GetLink()) {
 		return errors.Newf("trying to disseminate local activity to local collection %s", act.GetLink())

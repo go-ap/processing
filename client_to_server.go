@@ -222,7 +222,7 @@ func (p P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) (vocab
 	if err != nil {
 		return nil, err
 	}
-	if act == nil {
+	if vocab.IsNil(act) {
 		return nil, InvalidActivity("is nil")
 	}
 	loader := p.s
