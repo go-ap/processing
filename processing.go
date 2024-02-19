@@ -8,8 +8,10 @@ import (
 	"crypto/rsa"
 	"io"
 	"net/http"
+	"os"
 	"path"
 	"sync"
+	"syscall"
 	"time"
 
 	"git.sr.ht/~mariusor/lw"
@@ -34,8 +36,13 @@ type P struct {
 	l       lw.Logger
 }
 
+var (
+	devNull   = os.NewFile(uintptr(syscall.Stderr), os.DevNull)
+	nilLogger = lw.Dev(lw.SetOutput(devNull))
+)
+
 func New(o ...optionFn) P {
-	p := P{}
+	p := P{l: nilLogger}
 	for _, fn := range o {
 		fn(&p)
 	}
