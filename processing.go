@@ -30,7 +30,6 @@ var (
 
 type P struct {
 	baseIRI vocab.IRIs
-	auth    *vocab.Actor
 	c       c.Basic
 	s       Store
 	l       lw.Logger
@@ -111,24 +110,18 @@ func WithLocalIRIChecker(isLocalFn IRIValidator) OptionFn {
 	return func(_ *P) {}
 }
 
-func WithAuthorizedActor(act *vocab.Actor) OptionFn {
-	return func(p *P) {
-		p.auth = act
-	}
-}
-
 // ProcessActivity processes an Activity received
-func (p P) ProcessActivity(it vocab.Item, receivedIn vocab.IRI) (vocab.Item, error) {
+func (p P) ProcessActivity(it vocab.Item, author vocab.Actor, receivedIn vocab.IRI) (vocab.Item, error) {
 	if vocab.IsNil(it) {
 		return nil, errors.BadRequestf("nil activity received")
 	}
 	p.l.Debugf("Processing %q activity in %s", it.GetType(), receivedIn)
 
 	if IsOutbox(receivedIn) {
-		return p.ProcessClientActivity(it, receivedIn)
+		return p.ProcessClientActivity(it, author, receivedIn)
 	}
 	if IsInbox(receivedIn) {
-		return p.ProcessServerActivity(it, receivedIn)
+		return p.ProcessServerActivity(it, author, receivedIn)
 	}
 
 	return nil, errors.MethodNotAllowedf("unable to process activities at current IRI: %s", receivedIn)

@@ -44,12 +44,12 @@ type C2SProcessor interface {
 //
 // HTTP caching mechanisms [RFC7234] SHOULD be respected when appropriate, both in clients receiving responses from
 // servers as well as servers sending responses to clients.
-func (p P) ProcessClientActivity(it vocab.Item, receivedIn vocab.IRI) (vocab.Item, error) {
+func (p P) ProcessClientActivity(it vocab.Item, author vocab.Actor, receivedIn vocab.IRI) (vocab.Item, error) {
 	if vocab.IsNil(it) {
 		return nil, InvalidActivity("is nil")
 	}
 
-	if err := p.ValidateClientActivity(it, receivedIn); err != nil {
+	if err := p.ValidateClientActivity(it, author, receivedIn); err != nil {
 		return it, err
 	}
 	// NOTE(marius): the separation between transitive and intransitive activities overlaps the separation we're

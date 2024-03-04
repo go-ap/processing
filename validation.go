@@ -87,15 +87,15 @@ var InvalidTarget = func(s string, p ...interface{}) error {
 	return ValidationError(fmt.Sprintf("Target is not valid: %s", s), p...)
 }
 
-func (p P) ValidateServerActivity(a vocab.Item, inbox vocab.IRI) error {
+func (p P) ValidateServerActivity(a vocab.Item, author vocab.Actor, inbox vocab.IRI) error {
 	if !IsInbox(inbox) {
 		return errors.NotValidf("Trying to validate a non inbox IRI %s", inbox)
 	}
-	if vocab.IsNil(p.auth) {
-		return errors.Unauthorizedf("nil actor is not allowed posting to current inbox: %s", inbox)
+	if author.GetLink() == vocab.PublicNS {
+		return errors.Unauthorizedf("%s actor is not allowed posting to current inbox: %s", name(&author), inbox)
 	}
-	if p.auth.GetLink() == vocab.PublicNS {
-		return errors.Unauthorizedf("%s actor is not allowed posting to current inbox: %s", p.auth.Name, inbox)
+	if !IRIBelongsToActor(inbox, author) {
+		return errors.Unauthorizedf("actor %q does not own the current inbox %s", name(&author), inbox)
 	}
 	if vocab.IsNil(a) {
 		return InvalidActivity("received nil")
@@ -106,21 +106,19 @@ func (p P) ValidateServerActivity(a vocab.Item, inbox vocab.IRI) error {
 	if !vocab.ActivityTypes.Contains(a.GetType()) {
 		return InvalidActivity("invalid type %s", a.GetType())
 	}
+
 	return vocab.OnActivity(a, func(act *vocab.Activity) error {
 		if len(act.ID) == 0 {
 			return InvalidActivity("invalid activity id %s", act.ID)
 		}
 
-		inboxBelongsTo, err := vocab.Inbox.OfActor(inbox)
-		if err != nil {
-			return err
-		}
-		if isBlocked(p.s, inboxBelongsTo, act.Actor) {
+		var err error
+		if isBlocked(p.s, inbox, act.Actor) {
 			return errors.NotFoundf("")
 		}
-		if act.Actor, err = p.ValidateServerActor(act.Actor); err != nil {
-			if errors.IsBadRequest(err) && p.auth != nil {
-				act.Actor = p.auth
+		if act.Actor, err = p.ValidateServerActor(act.Actor, author); err != nil {
+			if errors.IsBadRequest(err) {
+				act.Actor = &author
 			} else {
 				return err
 			}
@@ -146,10 +144,7 @@ func IsInbox(i vocab.IRI) bool {
 }
 
 // IRIBelongsToActor checks if the search iri represents any of the collections associated with the actor.
-func IRIBelongsToActor(iri vocab.IRI, actor *vocab.Actor) bool {
-	if actor == nil {
-		return false
-	}
+func IRIBelongsToActor(iri vocab.IRI, actor vocab.Actor) bool {
 	if vocab.Inbox.IRI(actor).Equals(iri, false) {
 		return true
 	}
@@ -196,29 +191,29 @@ func name(a *vocab.Actor) vocab.LangRefValue {
 	return vocab.LangRefValue{Value: vocab.Content(filepath.Base(string(a.ID)))}
 }
 
-func (p P) ValidateActivity(a vocab.Item, receivedIn vocab.IRI) error {
+func (p P) ValidateActivity(a vocab.Item, author vocab.Actor, receivedIn vocab.IRI) error {
 	if vocab.IsNil(a) {
 		return InvalidActivityActor("received nil activity")
 	}
 	if IsOutbox(receivedIn) {
-		return p.ValidateClientActivity(a, receivedIn)
+		return p.ValidateClientActivity(a, author, receivedIn)
 	}
 	if IsInbox(receivedIn) {
-		return p.ValidateServerActivity(a, receivedIn)
+		return p.ValidateServerActivity(a, author, receivedIn)
 	}
 
 	return errors.MethodNotAllowedf("unable to process activities at current IRI: %s", receivedIn)
 }
 
-func (p P) ValidateClientActivity(a vocab.Item, outbox vocab.IRI) error {
+func (p P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab.IRI) error {
 	if !IsOutbox(outbox) {
 		return errors.NotValidf("trying to validate a non outbox IRI %s", outbox)
 	}
-	if p.auth == nil || p.auth.ID == vocab.PublicNS {
+	if author.ID == vocab.PublicNS {
 		return errors.Unauthorizedf("missing actor: not allowed to post to outbox %s", outbox)
 	}
-	if !IRIBelongsToActor(outbox, p.auth) {
-		return errors.Unauthorizedf("actor %q does not own the current outbox %s", name(p.auth), outbox)
+	if !IRIBelongsToActor(outbox, author) {
+		return errors.Unauthorizedf("actor %q does not own the current outbox %s", name(&author), outbox)
 	}
 	if vocab.IsNil(a) {
 		return InvalidActivityActor("received nil activity")
@@ -234,9 +229,10 @@ func (p P) ValidateClientActivity(a vocab.Item, outbox vocab.IRI) error {
 
 	err := vocab.OnIntransitiveActivity(a, func(act *vocab.IntransitiveActivity) error {
 		var err error
-		if act.Actor, err = p.ValidateClientActor(act.Actor); err != nil {
-			if errors.IsBadRequest(err) && p.auth != nil {
-				act.Actor = p.auth
+
+		if act.Actor, err = p.ValidateClientActor(act.Actor, author); err != nil {
+			if errors.IsBadRequest(err) {
+				act.Actor = &author
 			} else {
 				return err
 			}
@@ -417,14 +413,14 @@ func (p P) IsLocalIRI(i vocab.IRI) bool {
 	return isLocalIRI(i) || p.validateLocalIRI(i) == nil
 }
 
-func (p P) ValidateClientActor(a vocab.Item) (vocab.Item, error) {
+func (p P) ValidateClientActor(a vocab.Item, expected vocab.Actor) (vocab.Item, error) {
 	if vocab.IsNil(a) {
 		return a, InvalidActivityActor("is nil")
 	}
 	if err := p.validateLocalIRI(a.GetLink()); err != nil {
 		return a, InvalidActivityActor("%s is not local", a.GetLink())
 	}
-	return p.ValidateActor(a)
+	return p.ValidateActor(a, expected)
 }
 
 func (p P) ValidateIRI(i vocab.IRI) error {
@@ -437,37 +433,11 @@ func (p P) ValidateIRI(i vocab.IRI) error {
 	return nil
 }
 
-func (p P) ValidateServerActor(a vocab.Item) (vocab.Item, error) {
-	if vocab.IsNil(a) {
-		return a, InvalidActivityActor("is nil")
-	}
-	if a.IsLink() {
-		iri := a.GetLink()
-		act, err := p.c.LoadIRI(iri)
-		if err != nil {
-			return a, errors.NewNotFound(err, "invalid activity actor: %s", iri)
-		}
-		if vocab.IsNil(act) {
-			return a, errors.NotFoundf("invalid activity actor: %s", iri)
-		}
-		a = act
-	}
-	err := vocab.OnActor(a, func(act *vocab.Actor) error {
-		if !vocab.ActorTypes.Contains(act.GetType()) {
-			return InvalidActivityActor("invalid type %s", act.GetType())
-		}
-		if p.auth != nil {
-			if !p.auth.GetLink().Equals(act.GetLink(), false) {
-				return InvalidActivityActor("the activity's actor doesn't match the authenticated one")
-			}
-		}
-		a = act
-		return nil
-	})
-	return a, err
+func (p P) ValidateServerActor(a vocab.Item, expected vocab.Actor) (vocab.Item, error) {
+	return p.ValidateActor(a, expected)
 }
 
-func (p P) ValidateActor(a vocab.Item) (vocab.Item, error) {
+func (p P) ValidateActor(a vocab.Item, expected vocab.Actor) (vocab.Item, error) {
 	if vocab.IsNil(a) {
 		return a, InvalidActivityActor("is nil")
 	}
@@ -488,7 +458,7 @@ func (p P) ValidateActor(a vocab.Item) (vocab.Item, error) {
 		}
 	} else {
 		if vocab.IsNil(a) {
-			return a, errors.NotFoundf("Invalid activity actor")
+			return a, errors.NotFoundf("Invalid actor")
 		}
 	}
 	err := vocab.OnActor(a, func(act *vocab.Actor) error {
@@ -496,10 +466,10 @@ func (p P) ValidateActor(a vocab.Item) (vocab.Item, error) {
 		if !vocab.ActorTypes.Contains(act.GetType()) {
 			return InvalidActivityActor("invalid type %s", act.GetType())
 		}
-		if p.auth != nil && p.auth.GetLink().Equals(act.GetLink(), false) {
-			return nil
+		if !expected.GetLink().Equals(act.GetLink(), false) {
+			return InvalidActivityActor("the actor doesn't match the authenticated one")
 		}
-		return InvalidActivityActor("current activity's actor doesn't match the authenticated one")
+		return nil
 	})
 	return a, err
 }

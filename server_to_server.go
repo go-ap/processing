@@ -46,7 +46,7 @@ type S2SProcessor interface {
 //
 // HTTP caching mechanisms [RFC7234] SHOULD be respected when appropriate, both when receiving responses from other
 // servers and when sending responses to other servers.
-func (p P) ProcessServerActivity(it vocab.Item, receivedIn vocab.IRI) (vocab.Item, error) {
+func (p P) ProcessServerActivity(it vocab.Item, author vocab.Actor, receivedIn vocab.IRI) (vocab.Item, error) {
 	if vocab.IsNil(it) {
 		return nil, errors.Newf("Unable to process nil Activity")
 	}
@@ -55,7 +55,7 @@ func (p P) ProcessServerActivity(it vocab.Item, receivedIn vocab.IRI) (vocab.Ite
 	if err != nil {
 		return it, err
 	}
-	if err := p.ValidateServerActivity(it, receivedIn); err != nil {
+	if err := p.ValidateServerActivity(it, author, receivedIn); err != nil {
 		return it, err
 	}
 	if err := saveRemoteActivityAndObjects(p.s, it); err != nil {
