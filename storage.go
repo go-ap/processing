@@ -8,12 +8,7 @@ import (
 type Store interface {
 	ReadStore
 	WriteStore
-}
-
-// OldReadStore
-type OldReadStore interface {
-	// Load returns an Item or an ItemCollection from an IRI
-	Load(vocab.IRI) (vocab.Item, error)
+	CollectionStore
 }
 
 type ReadStore interface {

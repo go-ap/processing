@@ -125,11 +125,6 @@ func (p P) disseminateToLocalCollections(ob vocab.Item, iris ...vocab.IRI) error
 // If the collection is not local, it doesn't do anything
 // If the item is a non-local IRI, it tries to dereference it, and then save a local representation of it.
 func (p P) AddItemToCollection(col vocab.IRI, it vocab.Item) error {
-	colSaver, ok := p.s.(CollectionStore)
-	if !ok {
-		// NOTE(marius): Invalid storage backend, unable to save to local collection
-		return nil
-	}
 	if !p.IsLocalIRI(col) {
 		return nil
 	}
@@ -146,7 +141,7 @@ func (p P) AddItemToCollection(col vocab.IRI, it vocab.Item) error {
 			}
 		}
 	}
-	return colSaver.AddTo(col, it)
+	return p.s.AddTo(col, it)
 }
 
 func disseminateActivityObjectToLocalReplyToCollections(p P, act *vocab.Activity) error {

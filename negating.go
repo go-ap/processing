@@ -17,7 +17,7 @@ var validUndoActivityTypes = vocab.ActivityVocabularyTypes{vocab.LikeType, vocab
 // The Negating Activity use case primarily deals with the ability to redact previously completed activities.
 // See 5.5 Inverse Activities and "Undo" for more information:
 // https://www.w3.org/TR/activitystreams-vocabulary/#inverse
-func NegatingActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
+func NegatingActivity(l Store, act *vocab.Activity) (*vocab.Activity, error) {
 	if vocab.IsNil(act.Object) {
 		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
 	}
@@ -78,12 +78,12 @@ func NegatingActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error
 // The Undo activity is used to undo the side effects of previous activities. See the ActivityStreams documentation
 // on Inverse Activities and "Undo". The scope and restrictions of the Undo activity are the same as for the Undo
 // activity in the context of client to server interactions, but applied to a federated context.
-func UndoActivity(r WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
+func UndoActivity(r Store, act *vocab.Activity) (*vocab.Activity, error) {
 	var err error
 
 	iri := act.GetLink()
 	if len(iri) == 0 {
-		createID(act.Object, vocab.Outbox.IRI(act.Actor), nil)
+		iri, _ = createID(act.Object, vocab.Outbox.IRI(act.Actor), nil)
 	}
 	err = vocab.OnActivity(act.Object, func(toUndo *vocab.Activity) error {
 		for _, to := range act.Bto {
@@ -126,13 +126,10 @@ func UndoActivity(r WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
 // Removes the side effects of an existing Appreciation activity (Like or Dislike)
 // Currently this means only removal of the Liked/Disliked object from the actor's `liked` collection and
 // removal of the Like/Dislike Activity from the object's `likes` collection
-func UndoAppreciationActivity(r WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
+func UndoAppreciationActivity(r Store, act *vocab.Activity) (*vocab.Activity, error) {
 	errs := make([]error, 0)
 	rem := act.GetLink()
-	colSaver, ok := r.(CollectionStore)
-	if !ok {
-		return act, nil
-	}
+
 	allRec := act.Recipients()
 	removeFromCols := make(vocab.IRIs, 0)
 	removeFromCols = append(removeFromCols, vocab.Outbox.IRI(act.Actor))
@@ -149,7 +146,7 @@ func UndoAppreciationActivity(r WriteStore, act *vocab.Activity) (*vocab.Activit
 		}
 	}
 	for _, iri := range removeFromCols {
-		if err := colSaver.RemoveFrom(iri, rem); err != nil {
+		if err := r.RemoveFrom(iri, rem); err != nil {
 			errs = append(errs, err)
 		}
 	}
