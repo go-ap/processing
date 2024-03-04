@@ -94,9 +94,6 @@ func (p P) ValidateServerActivity(a vocab.Item, author vocab.Actor, inbox vocab.
 	if author.GetLink() == vocab.PublicNS {
 		return errors.Unauthorizedf("%s actor is not allowed posting to current inbox: %s", name(&author), inbox)
 	}
-	if !IRIBelongsToActor(inbox, author) {
-		return errors.Unauthorizedf("actor %q does not own the current inbox %s", name(&author), inbox)
-	}
 	if vocab.IsNil(a) {
 		return InvalidActivity("received nil")
 	}
@@ -300,37 +297,38 @@ func ValidateClientContentManagementActivity(l ReadStore, act *vocab.Activity) e
 	if vocab.IsNil(act.Object) {
 		return errors.NotValidf("nil object for %s activity", act.Type)
 	}
-	ob := act.Object
-	switch act.Type {
-	case vocab.UpdateType:
-		if vocab.ActivityTypes.Contains(ob.GetType()) {
-			return errors.Newf("trying to update an immutable activity")
-		}
-		fallthrough
-	case vocab.DeleteType:
-		if len(ob.GetLink()) == 0 {
-			return errors.Newf("invalid object id for %s activity", act.Type)
-		}
-		if ob.IsLink() {
-			return nil
-		}
-		var (
-			found vocab.Item
-			err   error
-		)
 
-		found, err = l.Load(ob.GetLink())
-		if err != nil {
-			return errors.Annotatef(err, "failed to load object from storage")
-		}
-		if found == nil {
-			return errors.NotFoundf("found nil object in storage")
-		}
-	case vocab.CreateType:
-	default:
-	}
+	return vocab.OnItem(act.Object, func(ob vocab.Item) error {
+		switch act.Type {
+		case vocab.UpdateType:
+			if vocab.ActivityTypes.Contains(ob.GetType()) {
+				return errors.Newf("trying to update an immutable activity")
+			}
+			fallthrough
+		case vocab.DeleteType:
+			if len(ob.GetLink()) == 0 {
+				return errors.Newf("invalid object id for %s activity", act.Type)
+			}
+			if ob.IsLink() {
+				return nil
+			}
+			var (
+				found vocab.Item
+				err   error
+			)
 
-	return nil
+			found, err = l.Load(ob.GetLink())
+			if err != nil {
+				return errors.Annotatef(err, "failed to load object from storage")
+			}
+			if found == nil {
+				return errors.NotFoundf("found nil object in storage")
+			}
+		case vocab.CreateType:
+		default:
+		}
+		return nil
+	})
 }
 
 // ValidateClientCollectionManagementActivity
@@ -417,7 +415,11 @@ func (p P) ValidateClientActor(a vocab.Item, expected vocab.Actor) (vocab.Item, 
 	if vocab.IsNil(a) {
 		return a, InvalidActivityActor("is nil")
 	}
-	if err := p.validateLocalIRI(a.GetLink()); err != nil {
+
+	err := vocab.OnItem(a, func(item vocab.Item) error {
+		return p.validateLocalIRI(a.GetLink())
+	})
+	if err != nil {
 		return a, InvalidActivityActor("%s is not local", a.GetLink())
 	}
 	return p.ValidateActor(a, expected)

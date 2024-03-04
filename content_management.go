@@ -373,16 +373,7 @@ func loadAndUpdateSingleItem(l Store, it vocab.Item) (vocab.Item, error) {
 	if err != nil {
 		return it, err
 	}
-	if vocab.IsItemCollection(old) {
-		err := vocab.OnItemCollection(old, func(col *vocab.ItemCollection) error {
-			old = col.First()
-			return nil
-		})
-		if err != nil {
-			return it, err
-		}
-	}
-	if old, err = updateSingleItem(l, old, it); err != nil {
+	if old, err = updateSingleItem(l, firstOrItem(old), it); err != nil {
 		return it, err
 	}
 	return old, nil
