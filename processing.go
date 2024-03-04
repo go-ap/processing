@@ -41,7 +41,7 @@ var (
 	nilLogger = lw.Dev(lw.SetOutput(devNull))
 )
 
-func New(o ...optionFn) P {
+func New(o ...OptionFn) P {
 	p := P{l: nilLogger}
 	for _, fn := range o {
 		fn(&p)
@@ -50,68 +50,68 @@ func New(o ...optionFn) P {
 	return p
 }
 
-type optionFn func(s *P)
+type OptionFn func(s *P)
 
-func WithIDGenerator(genFn IDGenerator) optionFn {
+func WithIDGenerator(genFn IDGenerator) OptionFn {
 	new(sync.Once).Do(func() {
 		createID = genFn
 	})
 	return func(_ *P) {}
 }
 
-func WithActorKeyGenerator(genFn vocab.WithActorFn) optionFn {
+func WithActorKeyGenerator(genFn vocab.WithActorFn) OptionFn {
 	new(sync.Once).Do(func() {
 		createKey = genFn
 	})
 	return func(_ *P) {}
 }
 
-func WithLogger(l lw.Logger) optionFn {
+func WithLogger(l lw.Logger) OptionFn {
 	return func(p *P) {
 		p.l = l
 	}
 }
 
-func WithInfoLogger(logFn c.LogFn) optionFn {
+func WithInfoLogger(logFn c.LogFn) OptionFn {
 	new(sync.Once).Do(func() {
 		infoFn = logFn
 	})
 	return func(_ *P) {}
 }
 
-func WithErrorLogger(logFn c.LogFn) optionFn {
+func WithErrorLogger(logFn c.LogFn) OptionFn {
 	new(sync.Once).Do(func() {
 		errFn = logFn
 	})
 	return func(_ *P) {}
 }
 
-func WithClient(c c.Basic) optionFn {
+func WithClient(c c.Basic) OptionFn {
 	return func(p *P) {
 		p.c = c
 	}
 }
 
-func WithStorage(s Store) optionFn {
+func WithStorage(s Store) OptionFn {
 	return func(p *P) {
 		p.s = s
 	}
 }
 
-func WithIRI(i ...vocab.IRI) optionFn {
+func WithIRI(i ...vocab.IRI) OptionFn {
 	return func(p *P) {
 		p.baseIRI = i
 	}
 }
 
-func WithLocalIRIChecker(isLocalFn IRIValidator) optionFn {
+func WithLocalIRIChecker(isLocalFn IRIValidator) OptionFn {
 	new(sync.Once).Do(func() {
 		isLocalIRI = isLocalFn
 	})
 	return func(_ *P) {}
 }
 
-func WithAuthorizedActor(act *vocab.Actor) optionFn {
+func WithAuthorizedActor(act *vocab.Actor) OptionFn {
 	return func(p *P) {
 		p.auth = act
 	}
