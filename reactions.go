@@ -21,7 +21,7 @@ func ReactionsActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.A
 		case vocab.DislikeType:
 			fallthrough
 		case vocab.LikeType:
-			act, err = AppreciationActivity(p.s, act)
+			act, err = AppreciationActivity(p, act)
 		case vocab.RejectType:
 			fallthrough
 		case vocab.TentativeRejectType:
@@ -36,7 +36,7 @@ func ReactionsActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.A
 		case vocab.FlagType:
 			act, err = FlagActivity(p.s, act)
 		case vocab.IgnoreType:
-			act, err = IgnoreActivity(p.s, act)
+			act, err = IgnoreActivity(p, act)
 		}
 	}
 
@@ -63,7 +63,7 @@ func (m multi) As(e any) bool {
 // AppreciationActivity
 // The Like(and Dislike) activity indicates the actor likes the object.
 // The side effect of receiving this in an outbox is that the server SHOULD add the object to the actor's liked Collection.
-func AppreciationActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
+func AppreciationActivity(p P, act *vocab.Activity) (*vocab.Activity, error) {
 	if vocab.IsNil(act.Object) {
 		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
 	}
@@ -75,12 +75,7 @@ func AppreciationActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, e
 		return act, errors.NotValidf("Activity has wrong type %s, expected %v", act.Type, good)
 	}
 
-	colSaver, ok := l.(CollectionStore)
-	if !ok {
-		return act, nil
-	}
-
-	saveToCollections := func(colSaver CollectionStore, actors, objects vocab.ItemCollection) error {
+	saveToCollections := func(actors, objects vocab.ItemCollection) error {
 		errs := make(multi, 0)
 		colToAdd := make(map[vocab.IRI][]vocab.IRI)
 		for _, object := range objects {
@@ -93,7 +88,7 @@ func AppreciationActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, e
 		}
 		for col, iris := range colToAdd {
 			for _, iri := range iris {
-				if err := colSaver.AddTo(col, iri); err != nil {
+				if err := p.AddItemToCollection(col, iri); err != nil {
 					errs = append(errs, errors.Annotatef(err, "Unable to save %s to collection %s", iris, col))
 				}
 			}
@@ -127,7 +122,7 @@ func AppreciationActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, e
 	if act.GetType() == vocab.LikeType {
 		// TODO(marius): do something sensible with these errors, they shouldn't stop execution,
 		//               but they are still good to know
-		_ = saveToCollections(colSaver, actors, objects)
+		_ = saveToCollections(actors, objects)
 	}
 	return act, nil
 }
@@ -268,7 +263,7 @@ func BlockActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activ
 	act.Bto.Remove(obIRI)
 	act.BCC.Remove(obIRI)
 
-	return act, p.AddItemToCollection(BlockedCollection.IRI(act.Actor), act.Object)
+	return act, p.AddItemToCollection(BlockedCollection.IRI(act.Actor), obIRI)
 }
 
 // FlagActivity
@@ -314,7 +309,7 @@ const IgnoredCollection = vocab.CollectionPath("ignored")
 // IgnoreActivity
 // This relies on custom behavior for the repository, which would allow for an ignored collection,
 // where we save these
-func IgnoreActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
+func IgnoreActivity(p P, act *vocab.Activity) (*vocab.Activity, error) {
 	if vocab.IsNil(act.Object) {
 		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
 	}
@@ -332,11 +327,5 @@ func IgnoreActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) 
 	act.Bto.Remove(obIRI)
 	act.BCC.Remove(obIRI)
 
-	if colSaver, ok := l.(CollectionStore); ok {
-		err := colSaver.AddTo(IgnoredCollection.IRI(act.Actor), obIRI)
-		if err != nil {
-			return act, err
-		}
-	}
-	return act, nil
+	return act, p.AddItemToCollection(IgnoredCollection.IRI(act.Actor), obIRI)
 }
