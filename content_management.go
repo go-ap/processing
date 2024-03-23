@@ -140,7 +140,7 @@ func ContentManagementActivityFromClient(p P, act *vocab.Activity) (*vocab.Activ
 		act, err = DeleteActivity(p.s, act)
 	}
 	if err != nil && !isDuplicateKey(err) {
-		errFn("unable to save activity's object: %s", err)
+		p.l.Errorf("unable to save activity's object: %+s", err)
 		return act, err
 	}
 
@@ -293,18 +293,18 @@ func (p P) dereferenceIRIBasedOnInbox(ob vocab.Item, receivedIn vocab.IRI) (voca
 		if osinSt, ok := p.s.(osin.Storage); ok {
 			act, err := p.s.Load(maybeActorIRI)
 			if err != nil {
-				errFn("unable to load local actor: %+s", err)
+				p.l.Errorf("unable to load local actor: %+s", err)
 			} else if !vocab.IsNil(act) {
 				p.c.SignFn(c2sSignFn(osinSt, act))
 			}
 		} else {
-			errFn("storage type does not support loading OAuth2 token: %T", p.s)
+			p.l.Errorf("storage type does not support loading OAuth2 token: %T", p.s)
 		}
 	} else {
 		if keyLoader, ok := p.s.(KeyLoader); ok {
 			p.c.SignFn(s2sSignFn(keyLoader, maybeActorIRI, signerWithoutDigest(p.l)))
 		} else {
-			errFn("storage type does not support loading HTTPSig public key: %T", p.s)
+			p.l.Errorf("storage type does not support loading HTTPSig public key: %T", p.s)
 		}
 	}
 	derefOb, err := p.c.LoadIRI(ob.GetLink())

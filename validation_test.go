@@ -4,6 +4,7 @@ import (
 	"sync"
 	"testing"
 
+	"git.sr.ht/~mariusor/lw"
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/client"
 )
@@ -52,6 +53,44 @@ var (
 		}
 	}
 )
+
+type tLogger struct {
+	*testing.T
+}
+
+func (t tLogger) WithContext(ctx ...lw.Ctx) lw.Logger {
+	return t
+}
+
+func (t tLogger) New(c ...lw.Ctx) lw.Logger {
+	return t
+}
+
+func (t tLogger) Tracef(s string, a ...any) {
+	tInfFn(t.T)(s, a...)
+}
+
+func (t tLogger) Debugf(s string, a ...any) {
+	tInfFn(t.T)(s, a...)
+}
+
+func (t tLogger) Infof(s string, a ...any) {
+	tInfFn(t.T)(s, a...)
+}
+
+func (t tLogger) Warnf(s string, a ...any) {
+	tErrFn(t.T)(s, a...)
+}
+
+func (t tLogger) Errorf(s string, a ...any) {
+	tErrFn(t.T)(s, a...)
+}
+
+func (t tLogger) Critf(s string, a ...any) {
+	tErrFn(t.T)(s, a...)
+}
+
+var _ lw.Logger = tLogger{}
 
 func Test_defaultValidator_validateLocalIRI(t *testing.T) {
 	tests := []struct {
@@ -109,13 +148,11 @@ func Test_defaultValidator_validateLocalIRI(t *testing.T) {
 			wantErr: true,
 		},
 	}
-	infoFn = tInfFn(t)
-	errFn = tErrFn(t)
 	localAddressCache = ipCache{addr: sync.Map{}}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := P{baseIRI: tt.baseIRI}
+			p := P{baseIRI: tt.baseIRI, l: tLogger{t}}
 
 			if err := p.validateLocalIRI(tt.arg); (err != nil) != tt.wantErr {
 				t.Errorf("validateLocalIRI() error = %v, wantErr %v", err, tt.wantErr)

@@ -82,14 +82,14 @@ func (p P) ProcessClientActivity(it vocab.Item, author vocab.Actor, receivedIn v
 func (p P) ProcessOutboxDelivery(it vocab.Item, receivedIn vocab.IRI) error {
 	recipients, err := p.BuildOutboxRecipientsList(it, receivedIn)
 	if err != nil {
-		infoFn(err.Error())
+		p.l.Warnf("%+s", err)
 		return nil
 	}
 	if err := p.AddToLocalCollections(it, recipients...); err != nil {
-		errFn(err.Error())
+		p.l.Errorf("%+s", err)
 	}
 	if err := p.AddToRemoteCollections(it, recipients...); err != nil {
-		errFn(err.Error())
+		p.l.Errorf("%+s", err)
 	}
 
 	return nil
@@ -205,10 +205,10 @@ func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (voca
 	// Additional recommendation from the ActivityPub mailing list: Activities addressed to `Public` usually appear
 	// only in the inboxes of actors that follow the activity's `actor` property.
 	if err := p.AddToLocalCollections(it, append(recipients, activityReplyToCollections...)...); err != nil {
-		errFn(err.Error())
+		p.l.Errorf("%+s", err)
 	}
 	if err := p.AddToRemoteCollections(it, recipients...); err != nil {
-		errFn(err.Error())
+		p.l.Errorf("%+s", err)
 	}
 
 	return act, nil

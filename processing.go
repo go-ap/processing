@@ -8,10 +8,8 @@ import (
 	"crypto/rsa"
 	"io"
 	"net/http"
-	"os"
 	"path"
 	"sync"
-	"syscall"
 	"time"
 
 	"git.sr.ht/~mariusor/lw"
@@ -22,12 +20,6 @@ import (
 	"github.com/openshift/osin"
 )
 
-var (
-	emptyLogFn c.LogFn = func(s string, el ...interface{}) {}
-	infoFn     c.LogFn = emptyLogFn
-	errFn      c.LogFn = emptyLogFn
-)
-
 type P struct {
 	baseIRI vocab.IRIs
 	c       c.Basic
@@ -36,8 +28,7 @@ type P struct {
 }
 
 var (
-	devNull   = os.NewFile(uintptr(syscall.Stderr), os.DevNull)
-	nilLogger = lw.Dev(lw.SetOutput(devNull))
+	nilLogger = lw.Nil()
 )
 
 func New(o ...OptionFn) P {
@@ -69,20 +60,6 @@ func WithLogger(l lw.Logger) OptionFn {
 	return func(p *P) {
 		p.l = l
 	}
-}
-
-func WithInfoLogger(logFn c.LogFn) OptionFn {
-	new(sync.Once).Do(func() {
-		infoFn = logFn
-	})
-	return func(_ *P) {}
-}
-
-func WithErrorLogger(logFn c.LogFn) OptionFn {
-	new(sync.Once).Do(func() {
-		errFn = logFn
-	})
-	return func(_ *P) {}
 }
 
 func WithClient(c c.Basic) OptionFn {
@@ -397,7 +374,7 @@ func loadSharedInboxRecipients(p P, sharedInbox vocab.IRI) vocab.ItemCollection 
 	for {
 		col, err := p.s.Load(iri)
 		if err != nil {
-			errFn("unable to load actors for sharedInbox check: %s", err)
+			p.l.Warnf("unable to load actors for sharedInbox check: %+s", err)
 			break
 		}
 		vocab.OnCollectionIntf(col, func(col vocab.CollectionInterface) error {

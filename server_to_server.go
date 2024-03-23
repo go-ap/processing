@@ -123,7 +123,7 @@ func (p P) ProcessServerInboxDelivery(it vocab.Item, receivedIn vocab.IRI) error
 	}
 	activityReplyToCollections, err := p.BuildReplyToCollections(it)
 	if err != nil {
-		errFn("unable to load inReplyTo collections for the activity: %s", err)
+		p.l.Warnf("unable to load inReplyTo collections for the activity: %+s", err)
 	}
 	recipients = append(recipients, activityReplyToCollections...)
 	return p.AddToLocalCollections(it, recipients...)

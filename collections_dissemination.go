@@ -102,14 +102,14 @@ func (p P) disseminateToLocalCollections(ob vocab.Item, iris ...vocab.IRI) error
 		}
 		if vocab.IsIRI(ob) {
 			var err error
-			infoFn("object requires de-referencing from remote IRI %s", ob.GetLink())
+			p.l.Tracef("Object requires de-referencing from remote IRI %s", ob.GetLink())
 			ob, err = p.dereferenceIRIBasedOnInbox(ob, col)
 			if err != nil {
 				g = append(g, errors.Annotatef(err, "unable to load remote object: %s", col))
 				continue
 			}
 		}
-		infoFn("Saving to local actor's collection %s", col)
+		p.l.Tracef("Saving to local actor's collection %s", col)
 		if err := p.AddItemToCollection(col, ob); err != nil {
 			g = append(g, err)
 		}
@@ -132,18 +132,18 @@ func (p P) AddItemToCollection(col vocab.IRI, it vocab.Item) error {
 		if vocab.IsIRI(it) {
 			deref, err := p.c.LoadIRI(it.GetLink())
 			if err != nil {
-				errFn("unable to load remote object [%s]: %s", it.GetLink(), err.Error())
+				p.l.Warnf("unable to load remote object [%s]: %s", it.GetLink(), err.Error())
 			} else {
 				it = deref
 			}
 			if _, err := p.s.Save(it); err != nil {
-				errFn("unable to save remote object [%s] locally: %s", it.GetLink(), err.Error())
+				p.l.Warnf("unable to save remote object [%s] locally: %s", it.GetLink(), err.Error())
 			}
 		}
 	}
 	err := p.s.AddTo(col, it)
 	if err != nil {
-		errFn("unable to add object to collection {%s->%s}: %+s", it.GetLink(), col, err)
+		p.l.Warnf("unable to add object to collection {%s->%s}: %+s", it.GetLink(), col, err)
 		if errors.IsConflict(err) {
 			err = nil
 		}
@@ -155,10 +155,10 @@ func disseminateActivityObjectToLocalReplyToCollections(p P, act *vocab.Activity
 	return vocab.OnObject(act.Object, func(o *vocab.Object) error {
 		replyToCollections, err := p.BuildReplyToCollections(o)
 		if err != nil {
-			errFn(errors.Annotatef(err, "unable to build replyTo collections").Error())
+			p.l.Warnf(errors.Annotatef(err, "unable to build replyTo collections").Error())
 		}
 		if err := p.AddToLocalCollections(o, replyToCollections...); err != nil {
-			errFn(errors.Annotatef(err, "unable to add object to local replyTo collections").Error())
+			p.l.Warnf(errors.Annotatef(err, "unable to add object to local replyTo collections").Error())
 		}
 		return nil
 	})
