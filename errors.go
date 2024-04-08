@@ -2,8 +2,6 @@ package processing
 
 import (
 	"fmt"
-	"strings"
-
 	"github.com/go-ap/errors"
 )
 
@@ -27,17 +25,4 @@ func wrapErr(err error, s string, args ...interface{}) errors.Err {
 
 var ErrDuplicateObject = func(s string, p ...interface{}) errDuplicateKey {
 	return errDuplicateKey{wrapErr(nil, fmt.Sprintf("Duplicate key: %s", s), p...)}
-}
-
-type groupError []error
-
-func (g groupError) Error() string {
-	s := strings.Builder{}
-	for i, err := range g {
-		if i > 0 {
-			s.WriteString(": ")
-		}
-		s.WriteString(err.Error())
-	}
-	return s.String()
 }

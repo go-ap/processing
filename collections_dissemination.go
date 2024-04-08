@@ -38,7 +38,7 @@ func (p P) disseminateToRemoteCollection(act vocab.Item, iris ...vocab.IRI) erro
 	// TODO(marius): the processing module needs a method to see if an IRI is local or not
 	//    For each recipient we need to save the incoming activity to the actor's Inbox if the actor is local
 	//    Or disseminate it using S2S if the actor is not local
-	g := make(groupError, 0)
+	g := make([]error, 0)
 	for _, col := range iris {
 		if p.IsLocalIRI(col) {
 			g = append(g, errors.Newf("trying to disseminate to local collection %s", col))
@@ -68,7 +68,7 @@ func (p P) disseminateToRemoteCollection(act vocab.Item, iris ...vocab.IRI) erro
 		}
 	}
 	if len(g) > 0 {
-		return g
+		return errors.Join(g...)
 	}
 	p.l.Debugf("Finished remote actor's dissemination successfully.")
 	return nil
@@ -94,7 +94,7 @@ func (p P) disseminateToLocalCollections(ob vocab.Item, iris ...vocab.IRI) error
 	if len(iris) == 0 {
 		return nil
 	}
-	g := make(groupError, 0)
+	g := make([]error, 0)
 	for _, col := range iris {
 		if !p.IsLocalIRI(col) {
 			g = append(g, errors.Newf("trying to save to remote collection %s", col))
@@ -115,7 +115,7 @@ func (p P) disseminateToLocalCollections(ob vocab.Item, iris ...vocab.IRI) error
 		}
 	}
 	if len(g) > 0 {
-		return g
+		return errors.Join(g...)
 	}
 	return nil
 }

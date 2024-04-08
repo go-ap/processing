@@ -202,8 +202,9 @@ func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (voca
 	if err != nil {
 		return act, err
 	}
-	// Additional recommendation from the ActivityPub mailing list: Activities addressed to `Public` usually appear
-	// only in the inboxes of actors that follow the activity's `actor` property.
+	// Additional recommendation from the ActivityPub mailing list:
+	// Activities addressed to `Public` usually appear only in the inboxes of actors that follow the activity's `actor`
+	// property.
 	if err := p.AddToLocalCollections(it, append(recipients, activityReplyToCollections...)...); err != nil {
 		p.l.Errorf("%+s", err)
 	}
