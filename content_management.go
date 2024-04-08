@@ -289,6 +289,11 @@ func (p P) dereferenceIRIBasedOnInbox(ob vocab.Item, receivedIn vocab.IRI) (voca
 
 	// NOTE(marius): De-referencing of the Activity's object is being done when storing the object
 	// in the local collections, when we can use the collection's owner to sign the de-referencing request.
+	//
+	// NOTE(marius): Reviewing this at a later date, this logic doesn't track very well.
+	// The way I think it would make more sense, is to use the actor that is operating the
+	// current ProcessingActivity method as the actor that tries to dereference the IRI.
+	// But it's unclear how we pass it all the way here.
 	if p.IsLocal(ob.GetLink()) {
 		if osinSt, ok := p.s.(osin.Storage); ok {
 			act, err := p.s.Load(maybeActorIRI)

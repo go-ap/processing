@@ -17,60 +17,60 @@ func (p P) AddToRemoteCollections(it vocab.Item, recipients ...vocab.Item) error
 		}
 		remoteRecipients.Append(recIRI)
 	}
+	p.l.Debugf("Starting dissemination to remote collections.")
+	defer p.l.Debugf("Finished dissemination to remote collections.")
 	return p.disseminateToRemoteCollection(it, remoteRecipients...)
 }
 
-func (p P) disseminateToRemoteCollection(act vocab.Item, iris ...vocab.IRI) error {
+func (p P) disseminateToRemoteCollection(it vocab.Item, iris ...vocab.IRI) error {
 	if len(iris) == 0 {
 		return nil
 	}
-	if vocab.IsNil(act) {
+	if vocab.IsNil(it) {
 		return InvalidActivity("is nil")
 	}
-	p.l.Debugf("Starting remote actor's dissemination.")
-	if !p.IsLocalIRI(act.GetLink()) {
-		return errors.Newf("trying to disseminate local activity to local collection %s", act.GetLink())
+	if !p.IsLocalIRI(it.GetLink()) {
+		return errors.Newf("trying to disseminate remote activity %s to remote collections", it.GetLink())
 	}
+
 	keyLoader, ok := p.s.(KeyLoader)
 	if !ok {
 		return errors.Newf("local storage %T does not support loading private keys", p.s)
 	}
+
 	// TODO(marius): the processing module needs a method to see if an IRI is local or not
 	//    For each recipient we need to save the incoming activity to the actor's Inbox if the actor is local
 	//    Or disseminate it using S2S if the actor is not local
-	g := make([]error, 0)
+	errs := make([]error, 0, len(iris))
 	for _, col := range iris {
 		if p.IsLocalIRI(col) {
-			g = append(g, errors.Newf("trying to disseminate to local collection %s", col))
+			p.l.Warnf("Trying to disseminate to local collection %s", col)
 			continue
 		}
 		if !IsInbox(col) {
-			p.l.Errorf("trying to disseminate to remote collection that's not an Inbox: %s", col)
+			p.l.Warnf("Trying to disseminate to remote collection that's not an Inbox: %s", col)
+			continue
 		}
 
 		if p.c == nil {
-			p.l.Errorf("Unable to push to remote collections, S2S client is nil for %s", act.GetLink())
+			p.l.Warnf("Unable to push to remote collection, S2S client is nil for %s", it.GetLink())
 			continue
 		}
 		// TODO(marius): Move this function to either the go-ap/auth package, or in FedBOX itself.
 		//   We should probably change the signature for client.RequestSignFn to accept an Actor/IRI as a param.
-		vocab.OnIntransitiveActivity(act, func(act *vocab.IntransitiveActivity) error {
-			p.l.Debugf("Signing request for actor %s", act.Actor.GetLink())
+		_ = vocab.OnIntransitiveActivity(it, func(act *vocab.IntransitiveActivity) error {
+			p.l.Tracef("Signing request for actor %s", act.Actor.GetLink())
 			p.c.SignFn(s2sSignFn(keyLoader, act.Actor, signerWithDigest(p.l)))
 			return nil
 		})
 		p.l.Infof("Pushing to remote actor's collection %s", col)
-		if _, _, err := p.c.ToCollection(col, act); err != nil {
-			if errors.IsConflict(err) {
-				continue
-			}
-			g = append(g, err)
+		if _, _, err := p.c.ToCollection(col, it); err != nil && !errors.IsConflict(err) {
+			errs = append(errs, err)
 		}
 	}
-	if len(g) > 0 {
-		return errors.Join(g...)
+	if len(errs) > 0 {
+		return errors.Join(errs...)
 	}
-	p.l.Debugf("Finished remote actor's dissemination successfully.")
 	return nil
 }
 
@@ -87,35 +87,39 @@ func (p P) AddToLocalCollections(it vocab.Item, recipients ...vocab.Item) error 
 		}
 		localRecipients = append(localRecipients, recIRI)
 	}
+	p.l.Debugf("Starting dissemination to local collections.")
+	defer p.l.Debugf("Finished dissemination to local collections.")
 	return p.disseminateToLocalCollections(it, localRecipients...)
 }
 
-func (p P) disseminateToLocalCollections(ob vocab.Item, iris ...vocab.IRI) error {
+func (p P) disseminateToLocalCollections(it vocab.Item, iris ...vocab.IRI) error {
 	if len(iris) == 0 {
 		return nil
 	}
-	g := make([]error, 0)
+
+	errs := make([]error, 0, len(iris))
 	for _, col := range iris {
 		if !p.IsLocalIRI(col) {
-			g = append(g, errors.Newf("trying to save to remote collection %s", col))
+			p.l.Warnf("Trying to save to remote collection %s", col)
 			continue
 		}
-		if vocab.IsIRI(ob) {
+		if vocab.IsIRI(it) {
 			var err error
-			p.l.Tracef("Object requires de-referencing from remote IRI %s", ob.GetLink())
-			ob, err = p.dereferenceIRIBasedOnInbox(ob, col)
-			if err != nil {
-				g = append(g, errors.Annotatef(err, "unable to load remote object: %s", col))
+			p.l.Tracef("Object requires de-referencing from remote IRI %s", it.GetLink())
+			// NOTE(marius): check comment inside dereferenceIRIBasedOnInbox() method
+			if it, err = p.dereferenceIRIBasedOnInbox(it, col); err != nil {
+				errs = append(errs, errors.Annotatef(err, "unable to load remote object: %s", col))
 				continue
 			}
 		}
-		p.l.Tracef("Saving to local actor's collection %s", col)
-		if err := p.AddItemToCollection(col, ob); err != nil {
-			g = append(g, err)
+		p.l.Infof("Saving to local actor's collection %s", col)
+		if err := p.AddItemToCollection(col, it); err != nil {
+			errs = append(errs, err)
 		}
 	}
-	if len(g) > 0 {
-		return errors.Join(g...)
+
+	if len(errs) > 0 {
+		return errors.Join(errs...)
 	}
 	return nil
 }
