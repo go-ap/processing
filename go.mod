@@ -10,7 +10,7 @@ require (
 	github.com/go-ap/filters v0.0.0-20240801112128-c16e26a892c4
 	github.com/go-ap/jsonld v0.0.0-20221030091449-f2a191312c73
 	github.com/go-fed/httpsig v1.1.0
-	github.com/openshift/osin v1.0.1
+	github.com/openshift/osin v1.0.2-0.20220317075346-0f4d38c6e53f
 )
 
 require (
