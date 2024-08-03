@@ -193,7 +193,11 @@ func (c CollectionHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	status = http.StatusOK
 	w.Header().Set("Content-Type", json.ContentType)
 	if w.Header().Get("Cache-Control") == "" {
-		w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d", int(24*time.Hour.Seconds())))
+		cacheType := "public"
+		if r.Header.Get("Authorization") != "" {
+			cacheType = "private"
+		}
+		w.Header().Set("Cache-Control", fmt.Sprintf("%s, max-age=%d", cacheType, int(24*time.Hour.Seconds())))
 	}
 	w.WriteHeader(status)
 	if r.Method == http.MethodGet {
@@ -252,10 +256,16 @@ func (i ItemHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if !updatedAt.IsZero() {
 			w.Header().Set("Last-Modified", updatedAt.Format(time.RFC1123))
 		}
-		if vocab.ActivityTypes.Contains(o.Type) {
-			w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d, immutable", int(8766*time.Hour.Seconds())))
-		} else {
-			w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d", int(24*time.Hour.Seconds())))
+		if w.Header().Get("Cache-Control") == "" {
+			cacheType := "public"
+			if r.Header.Get("Authorization") != "" {
+				cacheType = "private"
+			}
+			if vocab.ActivityTypes.Contains(o.Type) {
+				w.Header().Set("Cache-Control", fmt.Sprintf("%s, max-age=%d, immutable", cacheType, int(8766*time.Hour.Seconds())))
+			} else {
+				w.Header().Set("Cache-Control", fmt.Sprintf("%s, max-age=%d", cacheType, int(24*time.Hour.Seconds())))
+			}
 		}
 		return nil
 	})
