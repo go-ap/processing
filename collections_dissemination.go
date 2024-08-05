@@ -1,6 +1,10 @@
 package processing
 
 import (
+	"context"
+	"time"
+
+	"git.sr.ht/~mariusor/ssm"
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
 )
@@ -22,6 +26,19 @@ func (p P) AddToRemoteCollections(it vocab.Item, recipients ...vocab.Item) error
 	return p.disseminateToRemoteCollection(it, remoteRecipients...)
 }
 
+const (
+	jitterDelay = 200 * time.Millisecond
+
+	baseWaitTime = time.Second
+	multiplier   = 1.4
+
+	retries = 5
+)
+
+func retryFn(fn ssm.Fn) ssm.Fn {
+	return ssm.Retry(retries, ssm.BackOff(ssm.Jitter(jitterDelay, ssm.Linear(baseWaitTime, multiplier)), fn))
+}
+
 func (p P) disseminateToRemoteCollection(it vocab.Item, iris ...vocab.IRI) error {
 	if len(iris) == 0 {
 		return nil
@@ -41,37 +58,56 @@ func (p P) disseminateToRemoteCollection(it vocab.Item, iris ...vocab.IRI) error
 	// TODO(marius): the processing module needs a method to see if an IRI is local or not
 	//    For each recipient we need to save the incoming activity to the actor's Inbox if the actor is local
 	//    Or disseminate it using S2S if the actor is not local
-	errs := make([]error, 0, len(iris))
+	states := make([]ssm.Fn, 0, len(iris))
 	for _, col := range iris {
-		if p.IsLocalIRI(col) {
-			p.l.Warnf("Trying to disseminate to local collection %s", col)
-			continue
-		}
-		if !IsInbox(col) {
-			p.l.Warnf("Trying to disseminate to remote collection that's not an Inbox: %s", col)
-			continue
-		}
+		state := retryFn(func(ctx context.Context) ssm.Fn {
+			if p.IsLocalIRI(col) {
+				p.l.Warnf("Trying to disseminate to local collection %s", col)
+				return ssm.End
+			}
+			if !IsInbox(col) {
+				p.l.Warnf("Trying to disseminate to remote collection that's not an Inbox: %s", col)
+				return ssm.End
+			}
 
-		if p.c == nil {
-			p.l.Warnf("Unable to push to remote collection, S2S client is nil for %s", it.GetLink())
-			continue
-		}
-		// TODO(marius): Move this function to either the go-ap/auth package, or in FedBOX itself.
-		//   We should probably change the signature for client.RequestSignFn to accept an Actor/IRI as a param.
-		_ = vocab.OnIntransitiveActivity(it, func(act *vocab.IntransitiveActivity) error {
-			p.l.Tracef("Signing request for actor %s", act.Actor.GetLink())
-			p.c.SignFn(s2sSignFn(keyLoader, act.Actor, signerWithDigest(p.l)))
-			return nil
+			if p.c == nil {
+				p.l.Warnf("Unable to push to remote collection, S2S client is nil for %s", it.GetLink())
+				return ssm.End
+			}
+			// TODO(marius): Move this function to either the go-ap/auth package, or in FedBOX itself.
+			//   We should probably change the signature for client.RequestSignFn to accept an Actor/IRI as a param.
+			err := vocab.OnIntransitiveActivity(it, func(act *vocab.IntransitiveActivity) error {
+				p.l.Tracef("Signing request for actor %s", act.Actor.GetLink())
+				p.c.SignFn(s2sSignFn(keyLoader, act.Actor, signerWithDigest(p.l)))
+				return nil
+			})
+			if err != nil {
+				p.l.Warnf("Unable to sign request %s", err)
+			}
+			p.l.Infof("Pushing to remote actor's collection %s", col)
+
+			_, _, err = p.c.ToCollection(col, it)
+			if err != nil {
+				p.l.Warnf("Unable to disseminate activity %s", err)
+				switch {
+				case errors.IsConflict(err):
+					// Resource already exists
+				case errors.IsNotFound(err):
+					// Actor inbox was not found, either an authorization issue, or an invalid actor
+				case errors.IsUnauthorized(err):
+					// Authorization issue
+				case errors.IsMethodNotAllowed(err):
+					// Server does not federate. See https://www.w3.org/TR/activitypub/#delivery
+					p.l.Warnf("TODO add mechanism for saving instances that need to be skipped due to unsupported S2S")
+				default:
+					return ssm.ErrorEnd(err)
+				}
+			}
+			return ssm.End
 		})
-		p.l.Infof("Pushing to remote actor's collection %s", col)
-		if _, _, err := p.c.ToCollection(col, it); err != nil && !errors.IsConflict(err) {
-			errs = append(errs, err)
-		}
+		states = append(states, state)
 	}
-	if len(errs) > 0 {
-		return errors.Join(errs...)
-	}
-	return nil
+	return ssm.RunParallel(context.Background(), states...)
 }
 
 // AddToLocalCollections handles the dissemination of the received it Activity to the local collections,
@@ -97,31 +133,32 @@ func (p P) disseminateToLocalCollections(it vocab.Item, iris ...vocab.IRI) error
 		return nil
 	}
 
-	errs := make([]error, 0, len(iris))
+	states := make([]ssm.Fn, 0, len(iris))
 	for _, col := range iris {
-		if !p.IsLocalIRI(col) {
-			p.l.Warnf("Trying to save to remote collection %s", col)
-			continue
-		}
-		if vocab.IsIRI(it) {
-			var err error
-			p.l.Tracef("Object requires de-referencing from remote IRI %s", it.GetLink())
-			// NOTE(marius): check comment inside dereferenceIRIBasedOnInbox() method
-			if it, err = p.dereferenceIRIBasedOnInbox(it, col); err != nil {
-				errs = append(errs, errors.Annotatef(err, "unable to load remote object: %s", col))
-				continue
+		state := func(ctx context.Context) ssm.Fn {
+			if !p.IsLocalIRI(col) {
+				p.l.Warnf("Trying to save to remote collection %s", col)
+				return ssm.End
 			}
+			if vocab.IsIRI(it) {
+				var err error
+				p.l.Tracef("Object requires de-referencing from remote IRI %s", it.GetLink())
+				// NOTE(marius): check comment inside dereferenceIRIBasedOnInbox() method
+				if it, err = p.dereferenceIRIBasedOnInbox(it, col); err != nil {
+					p.l.Warnf("Unable to load remote object %s: %s", col, err)
+					return ssm.End
+				}
+			}
+			p.l.Infof("Saving to local actor's collection %s", col)
+			if err := p.AddItemToCollection(col, it); err != nil {
+				p.l.Warnf("Unable to disseminate activity %s", err)
+			}
+			return ssm.End
 		}
-		p.l.Infof("Saving to local actor's collection %s", col)
-		if err := p.AddItemToCollection(col, it); err != nil {
-			errs = append(errs, err)
-		}
+		states = append(states, state)
 	}
 
-	if len(errs) > 0 {
-		return errors.Join(errs...)
-	}
-	return nil
+	return ssm.Run(context.Background(), states...)
 }
 
 // AddItemToCollection attempts to append "it" to collection "col"
