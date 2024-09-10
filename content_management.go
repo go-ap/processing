@@ -210,6 +210,30 @@ func addNewItemCollections(it vocab.Item) (vocab.Item, error) {
 	return it, nil
 }
 
+// validateCreateObjectIsNew checks if "ob" already exists in storage
+// It is used to verify than when receiving a Create activity, we don't override by mistake existing objects.
+func validateCreateObjectIsNew(p P, ob vocab.Item) error {
+	if len(ob.GetLink()) == 0 {
+		return nil
+	}
+	if ob.IsCollection() {
+		return vocab.OnCollectionIntf(ob, func(col vocab.CollectionInterface) error {
+			for _, ci := range col.Collection() {
+				it, err := p.s.Load(ci.GetLink())
+				if !errors.IsNotFound(err) || !vocab.IsNil(it) {
+					return errors.Conflictf("the passed object already exists %s", ob.GetLink())
+				}
+			}
+			return nil
+		})
+	}
+	it, err := p.s.Load(ob.GetLink())
+	if !errors.IsNotFound(err) || !vocab.IsNil(it) {
+		return errors.Conflictf("the passed object already exists %s", ob.GetLink())
+	}
+	return nil
+}
+
 // CreateActivityFromClient
 //
 // https://www.w3.org/TR/activitypub/#create-activity-outbox
@@ -226,9 +250,12 @@ func addNewItemCollections(it vocab.Item) (vocab.Item, error) {
 // https://www.w3.org/TR/activitypub/#create-activity-inbox
 //
 // Receiving a Create activity in an inbox has surprisingly few side effects; the activity should appear in the actor's
-// inbox and it is likely that the server will want to locally store a representation of this activity and its
+// inbox, and it is likely that the server will want to locally store a representation of this activity and its
 // accompanying object. However, this mostly happens in general with processing activities delivered to an inbox anyway.
 func CreateActivityFromClient(p P, act *vocab.Activity) (*vocab.Activity, error) {
+	if err := validateCreateObjectIsNew(p, act.Object); err != nil {
+		return act, err
+	}
 	if err := SetIDIfMissing(act.Object, vocab.Outbox.IRI(act.Actor), act); err != nil {
 		return act, nil
 	}
