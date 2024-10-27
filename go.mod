@@ -1,6 +1,6 @@
 module github.com/go-ap/processing
 
-go 1.21
+go 1.23
 
 require (
 	git.sr.ht/~mariusor/lw v0.0.0-20240906100438-00d2184b2120

@@ -134,6 +134,7 @@ func (p P) disseminateToLocalCollections(it vocab.Item, iris ...vocab.IRI) error
 	}
 
 	states := make([]ssm.Fn, 0, len(iris))
+	// NOTE(marius): We rely on Go1.22 for range improvements where col is a copy, not a reference
 	for _, col := range iris {
 		if !p.IsLocalIRI(col) {
 			p.l.Warnf("Trying to save to remote collection %s", col)
@@ -149,8 +150,7 @@ func (p P) disseminateToLocalCollections(it vocab.Item, iris ...vocab.IRI) error
 			}
 		}
 		state := func(ctx context.Context) ssm.Fn {
-			ss := col.GetLink().String()
-			p.l.Infof("Saving to local actor's collection %s", ss)
+			p.l.Infof("Saving to local actor's collection %s", col)
 			if err := p.AddItemToCollection(col, it); err != nil {
 				p.l.Warnf("Unable to disseminate activity %s", err)
 			}
