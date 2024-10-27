@@ -135,21 +135,22 @@ func (p P) disseminateToLocalCollections(it vocab.Item, iris ...vocab.IRI) error
 
 	states := make([]ssm.Fn, 0, len(iris))
 	for _, col := range iris {
+		if !p.IsLocalIRI(col) {
+			p.l.Warnf("Trying to save to remote collection %s", col)
+			continue
+		}
+		if vocab.IsIRI(it) {
+			var err error
+			p.l.Tracef("Object requires de-referencing from remote IRI %s", it.GetLink())
+			// NOTE(marius): check comment inside dereferenceIRIBasedOnInbox() method
+			if it, err = p.dereferenceIRIBasedOnInbox(it, col); err != nil {
+				p.l.Warnf("Unable to load remote object %s: %s", it, err)
+				continue
+			}
+		}
 		state := func(ctx context.Context) ssm.Fn {
-			if !p.IsLocalIRI(col) {
-				p.l.Warnf("Trying to save to remote collection %s", col)
-				return ssm.End
-			}
-			if vocab.IsIRI(it) {
-				var err error
-				p.l.Tracef("Object requires de-referencing from remote IRI %s", it.GetLink())
-				// NOTE(marius): check comment inside dereferenceIRIBasedOnInbox() method
-				if it, err = p.dereferenceIRIBasedOnInbox(it, col); err != nil {
-					p.l.Warnf("Unable to load remote object %s: %s", col, err)
-					return ssm.End
-				}
-			}
-			p.l.Infof("Saving to local actor's collection %s", col)
+			ss := col.GetLink().String()
+			p.l.Infof("Saving to local actor's collection %s", ss)
 			if err := p.AddItemToCollection(col, it); err != nil {
 				p.l.Warnf("Unable to disseminate activity %s", err)
 			}
