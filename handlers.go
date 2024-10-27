@@ -222,6 +222,11 @@ func (i ItemHandlerFn) ValidateRequest(r *http.Request) (int, error) {
 	return http.StatusOK, nil
 }
 
+const (
+	day = 24*time.Hour
+	year = 8766*time.Hour
+)
+
 // ServeHTTP implements the http.Handler interface for the ItemHandlerFn type
 func (i ItemHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var dat []byte
@@ -262,9 +267,9 @@ func (i ItemHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				cacheType = "private"
 			}
 			if vocab.ActivityTypes.Contains(o.Type) {
-				w.Header().Set("Cache-Control", fmt.Sprintf("%s, max-age=%d, immutable", cacheType, int(8766*time.Hour.Seconds())))
+				w.Header().Set("Cache-Control", fmt.Sprintf("%s, max-age=%d, immutable", cacheType, int(year.Seconds())))
 			} else {
-				w.Header().Set("Cache-Control", fmt.Sprintf("%s, max-age=%d", cacheType, int(24*time.Hour.Seconds())))
+				w.Header().Set("Cache-Control", fmt.Sprintf("%s, max-age=%d", cacheType, int(day.Seconds())))
 			}
 		}
 		return nil
