@@ -354,13 +354,17 @@ func loadSharedInboxRecipients(p P, sharedInbox vocab.IRI) vocab.ItemCollection 
 		var next vocab.IRI
 		switch it.GetType() {
 		case vocab.CollectionPageType, vocab.OrderedCollectionPageType:
-			vocab.OnCollectionPage(it, func(p *vocab.CollectionPage) error {
-				next = p.Next.GetLink()
+			_ = vocab.OnCollectionPage(it, func(p *vocab.CollectionPage) error {
+				if p.Next != nil {
+					next = p.Next.GetLink()
+				}
 				return nil
 			})
 		case vocab.CollectionType, vocab.OrderedCollectionType:
-			vocab.OnCollection(it, func(p *vocab.Collection) error {
-				next = p.First.GetLink()
+			_ = vocab.OnCollection(it, func(p *vocab.Collection) error {
+				if p.First != nil {
+					next = p.First.GetLink()
+				}
 				return nil
 			})
 		}
@@ -377,9 +381,9 @@ func loadSharedInboxRecipients(p P, sharedInbox vocab.IRI) vocab.ItemCollection 
 			p.l.Warnf("unable to load actors for sharedInbox check: %+s", err)
 			break
 		}
-		vocab.OnCollectionIntf(col, func(col vocab.CollectionInterface) error {
+		_ = vocab.OnCollectionIntf(col, func(col vocab.CollectionInterface) error {
 			for _, act := range col.Collection() {
-				vocab.OnActor(act, func(act *vocab.Actor) error {
+				_ = vocab.OnActor(act, func(act *vocab.Actor) error {
 					if act.Endpoints != nil && act.Endpoints.SharedInbox != nil {
 						if sharedInbox.Equals(act.Endpoints.SharedInbox.GetLink(), false) && !actors.Contains(act.GetLink()) {
 							actors = append(actors, act)
