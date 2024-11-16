@@ -8,7 +8,7 @@ require (
 	github.com/go-ap/activitypub v0.0.0-20241114170014-e897df079e3d
 	github.com/go-ap/client v0.0.0-20241114180623-d0658a04422c
 	github.com/go-ap/errors v0.0.0-20240910140019-1e9d33cc1568
-	github.com/go-ap/filters v0.0.0-20241115220408-6e0dd28b6a9a
+	github.com/go-ap/filters v0.0.0-20241116100812-7fd60f23761e
 	github.com/go-ap/jsonld v0.0.0-20221030091449-f2a191312c73
 	github.com/go-fed/httpsig v1.1.0
 	github.com/openshift/osin v1.0.2-0.20220317075346-0f4d38c6e53f
