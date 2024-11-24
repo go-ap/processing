@@ -5,10 +5,10 @@ go 1.23
 require (
 	git.sr.ht/~mariusor/lw v0.0.0-20241117105956-4b4009e28502
 	git.sr.ht/~mariusor/ssm v0.0.0-20240811085540-34f24cac52b7
-	github.com/go-ap/activitypub v0.0.0-20241123145931-b72f8292c65b
-	github.com/go-ap/client v0.0.0-20241123150455-030e6d4f1054
+	github.com/go-ap/activitypub v0.0.0-20241124171425-a40ea88b2b60
+	github.com/go-ap/client v0.0.0-20241124171814-fdaae75e78ba
 	github.com/go-ap/errors v0.0.0-20240910140019-1e9d33cc1568
-	github.com/go-ap/filters v0.0.0-20241123185521-adc45b30dfb3
+	github.com/go-ap/filters v0.0.0-20241124171755-74a8e212382e
 	github.com/go-ap/jsonld v0.0.0-20221030091449-f2a191312c73
 	github.com/go-fed/httpsig v1.1.0
 	github.com/openshift/osin v1.0.2-0.20220317075346-0f4d38c6e53f
