@@ -223,8 +223,8 @@ func (i ItemHandlerFn) ValidateRequest(r *http.Request) (int, error) {
 }
 
 const (
-	day = 24*time.Hour
-	year = 8766*time.Hour
+	day  = 24 * time.Hour
+	year = 8766 * time.Hour
 )
 
 // ServeHTTP implements the http.Handler interface for the ItemHandlerFn type

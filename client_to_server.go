@@ -186,7 +186,7 @@ func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (voca
 	if act.Content != nil || act.Summary != nil {
 		// For activities that have a content value, we create the collections that allow actors to interact
 		// with them as they are a regular object.
-		vocab.OnObject(act, addNewObjectCollections)
+		_ = vocab.OnObject(act, addNewObjectCollections)
 	}
 
 	recipients, err := p.BuildOutboxRecipientsList(act, receivedIn)
@@ -205,10 +205,10 @@ func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (voca
 	// Additional recommendation from the ActivityPub mailing list:
 	// Activities addressed to `Public` usually appear only in the inboxes of actors that follow the activity's `actor`
 	// property.
-	if err := p.AddToLocalCollections(it, append(recipients, activityReplyToCollections...)...); err != nil {
+	if err = p.AddToLocalCollections(it, append(recipients, activityReplyToCollections...)...); err != nil {
 		p.l.Errorf("%+s", err)
 	}
-	if err := p.AddToRemoteCollections(it, recipients...); err != nil {
+	if err = p.AddToRemoteCollections(it, recipients...); err != nil {
 		p.l.Errorf("%+s", err)
 	}
 
