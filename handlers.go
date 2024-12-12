@@ -313,8 +313,6 @@ func (i ItemHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if fromCache {
 			status = http.StatusNotModified
 		}
-		w.Header().Set("Content-Length", strconv.Itoa(len(dat)))
-		dat = nil
 	}
 
 	w.WriteHeader(status)
