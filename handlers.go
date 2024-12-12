@@ -3,6 +3,7 @@ package processing
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -170,17 +171,19 @@ func (c CollectionHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	fromCache := false
+
 	col, err := c(Typer.Type(r), r)
 	if err != nil {
-		errors.HandleError(err).ServeHTTP(w, r)
-		return
-	}
-	if dat, err = json.WithContext(json.IRI(vocab.ActivityBaseURI), json.IRI(vocab.SecurityContextURI)).Marshal(col); err != nil {
-		errors.HandleError(err).ServeHTTP(w, r)
-		return
+		if errors.IsNotModified(err) {
+			fromCache = true
+		} else {
+			errors.HandleError(err).ServeHTTP(w, r)
+			return
+		}
 	}
 
-	vocab.OnObject(col, func(o *vocab.Object) error {
+	_ = vocab.OnObject(col, func(o *vocab.Object) error {
 		updatedAt := o.Published
 		if !o.Updated.IsZero() {
 			updatedAt = o.Updated
@@ -190,7 +193,7 @@ func (c CollectionHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		return nil
 	})
-	status = http.StatusOK
+
 	w.Header().Set("Content-Type", json.ContentType)
 	if w.Header().Get("Cache-Control") == "" {
 		cacheType := "public"
@@ -199,10 +202,24 @@ func (c CollectionHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		w.Header().Set("Cache-Control", fmt.Sprintf("%s, max-age=%d", cacheType, int(24*time.Hour.Seconds())))
 	}
-	w.WriteHeader(status)
-	if r.Method == http.MethodGet {
-		w.Write(dat)
+
+	if dat, err = json.WithContext(json.IRI(vocab.ActivityBaseURI), json.IRI(vocab.SecurityContextURI)).Marshal(col); err != nil {
+		errors.HandleError(err).ServeHTTP(w, r)
+		return
 	}
+
+	if r.Method == http.MethodHead {
+		w.Header().Set("Content-Length", strconv.Itoa(len(dat)))
+		dat = nil
+	}
+
+	status = http.StatusOK
+	if fromCache {
+		status = http.StatusNotModified
+	}
+
+	w.WriteHeader(status)
+	_, _ = w.Write(dat)
 }
 
 // ItemHandlerFn is the type that we're using to represent handlers that return ActivityStreams
@@ -227,6 +244,8 @@ const (
 	year = 8766 * time.Hour
 )
 
+var NotModified = errors.NotModified("from cache")
+
 // ServeHTTP implements the http.Handler interface for the ItemHandlerFn type
 func (i ItemHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var dat []byte
@@ -239,21 +258,23 @@ func (i ItemHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	fromCache := false
+
 	it, err := i(r)
 	if err != nil {
-		errors.HandleError(err).ServeHTTP(w, r)
-		return
+		if errors.IsNotModified(err) {
+			fromCache = true
+		} else {
+			errors.HandleError(err).ServeHTTP(w, r)
+			return
+		}
 	}
 	if vocab.IsNil(it) {
 		errors.HandleError(errors.NotFoundf("")).ServeHTTP(w, r)
 		return
 	}
-	if dat, err = json.WithContext(json.IRI(vocab.ActivityBaseURI), json.IRI(vocab.SecurityContextURI)).Marshal(it); err != nil {
-		errors.HandleError(err).ServeHTTP(w, r)
-		return
-	}
 
-	vocab.OnObject(it, func(o *vocab.Object) error {
+	_ = vocab.OnObject(it, func(o *vocab.Object) error {
 		updatedAt := o.Published
 		if !o.Updated.IsZero() {
 			updatedAt = o.Updated
@@ -274,13 +295,28 @@ func (i ItemHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		return nil
 	})
-	status = http.StatusOK
-	if it.GetType() == vocab.TombstoneType {
-		status = http.StatusGone
-	}
+
 	w.Header().Set("Content-Type", json.ContentType)
-	w.WriteHeader(status)
-	if r.Method == http.MethodGet {
-		w.Write(dat)
+
+	if dat, err = json.WithContext(json.IRI(vocab.ActivityBaseURI), json.IRI(vocab.SecurityContextURI)).Marshal(it); err != nil {
+		errors.HandleError(err).ServeHTTP(w, r)
+		return
 	}
+
+	status = http.StatusOK
+	switch r.Method {
+	case http.MethodGet:
+		if it.GetType() == vocab.TombstoneType {
+			status = http.StatusGone
+		}
+	case http.MethodHead:
+		if fromCache {
+			status = http.StatusNotModified
+		}
+		w.Header().Set("Content-Length", strconv.Itoa(len(dat)))
+		dat = nil
+	}
+
+	w.WriteHeader(status)
+	_, _ = w.Write(dat)
 }
