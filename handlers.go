@@ -214,7 +214,7 @@ func (c CollectionHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	status = http.StatusOK
-	if fromCache {
+	if fromCache && ObjectNotUpdatedSince(r.Header, col) {
 		status = http.StatusNotModified
 	}
 
@@ -229,6 +229,26 @@ type ItemHandlerFn func(*http.Request) (vocab.Item, error)
 // ValidMethod validates if the current handler can process the current request
 func (i ItemHandlerFn) ValidMethod(r *http.Request) bool {
 	return r.Method == http.MethodGet || r.Method == http.MethodHead
+}
+
+func ObjectNotUpdatedSince(h http.Header, it vocab.Item) bool {
+	ifModifiedSince := h.Get("If-Modified-Since")
+	if len(ifModifiedSince) == 0 {
+		return false
+	}
+	hdrUpdated, err := time.Parse(http.TimeFormat, ifModifiedSince)
+	if err != nil {
+		return false
+	}
+	var colUpdated time.Time
+	_ = vocab.OnObject(it, func(ob *vocab.Object) error {
+		colUpdated = ob.Published
+		if !ob.Updated.IsZero() {
+			colUpdated = ob.Updated
+		}
+		return nil
+	})
+	return colUpdated.Equal(hdrUpdated) || colUpdated.Before(hdrUpdated)
 }
 
 // ValidateRequest validates if the current handler can process the current request
@@ -310,7 +330,7 @@ func (i ItemHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			status = http.StatusGone
 		}
 	case http.MethodHead:
-		if fromCache {
+		if fromCache && ObjectNotUpdatedSince(r.Header, it) {
 			status = http.StatusNotModified
 		}
 	}
