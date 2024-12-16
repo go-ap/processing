@@ -8,6 +8,7 @@ import (
 
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
+	"github.com/go-ap/filters"
 	"github.com/openshift/osin"
 )
 
@@ -159,6 +160,8 @@ func getCollection(it vocab.Item, c vocab.CollectionPath) vocab.CollectionInterf
 	}
 }
 
+// addNewActorCollections appends the MUST have collections for an Actor under the ActivityPub specification
+// if they are missing.
 func addNewActorCollections(p *vocab.Actor) error {
 	if p.Inbox == nil {
 		p.Inbox = getCollection(p, vocab.Inbox)
@@ -203,11 +206,13 @@ func addNewObjectCollections(o *vocab.Object) error {
 }
 
 func addNewItemCollections(it vocab.Item) (vocab.Item, error) {
+	var err error
 	if vocab.ActorTypes.Contains(it.GetType()) {
-		vocab.OnActor(it, addNewActorCollections)
+		err = vocab.OnActor(it, addNewActorCollections)
+	} else {
+		err = vocab.OnObject(it, addNewObjectCollections)
 	}
-	vocab.OnObject(it, addNewObjectCollections)
-	return it, nil
+	return it, err
 }
 
 // validateCreateObjectIsNew checks if "ob" already exists in storage
@@ -276,7 +281,51 @@ func CreateActivityFromClient(p P, act *vocab.Activity) (*vocab.Activity, error)
 	if err != nil {
 		return act, errors.Annotatef(err, "unable to save object to storage %s", act.Object.GetLink())
 	}
+	if err = p.CreateCollectionsForObject(act.Object); err != nil {
+		return act, errors.Annotatef(err, "unable to save collections for activity object")
+	}
 	return act, disseminateActivityObjectToLocalReplyToCollections(p, act)
+}
+
+func (p P) createCollectionObject(col vocab.Item, public bool) error {
+	var bcc vocab.ItemCollection
+	if public {
+		bcc = vocab.ItemCollection{vocab.PublicNS}
+	}
+	_, err := p.s.Save(vocab.OrderedCollection{
+		ID:        col.GetLink(),
+		Type:      vocab.OrderedCollectionType,
+		Published: time.Now().UTC(),
+		BCC:       bcc,
+	})
+	return err
+}
+
+// CreateCollectionsForObject creates the objects corresponding to each collection that an Actor has set.
+func (p P) CreateCollectionsForObject(it vocab.Item) error {
+	if vocab.IsNil(it) || !it.IsObject() {
+		return nil
+	}
+
+	if vocab.ActorTypes.Contains(it.GetType()) {
+		_ = vocab.OnActor(it, func(a *vocab.Actor) error {
+			_ = p.createCollectionObject(a.Inbox, true)
+			_ = p.createCollectionObject(a.Outbox, true)
+			_ = p.createCollectionObject(a.Followers, true)
+			_ = p.createCollectionObject(a.Following, true)
+			_ = p.createCollectionObject(a.Liked, true)
+			// NOTE(marius): shadow creating hidden collections for Blocked and Ignored items
+			_ = p.createCollectionObject(filters.BlockedType.Of(a), false)
+			_ = p.createCollectionObject(filters.IgnoredType.Of(a), false)
+			return nil
+		})
+	}
+	return vocab.OnObject(it, func(o *vocab.Object) error {
+		_ = p.createCollectionObject(o.Replies, true)
+		_ = p.createCollectionObject(o.Likes, true)
+		_ = p.createCollectionObject(o.Shares, true)
+		return nil
+	})
 }
 
 func (p P) dereferenceActivityProperties(receivedIn vocab.IRI) func(act *vocab.Activity) error {
