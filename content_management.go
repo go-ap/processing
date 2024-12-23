@@ -288,6 +288,9 @@ func CreateActivityFromClient(p P, act *vocab.Activity) (*vocab.Activity, error)
 }
 
 func (p P) createCollectionObject(col vocab.Item, public bool) error {
+	if vocab.IsNil(col) {
+		return nil
+	}
 	var bcc vocab.ItemCollection
 	if public {
 		bcc = vocab.ItemCollection{vocab.PublicNS}
