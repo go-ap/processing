@@ -1,23 +1,13 @@
 package processing
 
 import (
-	"bytes"
 	"crypto"
-	"crypto/ecdsa"
-	"crypto/ed25519"
-	"crypto/rsa"
-	"io"
-	"net/http"
-	"path"
 	"sync"
-	"time"
 
 	"git.sr.ht/~mariusor/lw"
 	vocab "github.com/go-ap/activitypub"
 	c "github.com/go-ap/client"
 	"github.com/go-ap/errors"
-	"github.com/go-fed/httpsig"
-	"github.com/openshift/osin"
 )
 
 type P struct {
@@ -146,173 +136,6 @@ type KeyLoader interface {
 }
 
 const OAuthOOBRedirectURN = "urn:ietf:wg:oauth:2.0:oob:auto"
-
-var defaultSignFn c.RequestSignFn = func(*http.Request) error { return nil }
-
-func genOAuth2Token(c osin.Storage, actor *vocab.Actor, cl vocab.Item) (string, error) {
-	if actor == nil {
-		return "", errors.Newf("invalid actor")
-	}
-
-	var client osin.Client
-	if !vocab.IsNil(cl) {
-		client, _ = c.GetClient(path.Base(cl.GetLink().String()))
-	}
-	if client == nil {
-		client = &osin.DefaultClient{Id: "temp-client"}
-	}
-	now := time.Now().UTC()
-	expiration := time.Hour * 24 * 14
-	ad := &osin.AccessData{
-		Client:      client,
-		ExpiresIn:   int32(expiration.Seconds()),
-		Scope:       "scope",
-		RedirectUri: OAuthOOBRedirectURN,
-		CreatedAt:   now,
-		UserData:    actor.GetLink(),
-	}
-
-	// save access token
-	if err := c.SaveAccess(ad); err != nil {
-		return "", err
-	}
-
-	return ad.AccessToken, nil
-}
-
-func c2sSignFn(storage osin.Storage, it vocab.Item) func(r *http.Request) error {
-	return func(req *http.Request) error {
-		return vocab.OnActor(it, func(actor *vocab.Actor) error {
-			tok, err := genOAuth2Token(storage, actor, nil)
-			if len(tok) > 0 {
-				req.Header.Set("Authorization", "Bearer "+tok)
-			}
-			return err
-		})
-	}
-}
-
-var (
-	digestAlgorithm     = httpsig.DigestSha256
-	headersToSign       = []string{httpsig.RequestTarget, "host", "date"}
-	signatureExpiration = int64(time.Hour.Seconds())
-)
-
-type signer struct {
-	signers map[httpsig.Algorithm]httpsig.Signer
-	logger  lw.Logger
-}
-
-func newSigner(pubKey crypto.PrivateKey, headers []string, l lw.Logger) (signer, error) {
-	s := signer{logger: l}
-	s.signers = make(map[httpsig.Algorithm]httpsig.Signer, 0)
-
-	algos := make([]httpsig.Algorithm, 0)
-	switch pubKey.(type) {
-	case *rsa.PrivateKey:
-		algos = append(algos, httpsig.RSA_SHA256, httpsig.RSA_SHA512)
-	case *ecdsa.PrivateKey:
-		algos = append(algos, httpsig.ECDSA_SHA512, httpsig.ECDSA_SHA256)
-	case ed25519.PrivateKey:
-		algos = append(algos, httpsig.ED25519)
-	}
-	for _, alg := range algos {
-		signer, _, err := httpsig.NewSigner([]httpsig.Algorithm{alg}, digestAlgorithm, headers, httpsig.Signature, signatureExpiration)
-		if err != nil {
-			l.Warnf("Failed to initialize signer %s:%s %s, expiring in %s", alg, digestAlgorithm, headers)
-			continue
-		}
-		s.signers[alg] = signer
-	}
-	return s, nil
-}
-
-func (s signer) SignRequest(pKey crypto.PrivateKey, pubKeyId string, r *http.Request, body []byte) error {
-	algs := make([]string, 0)
-	for a, v := range s.signers {
-		algs = append(algs, string(a))
-		err := v.SignRequest(pKey, pubKeyId, r, body)
-		if err == nil {
-			return nil
-		}
-		r.Header.Del("digest")
-		s.logger.Debugf("Invalid signer algo %s:%T %+s", a, v, err)
-	}
-	s.logger.WithContext(lw.Ctx{
-		"method":  r.Method,
-		"host":    r.Host,
-		"headers": r.Header,
-		"url":     r.URL,
-	}).Errorf("No valid signers could be used with key %s", pubKeyId)
-	return errors.Newf("no suitable request signer for public key[%T] %s, tried %+v", pKey, pubKeyId, algs)
-}
-
-func (s signer) SignResponse(pKey crypto.PrivateKey, pubKeyId string, r http.ResponseWriter, body []byte) error {
-	algs := make([]string, 0)
-	for a, v := range s.signers {
-		algs = append(algs, string(a))
-		if err := v.SignResponse(pKey, pubKeyId, r, body); err == nil {
-			return nil
-		} else {
-			s.logger.Debugf("invalid signer algo %s:%T %+s", a, v, err)
-		}
-	}
-	return errors.Newf("no suitable response signer for public key[%T] %s, tried %+v", pKey, pubKeyId, algs)
-}
-
-type signerInitFn func(crypto.PrivateKey) (httpsig.Signer, error)
-
-func signerWithoutDigest(l lw.Logger) func(prvKey crypto.PrivateKey) (httpsig.Signer, error) {
-	return func(prvKey crypto.PrivateKey) (httpsig.Signer, error) {
-		return newSigner(prvKey, headersToSign, l)
-	}
-}
-
-func signerWithDigest(l lw.Logger) func(prvKey crypto.PrivateKey) (httpsig.Signer, error) {
-	headersWithDigest := append(headersToSign, "digest")
-	return func(prvKey crypto.PrivateKey) (httpsig.Signer, error) {
-		return newSigner(prvKey, headersWithDigest, l)
-	}
-}
-
-func s2sSignFn(keyLoader KeyLoader, actor vocab.Item, initSignerFn signerInitFn) func(r *http.Request) error {
-	actorIRI := actor.GetLink()
-	key, err := keyLoader.LoadKey(actorIRI)
-	if err != nil {
-		return func(r *http.Request) error {
-			return errors.Annotatef(err, "unable to load the actor's private key")
-		}
-	}
-	if key == nil {
-		return func(r *http.Request) error {
-			return errors.Newf("invalid private key for actor")
-		}
-	}
-	signer, err := initSignerFn(key)
-	if err != nil {
-		return func(r *http.Request) error {
-			return errors.Annotatef(err, "unable to initialize HTTP signer")
-		}
-	}
-	// NOTE(marius): this is needed to accommodate for the FedBOX service user which usually resides
-	// at the root of a domain, and it might miss a valid path. This trips the parsing of keys with id
-	// of form https://example.com#main-key
-	u, _ := actorIRI.URL()
-	if u.Path == "" {
-		u.Path = "/"
-	}
-	u.Fragment = "main-key"
-	keyId := u.String()
-	return func(r *http.Request) error {
-		bodyBuf := bytes.Buffer{}
-		if r.Body != nil {
-			if _, err := io.Copy(&bodyBuf, r.Body); err == nil {
-				r.Body = io.NopCloser(&bodyBuf)
-			}
-		}
-		return signer.SignRequest(key, keyId, r, bodyBuf.Bytes())
-	}
-}
 
 // BuildReplyToCollections builds the list of objects that it is inReplyTo
 func (p P) BuildReplyToCollections(it vocab.Item) (vocab.ItemCollection, error) {

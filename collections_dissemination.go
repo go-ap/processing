@@ -19,7 +19,7 @@ func (p P) AddToRemoteCollections(it vocab.Item, recipients ...vocab.Item) error
 		if p.IsLocal(recIRI) || remoteRecipients.Contains(recIRI) {
 			continue
 		}
-		remoteRecipients.Append(recIRI)
+		_ = remoteRecipients.Append(recIRI)
 	}
 	p.l.Debugf("Starting dissemination to remote collections.")
 	defer p.l.Debugf("Finished dissemination to remote collections.")
@@ -50,11 +50,6 @@ func (p P) disseminateToRemoteCollection(it vocab.Item, iris ...vocab.IRI) error
 		return errors.Newf("trying to disseminate remote activity %s to remote collections", it.GetLink())
 	}
 
-	keyLoader, ok := p.s.(KeyLoader)
-	if !ok {
-		return errors.Newf("local storage %T does not support loading private keys", p.s)
-	}
-
 	// TODO(marius): the processing module needs a method to see if an IRI is local or not
 	//    For each recipient we need to save the incoming activity to the actor's Inbox if the actor is local
 	//    Or disseminate it using S2S if the actor is not local
@@ -74,19 +69,12 @@ func (p P) disseminateToRemoteCollection(it vocab.Item, iris ...vocab.IRI) error
 				p.l.Warnf("Unable to push to remote collection, S2S client is nil for %s", it.GetLink())
 				return ssm.End
 			}
-			// TODO(marius): Move this function to either the go-ap/auth package, or in FedBOX itself.
-			//   We should probably change the signature for client.RequestSignFn to accept an Actor/IRI as a param.
-			err := vocab.OnIntransitiveActivity(it, func(act *vocab.IntransitiveActivity) error {
-				p.l.Tracef("Signing request for actor %s", act.Actor.GetLink())
-				p.c.SignFn(s2sSignFn(keyLoader, act.Actor, signerWithDigest(p.l)))
-				return nil
-			})
-			if err != nil {
-				p.l.Warnf("Unable to sign request %s", err)
-			}
 			p.l.Infof("Pushing to remote actor's collection %s", col)
 
-			_, _, err = p.c.ToCollection(col, it)
+			// NOTE(marius): we expect that the client has already been set up for being able to POST requests
+			// to remote servers. This means that it has been constructed using a HTTP client that includes
+			// an HTTP-Signature RoundTripper.
+			_, _, err := p.c.ToCollection(col, it)
 			if err != nil {
 				p.l.Warnf("Unable to disseminate activity %s", err)
 				switch {

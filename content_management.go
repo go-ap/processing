@@ -9,7 +9,6 @@ import (
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
 	"github.com/go-ap/filters"
-	"github.com/openshift/osin"
 )
 
 type (
@@ -361,41 +360,7 @@ func (p P) dereferenceActivityProperties(receivedIn vocab.IRI) func(act *vocab.A
 }
 
 func (p P) dereferenceIRIBasedOnInbox(ob vocab.Item, receivedIn vocab.IRI) (vocab.Item, error) {
-	maybeActorIRI, maybeInbox := vocab.Split(receivedIn)
-	if maybeInbox == "" {
-		return ob, errors.Newf("unable find actor from collection: %s", receivedIn)
-	}
-
-	// NOTE(marius): De-referencing of the Activity's object is being done when storing the object
-	// in the local collections, when we can use the collection's owner to sign the de-referencing request.
-	//
-	// NOTE(marius): Reviewing this at a later date, this logic doesn't track very well.
-	// The way I think it would make more sense, is to use the actor that is operating the
-	// current ProcessingActivity method as the actor that tries to dereference the IRI.
-	// But it's unclear how we pass it all the way here.
-	if p.IsLocal(ob.GetLink()) {
-		if osinSt, ok := p.s.(osin.Storage); ok {
-			act, err := p.s.Load(maybeActorIRI)
-			if err != nil {
-				p.l.Errorf("unable to load local actor: %+s", err)
-			} else if !vocab.IsNil(act) {
-				p.c.SignFn(c2sSignFn(osinSt, act))
-			}
-		} else {
-			p.l.Errorf("storage type does not support loading OAuth2 token: %T", p.s)
-		}
-	} else {
-		if keyLoader, ok := p.s.(KeyLoader); ok {
-			p.c.SignFn(s2sSignFn(keyLoader, maybeActorIRI, signerWithoutDigest(p.l)))
-		} else {
-			p.l.Errorf("storage type does not support loading HTTPSig public key: %T", p.s)
-		}
-	}
-	derefOb, err := p.c.LoadIRI(ob.GetLink())
-	if err != nil {
-		return ob, err
-	}
-	return derefOb, nil
+	return p.c.LoadIRI(ob.GetLink())
 }
 
 func CreateActivityFromServer(p P, act *vocab.Activity) (*vocab.Activity, error) {
