@@ -231,12 +231,12 @@ func (s signer) SignRequest(pKey crypto.PrivateKey, pubKeyId string, r *http.Req
 	algs := make([]string, 0)
 	for a, v := range s.signers {
 		algs = append(algs, string(a))
-		if err := v.SignRequest(pKey, pubKeyId, r, body); err == nil {
+		err := v.SignRequest(pKey, pubKeyId, r, body)
+		if err == nil {
 			return nil
-		} else {
-			r.Header.Del("digest")
-			s.logger.Debugf("Invalid signer algo %s:%T %+s", a, v, err)
 		}
+		r.Header.Del("digest")
+		s.logger.Debugf("Invalid signer algo %s:%T %+s", a, v, err)
 	}
 	s.logger.WithContext(lw.Ctx{
 		"method":  r.Method,
