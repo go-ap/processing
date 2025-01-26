@@ -21,8 +21,10 @@ func (p P) AddToRemoteCollections(it vocab.Item, recipients ...vocab.Item) error
 		}
 		_ = remoteRecipients.Append(recIRI)
 	}
-	p.l.Debugf("Starting dissemination to remote collections.")
-	defer p.l.Debugf("Finished dissemination to remote collections.")
+	if len(remoteRecipients) > 0 {
+		p.l.Debugf("Starting dissemination to remote collections.")
+		defer p.l.Debugf("Finished dissemination to remote collections.")
+	}
 	return p.disseminateToRemoteCollection(it, remoteRecipients...)
 }
 
@@ -69,7 +71,6 @@ func (p P) disseminateToRemoteCollection(it vocab.Item, iris ...vocab.IRI) error
 				p.l.Warnf("Unable to push to remote collection, S2S client is nil for %s", it.GetLink())
 				return ssm.End
 			}
-			p.l.Infof("Pushing to remote actor's collection %s", col)
 
 			// NOTE(marius): we expect that the client has already been set up for being able to POST requests
 			// to remote servers. This means that it has been constructed using a HTTP client that includes
@@ -80,10 +81,13 @@ func (p P) disseminateToRemoteCollection(it vocab.Item, iris ...vocab.IRI) error
 				switch {
 				case errors.IsConflict(err):
 					// Resource already exists
+					p.l.Warnf("Conflict %s", col)
 				case errors.IsNotFound(err):
 					// Actor inbox was not found, either an authorization issue, or an invalid actor
+					p.l.Warnf("Not found %s", col)
 				case errors.IsUnauthorized(err):
 					// Authorization issue
+					p.l.Warnf("Unauthorized from remote server collection %s", col)
 				case errors.IsMethodNotAllowed(err):
 					// Server does not federate. See https://www.w3.org/TR/activitypub/#delivery
 					p.l.Warnf("TODO add mechanism for saving instances that need to be skipped due to unsupported S2S")
@@ -91,6 +95,7 @@ func (p P) disseminateToRemoteCollection(it vocab.Item, iris ...vocab.IRI) error
 					return ssm.ErrorEnd(err)
 				}
 			}
+			p.l.Infof("Pushed to remote actor's collection %s", col)
 			return ssm.End
 		})
 		states = append(states, state)
@@ -111,8 +116,10 @@ func (p P) AddToLocalCollections(it vocab.Item, recipients ...vocab.Item) error 
 		}
 		localRecipients = append(localRecipients, recIRI)
 	}
-	p.l.Debugf("Starting dissemination to local collections.")
-	defer p.l.Debugf("Finished dissemination to local collections.")
+	if len(localRecipients) > 0 {
+		p.l.Debugf("Starting dissemination to local collections.")
+		defer p.l.Debugf("Finished dissemination to local collections.")
+	}
 	return p.disseminateToLocalCollections(it, localRecipients...)
 }
 
