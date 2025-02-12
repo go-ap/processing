@@ -80,9 +80,8 @@ func (p P) ProcessClientActivity(it vocab.Item, author vocab.Actor, receivedIn v
 // Additional recommendation from the ActivityPub mailing list: Activities addressed to `Public` usually appear
 // only in the inboxes of actors that follow the activity's `actor` property.
 func (p P) ProcessOutboxDelivery(it vocab.Item, receivedIn vocab.IRI) error {
-	recipients, err := p.BuildOutboxRecipientsList(it, receivedIn)
-	if err != nil {
-		p.l.Warnf("%+s", err)
+	recipients := p.BuildOutboxRecipientsList(it, receivedIn)
+	if len(recipients) == 0 {
 		return nil
 	}
 	if err := p.AddToLocalCollections(it, recipients...); err != nil {
@@ -189,11 +188,10 @@ func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (voca
 		_ = vocab.OnObject(act, addNewObjectCollections)
 	}
 
-	recipients, err := p.BuildOutboxRecipientsList(act, receivedIn)
-	if err != nil {
-		return act, err
-	}
-	activityReplyToCollections, _ := p.BuildReplyToCollections(act)
+	recipients := make(vocab.ItemCollection, 0)
+	_ = recipients.Append(p.BuildOutboxRecipientsList(act, receivedIn)...)
+
+	activityReplyToCollections := p.BuildReplyToCollections(act)
 
 	// Making a local copy of the activity in order to not lose information that could be required
 	// later in the call system.
@@ -202,29 +200,32 @@ func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (voca
 	if err != nil {
 		return act, err
 	}
-	// Additional recommendation from the ActivityPub mailing list:
-	// Activities addressed to `Public` usually appear only in the inboxes of actors that follow the activity's `actor`
-	// property.
-	if err = p.AddToLocalCollections(it, append(recipients, activityReplyToCollections...)...); err != nil {
-		p.l.Errorf("%+s", err)
-	}
-	if err = p.AddToRemoteCollections(it, recipients...); err != nil {
-		p.l.Errorf("%+s", err)
-	}
 
+	// TODO(marius): Find another mechanism for running this asynchronously.
+	go func() {
+		// Additional recommendation from the ActivityPub mailing list:
+		// Activities addressed to `Public` usually appear only in the inboxes of actors that follow the activity's `actor`
+		// property.
+		if err = p.AddToLocalCollections(it, append(recipients, activityReplyToCollections...)...); err != nil {
+			p.l.Errorf("%+s", err)
+		}
+		if err = p.AddToRemoteCollections(it, recipients...); err != nil {
+			p.l.Errorf("%+s", err)
+		}
+	}()
 	return act, nil
 }
 
 // BuildOutboxRecipientsList builds the recipients list of the received 'it' Activity is addressed to:
 //   - the author's Outbox
 //   - the recipients' Inboxes
-func (p P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) (vocab.ItemCollection, error) {
+func (p P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab.ItemCollection {
 	act, err := vocab.ToActivity(it)
 	if err != nil {
-		return nil, err
+		return nil
 	}
 	if vocab.IsNil(act) {
-		return nil, InvalidActivity("is nil")
+		return nil
 	}
 	loader := p.s
 
@@ -232,55 +233,63 @@ func (p P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) (vocab
 	if !vocab.IsNil(act.Actor) && p.IsLocal(act.Actor) {
 		// NOTE(marius): this is needed only for client to server interactions
 		actIRI := act.Actor.GetLink()
-		outbox := vocab.Outbox.IRI(actIRI)
 
-		if !actIRI.Equals(vocab.PublicNS, true) {
-			allRecipients.Append(outbox)
+		if !vocab.PublicNS.Equals(actIRI, true) {
+			_ = allRecipients.Append(vocab.Outbox.IRI(actIRI))
 		}
 	}
 
 	for _, rec := range act.Recipients() {
 		recIRI := rec.GetLink()
-		if recIRI == vocab.PublicNS {
-			// NOTE(marius): if the activity is addressed to the Public NS, we store it to the local service's inbox
-			// TODO(marius): this basically needs to add the shared inbox of the Service corresponding to our server
-			if len(p.baseIRI) > 0 {
-				allRecipients.Append(vocab.Inbox.IRI(p.baseIRI[0]))
+		if vocab.PublicNS.Equals(recIRI, true) {
+			// NOTE(marius): if the activity is addressed to the Public NS, we store it in the local service's inbox,
+			//  because we consider that to be the "sharedInbox" for the server.
+			// TODO(marius): We need an async mechanism to synchronize shared inboxes with the actors that use it.
+			//  See TODO in the BuildInboxRecipientsList related to shared Inbox
+			for _, us := range p.baseIRI {
+				if !receivedIn.Contains(us, true) {
+					continue
+				}
+				_ = allRecipients.Append(vocab.Inbox.IRI(us))
 			}
 			continue
 		}
-		if vocab.ValidCollectionIRI(recIRI) {
-			members, err := loader.Load(recIRI)
-			if err != nil || vocab.IsNil(members) {
-				continue
-			}
-			vocab.OnCollectionIntf(members, func(col vocab.CollectionInterface) error {
+
+		lr, err := loader.Load(recIRI)
+		if err != nil || vocab.IsNil(lr) {
+			continue
+		}
+
+		typ := lr.GetType()
+		switch {
+		case vocab.CollectionTypes.Contains(typ):
+			_ = vocab.OnCollectionIntf(lr, func(col vocab.CollectionInterface) error {
 				for _, m := range col.Collection() {
-					if !vocab.ActorTypes.Contains(m.GetType()) || (p.IsLocalIRI(m.GetLink()) && isBlocked(loader, m, act.Actor)) {
+					if !vocab.ActorTypes.Contains(m.GetType()) || isBlocked(loader, m, act.Actor) {
 						continue
 					}
-					vocab.OnActor(m, func(act *vocab.Actor) error {
+					_ = vocab.OnActor(m, func(act *vocab.Actor) error {
 						if act.Endpoints != nil && !vocab.IsNil(act.Endpoints.SharedInbox) {
-							allRecipients.Append(act.Endpoints.SharedInbox.GetLink())
+							_ = allRecipients.Append(act.Endpoints.SharedInbox.GetLink())
 						} else {
-							allRecipients.Append(vocab.Inbox.IRI(m))
+							_ = allRecipients.Append(vocab.Inbox.Of(m))
 						}
 						return nil
 					})
 				}
 				return nil
 			})
-		} else {
-			if p.IsLocalIRI(recIRI) && isBlocked(loader, recIRI, act.Actor) {
+		case vocab.ActorTypes.Contains(typ):
+			if isBlocked(loader, recIRI, act.Actor) {
 				continue
 			}
-			// TODO(marius): add check if IRI represents an actor (or rely on the collection saver to break if not)
-			allRecipients.Append(vocab.Inbox.IRI(recIRI))
+			_ = allRecipients.Append(vocab.Inbox.IRI(recIRI))
 		}
 	}
-	// NOTE(marius): append the receivedIn collection to the list of recipients
-	// We do this, because it could be missing from the Activity's recipients fields (to, bto, cc, bcc)
-	allRecipients.Append(receivedIn)
 
-	return vocab.ItemCollectionDeduplication(&allRecipients), nil
+	// NOTE(marius): append the "receivedIn" collection to the list of recipients
+	// We do this, because it could be missing from the Activity's recipients fields (to, bto, cc, bcc)
+	_ = allRecipients.Append(receivedIn)
+
+	return vocab.ItemCollectionDeduplication(&allRecipients)
 }

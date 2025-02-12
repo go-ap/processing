@@ -124,7 +124,7 @@ func isBlocked(loader ReadStore, rec, act vocab.Item) bool {
 		return false
 	}
 	blocked := false
-	vocab.OnCollectionIntf(blockedAct, func(c vocab.CollectionInterface) error {
+	_ = vocab.OnCollectionIntf(blockedAct, func(c vocab.CollectionInterface) error {
 		blocked = c.Contains(act)
 		return nil
 	})
@@ -138,15 +138,15 @@ type KeyLoader interface {
 const OAuthOOBRedirectURN = "urn:ietf:wg:oauth:2.0:oob:auto"
 
 // BuildReplyToCollections builds the list of objects that it is inReplyTo
-func (p P) BuildReplyToCollections(it vocab.Item) (vocab.ItemCollection, error) {
+func (p P) BuildReplyToCollections(it vocab.Item) vocab.ItemCollection {
 	ob, err := vocab.ToObject(it)
 	if err != nil {
-		return nil, err
+		return nil
 	}
 	collections := make(vocab.ItemCollection, 0)
 
 	if ob.InReplyTo == nil {
-		return nil, nil
+		return nil
 	}
 	if vocab.IsIRI(ob.InReplyTo) {
 		collections = append(collections, vocab.Replies.IRI(ob.InReplyTo.GetLink()))
@@ -158,14 +158,14 @@ func (p P) BuildReplyToCollections(it vocab.Item) (vocab.ItemCollection, error) 
 		})
 	}
 	if vocab.IsItemCollection(ob.InReplyTo) {
-		err = vocab.OnItemCollection(ob.InReplyTo, func(replyTos *vocab.ItemCollection) error {
+		_ = vocab.OnItemCollection(ob.InReplyTo, func(replyTos *vocab.ItemCollection) error {
 			for _, replyTo := range replyTos.Collection() {
 				collections = append(collections, vocab.Replies.IRI(replyTo.GetLink()))
 			}
 			return nil
 		})
 	}
-	return collections, err
+	return collections
 }
 
 func loadSharedInboxRecipients(p P, sharedInbox vocab.IRI) vocab.ItemCollection {
@@ -193,32 +193,38 @@ func loadSharedInboxRecipients(p P, sharedInbox vocab.IRI) vocab.ItemCollection 
 		}
 		return next
 	}
-	// NOTE(marius): all of this is terrible, as it relies on FedBOX discoverability of actors
-	//  It also doesn't iterate through the whole collection but only through the first page of results
-	iri := p.baseIRI[0].AddPath("actors?maxItems=200")
 
 	actors := make(vocab.ItemCollection, 0)
-	for {
-		col, err := p.s.Load(iri)
-		if err != nil {
-			p.l.Warnf("unable to load actors for sharedInbox check: %+s", err)
-			break
+	for _, us := range p.baseIRI {
+		if !sharedInbox.Contains(us, true) {
+			continue
 		}
-		_ = vocab.OnCollectionIntf(col, func(col vocab.CollectionInterface) error {
-			for _, act := range col.Collection() {
-				_ = vocab.OnActor(act, func(act *vocab.Actor) error {
-					if act.Endpoints != nil && act.Endpoints.SharedInbox != nil {
-						if sharedInbox.Equals(act.Endpoints.SharedInbox.GetLink(), false) && !actors.Contains(act.GetLink()) {
-							actors = append(actors, act)
-						}
-					}
-					return nil
-				})
+		// NOTE(marius): all of this is terrible, as it relies on FedBOX discoverability of actors
+		//  It also doesn't iterate through the whole collection but only through the first page of results
+		iri := vocab.CollectionPath("actors").Of(us).GetLink()
+		for {
+			col, err := p.s.Load(iri)
+			if err != nil {
+				p.l.Warnf("unable to load actors for sharedInbox check: %+s", err)
+				break
 			}
-			return nil
-		})
-		if iri = next(col); iri == "" {
-			break
+			_ = vocab.OnCollectionIntf(col, func(col vocab.CollectionInterface) error {
+				for _, act := range col.Collection() {
+					_ = vocab.OnActor(act, func(act *vocab.Actor) error {
+						if act.Endpoints == nil || act.Endpoints.SharedInbox == nil {
+							return nil
+						}
+						if sharedInbox.Equals(act.Endpoints.SharedInbox.GetLink(), false) && !actors.Contains(act.GetLink()) {
+							_ = actors.Append(actors)
+						}
+						return nil
+					})
+				}
+				return nil
+			})
+			if iri = next(col); iri == "" {
+				break
+			}
 		}
 	}
 	return actors

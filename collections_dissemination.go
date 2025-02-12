@@ -25,7 +25,11 @@ func (p P) AddToRemoteCollections(it vocab.Item, recipients ...vocab.Item) error
 		p.l.Debugf("Starting dissemination to remote collections.")
 		defer p.l.Debugf("Finished dissemination to remote collections.")
 	}
-	return p.disseminateToRemoteCollection(it, remoteRecipients...)
+
+	if !p.IsLocalIRI(it.GetLink()) {
+		return errors.Newf("trying to disseminate remote activity %s to remote collections:", it.GetLink())
+	}
+	return p.disseminateToRemoteCollections(it, remoteRecipients...)
 }
 
 const (
@@ -41,42 +45,35 @@ func retryFn(fn ssm.Fn) ssm.Fn {
 	return ssm.Retry(retries, ssm.BackOff(ssm.Jitter(jitterDelay, ssm.Linear(baseWaitTime, multiplier)), fn))
 }
 
-func (p P) disseminateToRemoteCollection(it vocab.Item, iris ...vocab.IRI) error {
+func (p P) disseminateToRemoteCollections(it vocab.Item, iris ...vocab.IRI) error {
 	if len(iris) == 0 {
 		return nil
 	}
 	if vocab.IsNil(it) {
 		return InvalidActivity("is nil")
 	}
-	if !p.IsLocalIRI(it.GetLink()) {
-		return errors.Newf("trying to disseminate remote activity %s to remote collections", it.GetLink())
+
+	if p.c == nil {
+		return errors.NotImplementedf("unable to push to remote collection, S2S client is nil for %s", it.GetLink())
 	}
 
-	// TODO(marius): the processing module needs a method to see if an IRI is local or not
-	//    For each recipient we need to save the incoming activity to the actor's Inbox if the actor is local
-	//    Or disseminate it using S2S if the actor is not local
 	states := make([]ssm.Fn, 0, len(iris))
 	for _, col := range iris {
+		if p.IsLocalIRI(col) {
+			p.l.Warnf("Invalid attempt to disseminate to local collection %s", col)
+			continue
+		}
+
+		if !IsInbox(col) {
+			p.l.Infof("Attempting to disseminate to remote collection that's not an Inbox: %s", col)
+			continue
+		}
+
 		state := retryFn(func(ctx context.Context) ssm.Fn {
-			if p.IsLocalIRI(col) {
-				p.l.Warnf("Trying to disseminate to local collection %s", col)
-				return ssm.End
-			}
-			if !IsInbox(col) {
-				p.l.Warnf("Trying to disseminate to remote collection that's not an Inbox: %s", col)
-				return ssm.End
-			}
-
-			if p.c == nil {
-				p.l.Warnf("Unable to push to remote collection, S2S client is nil for %s", it.GetLink())
-				return ssm.End
-			}
-
 			// NOTE(marius): we expect that the client has already been set up for being able to POST requests
 			// to remote servers. This means that it has been constructed using a HTTP client that includes
 			// an HTTP-Signature RoundTripper.
-			_, _, err := p.c.ToCollection(col, it)
-			if err != nil {
+			if _, _, err := p.c.ToCollection(col, it); err != nil {
 				p.l.Warnf("Unable to disseminate activity %s", err)
 				switch {
 				case errors.IsConflict(err):
@@ -97,8 +94,9 @@ func (p P) disseminateToRemoteCollection(it vocab.Item, iris ...vocab.IRI) error
 				default:
 					return ssm.ErrorEnd(err)
 				}
+			} else {
+				p.l.Debugf("Pushed to remote actor's collection %s", col)
 			}
-			p.l.Infof("Pushed to remote actor's collection %s", col)
 			return ssm.End
 		})
 		states = append(states, state)
@@ -148,7 +146,7 @@ func (p P) disseminateToLocalCollections(it vocab.Item, iris ...vocab.IRI) error
 			}
 		}
 		state := func(ctx context.Context) ssm.Fn {
-			p.l.Infof("Saving to local actor's collection %s", col)
+			p.l.Debugf("Saving to local actor's collection %s", col)
 			if err := p.AddItemToCollection(col, it); err != nil {
 				p.l.Warnf("Unable to disseminate activity %s", err)
 			}
@@ -193,10 +191,7 @@ func (p P) AddItemToCollection(col vocab.IRI, it vocab.Item) error {
 
 func disseminateActivityObjectToLocalReplyToCollections(p P, act *vocab.Activity) error {
 	return vocab.OnObject(act.Object, func(o *vocab.Object) error {
-		replyToCollections, err := p.BuildReplyToCollections(o)
-		if err != nil {
-			p.l.Warnf(errors.Annotatef(err, "unable to build replyTo collections").Error())
-		}
+		replyToCollections := p.BuildReplyToCollections(o)
 		if err := p.AddToLocalCollections(o, replyToCollections...); err != nil {
 			p.l.Warnf(errors.Annotatef(err, "unable to add object to local replyTo collections").Error())
 		}
