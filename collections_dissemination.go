@@ -88,6 +88,9 @@ func (p P) disseminateToRemoteCollection(it vocab.Item, iris ...vocab.IRI) error
 				case errors.IsUnauthorized(err):
 					// Authorization issue
 					p.l.Warnf("Unauthorized from remote server collection %s", col)
+				case errors.IsForbidden(err):
+					// Authorization issue
+					p.l.Warnf("Forbidden from remote server collection %s", col)
 				case errors.IsMethodNotAllowed(err):
 					// Server does not federate. See https://www.w3.org/TR/activitypub/#delivery
 					p.l.Warnf("TODO add mechanism for saving instances that need to be skipped due to unsupported S2S")

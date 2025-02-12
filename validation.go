@@ -92,6 +92,7 @@ func (p P) ValidateServerActivity(a vocab.Item, author vocab.Actor, inbox vocab.
 		return errors.NotValidf("Trying to validate a non inbox IRI %s", inbox)
 	}
 	if author.GetLink() == vocab.PublicNS {
+		// NOTE(marius): Should we use 403 Forbidden here?
 		return errors.Unauthorizedf("%s actor is not allowed posting to current inbox: %s", name(&author), inbox)
 	}
 	if vocab.IsNil(a) {
@@ -207,9 +208,11 @@ func (p P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab
 		return errors.NotValidf("trying to validate a non outbox IRI %s", outbox)
 	}
 	if author.ID == vocab.PublicNS {
+		// NOTE(marius): Should we use 403 Forbidden here?
 		return errors.Unauthorizedf("missing actor: not allowed to post to outbox %s", outbox)
 	}
 	if !IRIBelongsToActor(outbox, author) {
+		// NOTE(marius): Should we use 403 Forbidden here?
 		return errors.Unauthorizedf("actor %q does not own the current outbox %s", name(&author), outbox)
 	}
 	if vocab.IsNil(a) {
