@@ -132,7 +132,18 @@ func processClientIntransitiveActivity(p P, it vocab.Item, receivedIn vocab.IRI)
 		return it, err
 	}
 
-	return it, p.ProcessOutboxDelivery(it, receivedIn)
+	sync := func() {
+		if err := p.ProcessOutboxDelivery(it, receivedIn); err != nil {
+			p.l.Errorf("%+s", err)
+		}
+	}
+	if p.async {
+		go sync()
+	} else {
+		sync()
+	}
+
+	return it, nil
 }
 
 func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (vocab.Item, error) {
@@ -201,8 +212,7 @@ func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (voca
 		return act, err
 	}
 
-	// TODO(marius): Find another mechanism for running this asynchronously.
-	go func() {
+	sync := func() {
 		// Additional recommendation from the ActivityPub mailing list:
 		// Activities addressed to `Public` usually appear only in the inboxes of actors that follow the activity's `actor`
 		// property.
@@ -212,7 +222,13 @@ func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (voca
 		if err = p.AddToRemoteCollections(it, recipients...); err != nil {
 			p.l.Errorf("%+s", err)
 		}
-	}()
+	}
+	if p.async {
+		// TODO(marius): Find another mechanism for running this asynchronously.
+		go sync()
+	} else {
+		sync()
+	}
 	return act, nil
 }
 

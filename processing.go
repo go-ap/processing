@@ -12,6 +12,7 @@ import (
 
 type P struct {
 	baseIRI vocab.IRIs
+	async   bool
 	c       c.Basic
 	s       Store
 	l       lw.Logger
