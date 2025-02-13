@@ -271,6 +271,11 @@ func (p P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab.
 			continue
 		}
 
+		if !p.IsLocalIRI(recIRI) {
+			_ = allRecipients.Append(vocab.Inbox.IRI(recIRI))
+			continue
+		}
+
 		lr, err := loader.Load(recIRI)
 		if err != nil || vocab.IsNil(lr) {
 			continue
