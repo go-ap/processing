@@ -33,6 +33,10 @@ func New(o ...OptionFn) P {
 
 type OptionFn func(s *P)
 
+func Async(p *P) {
+	p.async = true
+}
+
 func WithIDGenerator(genFn IDGenerator) OptionFn {
 	new(sync.Once).Do(func() {
 		createID = genFn
