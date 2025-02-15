@@ -35,8 +35,3 @@ type CollectionStore interface {
 	// RemoveFrom removes "it" item from "col" collection
 	RemoveFrom(col vocab.IRI, it vocab.Item) error
 }
-
-type Metadata struct {
-	Pw         []byte `jsonld:"pw,omitempty"`
-	PrivateKey []byte `jsonld:"key,omitempty"`
-}
