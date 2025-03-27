@@ -91,7 +91,7 @@ func (p P) ValidateServerActivity(a vocab.Item, author vocab.Actor, inbox vocab.
 	if !IsInbox(inbox) {
 		return errors.NotValidf("Trying to validate a non inbox IRI %s", inbox)
 	}
-	if author.GetLink() == vocab.PublicNS {
+	if author.GetLink().Equals(vocab.PublicNS, true) {
 		// NOTE(marius): Should we use 403 Forbidden here?
 		return errors.Unauthorizedf("%s actor is not allowed posting to current inbox: %s", name(&author), inbox)
 	}
@@ -236,6 +236,9 @@ func (p P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab
 			} else {
 				return err
 			}
+		}
+		if vocab.IsNil(act.AttributedTo) {
+			act.AttributedTo = &author
 		}
 		if act.Target != nil {
 			if act.Target, err = p.ValidateClientObject(act.Target); err != nil {
