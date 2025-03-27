@@ -8,7 +8,7 @@ import (
 )
 
 // TODO(marius): add more valid types
-var validUndoActivityTypes = vocab.ActivityVocabularyTypes{vocab.LikeType, vocab.DislikeType, vocab.BlockType, vocab.FollowType}
+var validUndoActivityTypes = vocab.ActivityVocabularyTypes{vocab.CreateType, vocab.LikeType, vocab.DislikeType, vocab.BlockType, vocab.FollowType}
 
 // NegatingActivity processes matching activities
 //
@@ -97,6 +97,8 @@ func UndoActivity(r Store, act *vocab.Activity) (*vocab.Activity, error) {
 			}
 		}
 		switch toUndo.GetType() {
+		case vocab.CreateType:
+			_, err = UndoCreateActivity(r, toUndo)
 		case vocab.DislikeType:
 			// TODO(marius): Dislikes should not trigger a removal from Likes/Liked collections
 			fallthrough
@@ -119,6 +121,35 @@ func UndoActivity(r Store, act *vocab.Activity) (*vocab.Activity, error) {
 
 	err = r.Delete(act.Object)
 	return act, err
+}
+
+// UndoCreateActivity
+//
+// Removes the side effects of an existing Create activity
+// Currently this means only removal of the Create object
+func UndoCreateActivity(r Store, act *vocab.Activity) (*vocab.Activity, error) {
+	errs := make([]error, 0)
+	rem := act.GetLink()
+
+	allRec := act.Recipients()
+	removeFromCols := make(vocab.IRIs, 0)
+	removeFromCols = append(removeFromCols, vocab.Outbox.IRI(act.Actor))
+	for _, rec := range allRec {
+		iri := rec.GetLink()
+		if iri == vocab.PublicNS {
+			continue
+		}
+		if !vocab.ValidCollectionIRI(iri) {
+			// if not a valid collection, then the current iri represents an actor, and we need their inbox
+			removeFromCols = append(removeFromCols, vocab.Inbox.IRI(iri))
+		}
+	}
+	for _, iri := range removeFromCols {
+		if err := r.RemoveFrom(iri, rem); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return act, errors.Join(errs...)
 }
 
 // UndoAppreciationActivity
@@ -150,14 +181,7 @@ func UndoAppreciationActivity(r Store, act *vocab.Activity) (*vocab.Activity, er
 			errs = append(errs, err)
 		}
 	}
-	if len(errs) > 0 {
-		msgs := make([]string, len(errs))
-		for i, e := range errs {
-			msgs[i] = e.Error()
-		}
-		return act, errors.Newf("%s", strings.Join(msgs, ", "))
-	}
-	return act, nil
+	return act, errors.Join(errs...)
 }
 
 // UndoRelationshipManagementActivity
