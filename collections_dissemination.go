@@ -174,7 +174,7 @@ func (p P) AddItemToCollection(col vocab.IRI, it vocab.Item) error {
 			} else {
 				it = deref
 			}
-			if _, err := p.s.Save(it); err != nil {
+			if _, err = p.s.Save(it); err != nil {
 				p.l.Warnf("unable to save remote object [%s] locally: %s", it.GetLink(), err.Error())
 			}
 		}

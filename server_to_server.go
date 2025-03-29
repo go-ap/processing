@@ -58,7 +58,7 @@ func (p P) ProcessServerActivity(it vocab.Item, author vocab.Actor, receivedIn v
 	if err := p.ValidateServerActivity(it, author, receivedIn); err != nil {
 		return it, err
 	}
-	if err := saveRemoteActivityAndObjects(p.s, it); err != nil {
+	if err := p.saveRemoteActivityAndObjects(it); err != nil {
 		return it, err
 	}
 
@@ -257,13 +257,17 @@ func (p P) ObjectShouldBeInboxForwarded(it vocab.Item, maxDepth int) bool {
 	return shouldForward
 }
 
-func saveRemoteActivityAndObjects(s WriteStore, act vocab.Item) error {
+func (p P) saveRemoteActivityAndObjects(act vocab.Item) error {
 	err := vocab.OnActivity(act, func(act *vocab.Activity) error {
-		if _, err := s.Save(act.Object); err != nil {
-			return err
+		if !p.IsLocalIRI(act.Object.GetLink()) {
+			if _, err := p.s.Save(act.Object); err != nil {
+				return err
+			}
 		}
-		if _, err := s.Save(act.Actor); err != nil {
-			return err
+		if !p.IsLocalIRI(act.Actor.GetLink()) {
+			if _, err := p.s.Save(act.Actor); err != nil {
+				return err
+			}
 		}
 		return nil
 	})
