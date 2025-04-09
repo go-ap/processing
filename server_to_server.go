@@ -1,6 +1,7 @@
 package processing
 
 import (
+	"git.sr.ht/~mariusor/lw"
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
 )
@@ -51,14 +52,17 @@ func (p P) ProcessServerActivity(it vocab.Item, author vocab.Actor, receivedIn v
 		return nil, errors.Newf("Unable to process nil Activity")
 	}
 
-	err := vocab.OnActivity(it, p.dereferenceActivityProperties(receivedIn))
+	var err error
+	if vocab.IntransitiveActivityTypes.Contains(it.GetType()) {
+		err = vocab.OnIntransitiveActivity(it, p.dereferenceIntransitiveActivityProperties(receivedIn))
+	} else {
+		err = vocab.OnActivity(it, p.dereferenceActivityProperties(receivedIn))
+	}
 	if err != nil {
 		return it, err
 	}
+
 	if err := p.ValidateServerActivity(it, author, receivedIn); err != nil {
-		return it, err
-	}
-	if err := p.saveRemoteActivityAndObjects(it); err != nil {
 		return it, err
 	}
 
@@ -66,15 +70,22 @@ func (p P) ProcessServerActivity(it vocab.Item, author vocab.Actor, receivedIn v
 	// using in the processingClientActivity function between the ActivityStreams motivations separation.
 	// This means that 'it' should probably be treated as a vocab.Item until the last possible moment.
 	if vocab.IntransitiveActivityTypes.Contains(it.GetType()) {
-		if it, err = processServerIntransitiveActivity(p, it, receivedIn); err != nil {
-			return it, err
-		}
+		err = vocab.OnIntransitiveActivity(it, func(act *vocab.IntransitiveActivity) error {
+			if err := p.saveRemoteIntransitiveActivity(act); err != nil {
+				p.l.WithContext(lw.Ctx{"err": err.Error()}).Warnf("unable to save remote activity and objects locally")
+			}
+			it, err = processServerIntransitiveActivity(p, act, receivedIn)
+			return err
+		})
+	} else {
+		err = vocab.OnActivity(it, func(act *vocab.Activity) error {
+			if err := p.saveRemoteActivity(act); err != nil {
+				p.l.WithContext(lw.Ctx{"err": err.Error()}).Warnf("unable to save remote activity and objects locally")
+			}
+			it, err = processServerActivity(p, act, receivedIn)
+			return err
+		})
 	}
-	err = vocab.OnActivity(it, func(act *vocab.Activity) error {
-		var err error
-		it, err = processServerActivity(p, act, receivedIn)
-		return err
-	})
 	if err != nil {
 		return it, err
 	}
@@ -257,21 +268,35 @@ func (p P) ObjectShouldBeInboxForwarded(it vocab.Item, maxDepth int) bool {
 	return shouldForward
 }
 
-func (p P) saveRemoteActivityAndObjects(act vocab.Item) error {
-	err := vocab.OnActivity(act, func(act *vocab.Activity) error {
-		if !p.IsLocalIRI(act.Object.GetLink()) {
-			if _, err := p.s.Save(act.Object); err != nil {
-				return err
-			}
-		}
-		if !p.IsLocalIRI(act.Actor.GetLink()) {
+func (p P) saveRemoteIntransitiveActivity(act *vocab.IntransitiveActivity) error {
+	if !vocab.IsNil(act.Actor) && !p.IsLocalIRI(act.Actor.GetLink()) {
+		if a, err := p.s.Load(act.Actor.GetLink()); vocab.IsNil(a) || errors.IsNotFound(err) {
 			if _, err := p.s.Save(act.Actor); err != nil {
 				return err
 			}
 		}
-		return nil
+	}
+	if !vocab.IsNil(act.Target) && !p.IsLocalIRI(act.Target.GetLink()) {
+		if t, err := p.s.Load(act.Target.GetLink()); vocab.IsNil(t) || errors.IsNotFound(err) {
+			if _, err := p.s.Save(act.Target); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (p P) saveRemoteActivity(act *vocab.Activity) error {
+	if !vocab.IsNil(act.Object) && !p.IsLocalIRI(act.Object.GetLink()) {
+		if o, err := p.s.Load(act.Object.GetLink()); vocab.IsNil(o) || errors.IsNotFound(err) {
+			if _, err := p.s.Save(act.Object); err != nil {
+				return err
+			}
+		}
+	}
+	return vocab.OnIntransitiveActivity(act, func(act *vocab.IntransitiveActivity) error {
+		return p.saveRemoteIntransitiveActivity(act)
 	})
-	return err
 }
 
 func processServerIntransitiveActivity(p P, it vocab.Item, receivedIn vocab.IRI) (vocab.Item, error) {

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	vocab "github.com/go-ap/activitypub"
+	"github.com/go-ap/client"
 	"github.com/go-ap/errors"
 	"github.com/go-ap/filters"
 )
@@ -51,7 +52,7 @@ func defaultIDGenerator(base vocab.IRI) IDGenerator {
 		}
 
 		when := time.Now()
-		vocab.OnObject(it, func(o *vocab.Object) error {
+		_ = vocab.OnObject(it, func(o *vocab.Object) error {
 			if !o.Published.IsZero() {
 				when = o.Published
 			}
@@ -146,7 +147,7 @@ func ContentManagementActivityFromClient(p P, act *vocab.Activity) (*vocab.Activ
 
 	if act.Type != vocab.DeleteType && act.Tag != nil {
 		// Try to save tags as set on the activity
-		createNewTags(p.s, act.Tag, act)
+		_ = createNewTags(p.s, act.Tag, act)
 	}
 
 	return act, err
@@ -330,32 +331,40 @@ func (p P) CreateCollectionsForObject(it vocab.Item) error {
 	})
 }
 
-func (p P) dereferenceActivityProperties(receivedIn vocab.IRI) func(act *vocab.Activity) error {
-	deref := func(it vocab.Item) (vocab.Item, error) {
-		if vocab.IsNil(it) {
-			return nil, nil
-		}
-		if it.IsLink() {
-			der, err := p.dereferenceIRIBasedOnInbox(it, receivedIn)
-			if err != nil {
-				return it, err
-			}
-			it = der
-		}
-		return it, nil
+func deref(c client.Basic, it vocab.Item) (vocab.Item, error) {
+	if vocab.IsNil(it) {
+		return nil, nil
 	}
-	return func(act *vocab.Activity) error {
+	if it.IsLink() {
+		der, err := c.LoadIRI(it.GetLink())
+		if err != nil {
+			return it, err
+		}
+		it = der
+	}
+	return it, nil
+}
+
+func (p P) dereferenceIntransitiveActivityProperties(receivedIn vocab.IRI) func(act *vocab.IntransitiveActivity) error {
+	return func(act *vocab.IntransitiveActivity) error {
 		var err error
-		if act.Object, err = deref(act.Object); err != nil {
+		if act.Actor, err = deref(p.c, act.Actor); err != nil {
 			return err
 		}
-		if act.Actor, err = deref(act.Actor); err != nil {
-			return err
-		}
-		if act.Target, err = deref(act.Target); err != nil {
+		if act.Target, err = deref(p.c, act.Target); err != nil {
 			return err
 		}
 		return nil
+	}
+}
+
+func (p P) dereferenceActivityProperties(receivedIn vocab.IRI) func(act *vocab.Activity) error {
+	return func(act *vocab.Activity) error {
+		var err error
+		if act.Object, err = deref(p.c, act.Object); err != nil {
+			return err
+		}
+		return vocab.OnIntransitiveActivity(act, p.dereferenceIntransitiveActivityProperties(receivedIn))
 	}
 }
 

@@ -202,6 +202,7 @@ func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (voca
 	recipients := make(vocab.ItemCollection, 0)
 	_ = recipients.Append(p.BuildOutboxRecipientsList(act, receivedIn)...)
 
+	// NOTE(marius): this seems to duplicate work done for Create already in disseminateActivityObjectToLocalReplyToCollections()
 	activityReplyToCollections := p.BuildReplyToCollections(act)
 
 	// Making a local copy of the activity in order to not lose information that could be required
