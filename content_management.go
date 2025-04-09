@@ -218,22 +218,37 @@ func addNewItemCollections(it vocab.Item) (vocab.Item, error) {
 // validateCreateObjectIsNew checks if "ob" already exists in storage
 // It is used to verify than when receiving a Create activity, we don't override by mistake existing objects.
 func validateCreateObjectIsNew(p P, ob vocab.Item) error {
-	if len(ob.GetLink()) == 0 {
-		return nil
+	if vocab.IsNil(ob) {
+		return errors.BadRequestf("the passed object is nil")
 	}
-	if ob.IsCollection() {
+
+	checkIfExists := func(it vocab.Item) bool {
+		absent := true
+		_ = vocab.OnObject(it, func(ob *vocab.Object) error {
+			// NOTE(marius): it is valid to have an object without an ID when processing a C2S Create activity
+			// it only means we'll be using our ID generator function to create one
+			absent = len(ob.ID) == 0
+			return nil
+		})
+
+		if !absent {
+			it, _ = p.s.Load(it.GetLink())
+			absent = vocab.IsNil(it)
+		}
+		return !absent
+	}
+
+	if vocab.IsItemCollection(ob) {
 		return vocab.OnCollectionIntf(ob, func(col vocab.CollectionInterface) error {
 			for _, ci := range col.Collection() {
-				it, err := p.s.Load(ci.GetLink())
-				if !errors.IsNotFound(err) || !vocab.IsNil(it) {
-					return errors.Conflictf("the passed object already exists %s", ob.GetLink())
+				if checkIfExists(ci) {
+					return errors.Conflictf("one of the passed objects already exists %s", ci.GetLink())
 				}
 			}
 			return nil
 		})
 	}
-	it, err := p.s.Load(ob.GetLink())
-	if !errors.IsNotFound(err) || !vocab.IsNil(it) {
+	if checkIfExists(ob) {
 		return errors.Conflictf("the passed object already exists %s", ob.GetLink())
 	}
 	return nil
@@ -243,7 +258,7 @@ func validateCreateObjectIsNew(p P, ob vocab.Item) error {
 //
 // https://www.w3.org/TR/activitypub/#create-activity-outbox
 //
-// The Create activity is used when posting a new object. This has the side effect that the object embedded within the
+// The "Create" activity is used when posting a new object. This has the side effect that the object embedded within the
 // Activity (in the object property) is created.
 // When a Create activity is posted, the actor of the activity SHOULD be copied onto the object's attributedTo field.
 // A mismatch between addressing of the Create activity and its object is likely to lead to confusion.
