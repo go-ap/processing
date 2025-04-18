@@ -269,7 +269,7 @@ func (p P) ObjectShouldBeInboxForwarded(it vocab.Item, maxDepth int) bool {
 }
 
 func (p P) localSaveIfMissing(it vocab.Item) error {
-	a, err := p.s.Load(it.GetLink())
+	_, err := p.s.Load(it.GetLink())
 	if err == nil {
 		return nil
 	}
