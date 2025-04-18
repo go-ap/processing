@@ -3,6 +3,7 @@ package processing
 import (
 	"crypto"
 	"sync"
+	"time"
 
 	"git.sr.ht/~mariusor/lw"
 	vocab "github.com/go-ap/activitypub"
@@ -87,7 +88,9 @@ func (p P) ProcessActivity(it vocab.Item, author vocab.Actor, receivedIn vocab.I
 	if vocab.IsNil(it) {
 		return nil, errors.BadRequestf("nil activity received")
 	}
-	p.l.Debugf("Processing %q activity in %s", it.GetType(), receivedIn)
+	p.l = p.l.WithContext(lw.Ctx{"in": receivedIn, "type": it.GetType()})
+	p.l.WithContext(lw.Ctx{"at": time.Now().Format("06-01-02T15:04:05.000")}).Debugf("Processing started")
+	defer p.l.WithContext(lw.Ctx{"ended": time.Now().Format("06-01-02T15:04:05.000")}).Debugf("Processing ended")
 
 	if IsOutbox(receivedIn) {
 		return p.ProcessClientActivity(it, author, receivedIn)

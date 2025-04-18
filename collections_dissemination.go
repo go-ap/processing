@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"git.sr.ht/~mariusor/lw"
 	"git.sr.ht/~mariusor/ssm"
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
@@ -73,29 +74,30 @@ func (p P) disseminateToRemoteCollections(it vocab.Item, iris ...vocab.IRI) erro
 			// NOTE(marius): we expect that the client has already been set up for being able to POST requests
 			// to remote servers. This means that it has been constructed using a HTTP client that includes
 			// an HTTP-Signature RoundTripper.
+			ll := p.l.WithContext(lw.Ctx{"to": col})
 			if _, _, err := p.c.ToCollection(col, it); err != nil {
-				p.l.Warnf("Unable to disseminate activity %s", err)
+				ll.Warnf("Unable to disseminate activity %s", err)
 				switch {
 				case errors.IsConflict(err):
 					// Resource already exists
-					p.l.Warnf("Conflict %s", col)
+					ll.Warnf("Conflict %s", col)
 				case errors.IsNotFound(err):
 					// Actor inbox was not found, either an authorization issue, or an invalid actor
-					p.l.Warnf("Not found %s", col)
+					ll.Warnf("Not found %s", col)
 				case errors.IsUnauthorized(err):
 					// Authorization issue
-					p.l.Warnf("Unauthorized from remote server collection %s", col)
+					ll.Warnf("Unauthorized from remote server collection %s", col)
 				case errors.IsForbidden(err):
 					// Authorization issue
-					p.l.Warnf("Forbidden from remote server collection %s", col)
+					ll.Warnf("Forbidden from remote server collection %s", col)
 				case errors.IsMethodNotAllowed(err):
 					// Server does not federate. See https://www.w3.org/TR/activitypub/#delivery
-					p.l.Warnf("TODO add mechanism for saving instances that need to be skipped due to unsupported S2S")
+					ll.Warnf("TODO add mechanism for saving instances that need to be skipped due to unsupported S2S")
 				default:
 					return ssm.ErrorEnd(err)
 				}
 			} else {
-				p.l.Debugf("Pushed to remote actor's collection %s", col)
+				ll.Debugf("Pushed to remote actor's collection")
 			}
 			return ssm.End
 		})
@@ -132,23 +134,24 @@ func (p P) disseminateToLocalCollections(it vocab.Item, iris ...vocab.IRI) error
 	states := make([]ssm.Fn, 0, len(iris))
 	// NOTE(marius): We rely on Go1.22 for range improvements where col is a copy, not a reference
 	for _, col := range iris {
+		ll := p.l.WithContext(lw.Ctx{"to": col})
 		if !p.IsLocalIRI(col) {
-			p.l.Warnf("Trying to save to remote collection %s", col)
+			ll.Warnf("Trying to save to remote collection %s", col)
 			continue
 		}
 		if vocab.IsIRI(it) {
 			var err error
-			p.l.Tracef("Object requires de-referencing from remote IRI %s", it.GetLink())
+			ll.Tracef("Object requires de-referencing from remote IRI %s", it.GetLink())
 			// NOTE(marius): check comment inside dereferenceIRIBasedOnInbox() method
 			if it, err = p.dereferenceIRIBasedOnInbox(it, col); err != nil {
-				p.l.Warnf("Unable to load remote object %s: %s", it, err)
+				ll.Warnf("Unable to load remote object %s: %s", it, err)
 				continue
 			}
 		}
 		state := func(ctx context.Context) ssm.Fn {
-			p.l.Debugf("Saving to local actor's collection %s", col)
+			ll.Debugf("Saving to local actor's collection")
 			if err := p.AddItemToCollection(col, it); err != nil {
-				p.l.Warnf("Unable to disseminate activity %s", err)
+				ll.Warnf("Unable to disseminate activity %s", err)
 			}
 			return ssm.End
 		}
