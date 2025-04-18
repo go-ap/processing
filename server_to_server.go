@@ -268,19 +268,27 @@ func (p P) ObjectShouldBeInboxForwarded(it vocab.Item, maxDepth int) bool {
 	return shouldForward
 }
 
+func (p P) localSaveIfMissing(it vocab.Item) error {
+	a, err := p.s.Load(it.GetLink())
+	if err == nil {
+		return nil
+	}
+	if !errors.IsNotFound(err) {
+		return err
+	}
+	_, err = p.s.Save(it)
+	return err
+}
+
 func (p P) saveRemoteIntransitiveActivity(act *vocab.IntransitiveActivity) error {
 	if !vocab.IsNil(act.Actor) && !p.IsLocalIRI(act.Actor.GetLink()) {
-		if a, err := p.s.Load(act.Actor.GetLink()); vocab.IsNil(a) || errors.IsNotFound(err) {
-			if _, err := p.s.Save(act.Actor); err != nil {
-				return err
-			}
+		if err := p.localSaveIfMissing(act.Actor); err != nil {
+			return err
 		}
 	}
 	if !vocab.IsNil(act.Target) && !p.IsLocalIRI(act.Target.GetLink()) {
-		if t, err := p.s.Load(act.Target.GetLink()); vocab.IsNil(t) || errors.IsNotFound(err) {
-			if _, err := p.s.Save(act.Target); err != nil {
-				return err
-			}
+		if err := p.localSaveIfMissing(act.Target); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -288,10 +296,8 @@ func (p P) saveRemoteIntransitiveActivity(act *vocab.IntransitiveActivity) error
 
 func (p P) saveRemoteActivity(act *vocab.Activity) error {
 	if !vocab.IsNil(act.Object) && !p.IsLocalIRI(act.Object.GetLink()) {
-		if o, err := p.s.Load(act.Object.GetLink()); vocab.IsNil(o) || errors.IsNotFound(err) {
-			if _, err := p.s.Save(act.Object); err != nil {
-				return err
-			}
+		if err := p.localSaveIfMissing(act.Object); err != nil {
+			return err
 		}
 	}
 	return vocab.OnIntransitiveActivity(act, func(act *vocab.IntransitiveActivity) error {
