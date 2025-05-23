@@ -230,6 +230,7 @@ func (p P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab
 	err := vocab.OnIntransitiveActivity(a, func(act *vocab.IntransitiveActivity) error {
 		var err error
 
+		act.Actor, _ = p.DereferenceItem(act.Actor)
 		if act.Actor, err = p.ValidateClientActor(act.Actor, author); err != nil {
 			if errors.IsBadRequest(err) {
 				act.Actor = &author
@@ -240,7 +241,8 @@ func (p P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab
 		if vocab.IsNil(act.AttributedTo) {
 			act.AttributedTo = &author
 		}
-		if act.Target != nil {
+		if !vocab.IsNil(act.Target) {
+			act.Target, _ = p.DereferenceItem(act.Target)
 			if act.Target, err = p.ValidateClientObject(act.Target); err != nil {
 				return err
 			}
@@ -265,6 +267,7 @@ func (p P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab
 			// @TODO(marius): this needs to be extended by a ValidateActivityClientObject
 			//   because the first step would be to test the object in the context of the activity
 			//   The ValidateActivityClientObject could then validate just the object itself.
+			act.Object, _ = p.DereferenceItem(act.Object)
 			if act.Object, err = p.ValidateClientObject(act.Object); err != nil {
 				return err
 			}
@@ -344,6 +347,86 @@ func ValidateClientCollectionManagementActivity(l ReadStore, act *vocab.Activity
 
 // ValidateClientReactionsActivity
 func ValidateClientReactionsActivity(l ReadStore, act *vocab.Activity) error {
+	if act.Object != nil {
+		switch act.Type {
+		case vocab.DislikeType:
+			fallthrough
+		case vocab.LikeType:
+			//return ValidateAppreciationActivity(l, act)
+		case vocab.RejectType, vocab.TentativeRejectType:
+			return ValidateClientRejectActivity(l, act)
+		case vocab.TentativeAcceptType, vocab.AcceptType:
+			return ValidateClientAcceptActivity(l, act)
+		case vocab.BlockType:
+			//return ValidateBlockActivity(l, act)
+		case vocab.FlagType:
+			//return ValidateFlagActivity(l, act)
+		case vocab.IgnoreType:
+			//return ValidateIgnoreActivity(l, act)
+		}
+	}
+
+	return nil
+}
+
+// ValidateClientAcceptActivity
+func ValidateClientAcceptActivity(l ReadStore, act *vocab.Activity) error {
+	if err := ValidateAcceptActivity(l, act); err != nil {
+		return err
+	}
+	return vocab.OnActivity(act.Object, func(follow *vocab.Activity) error {
+		if follow.GetType() != vocab.FollowType {
+			return errors.NotValidf("object Activity type %s is incorrect, expected %s", follow.Type, vocab.FollowType)
+		}
+		if !act.Actor.GetLink().Equals(follow.Object.GetLink(), false) {
+			return errors.NotValidf(
+				"The %s activity has a different actor than the received %s's object: %s, expected %s",
+				act.Type, follow.Type,
+				act.Actor.GetLink(),
+				follow.Object.GetLink(),
+			)
+		}
+		return nil
+	})
+}
+
+// ValidateAcceptActivity
+func ValidateAcceptActivity(l ReadStore, act *vocab.Activity) error {
+	good := vocab.ActivityVocabularyTypes{vocab.AcceptType, vocab.TentativeAcceptType}
+	if !good.Contains(act.Type) {
+		return errors.NotValidf("Activity has wrong type %s, expected %v", act.Type, good)
+	}
+	return nil
+}
+
+// ValidateClientRejectActivity
+func ValidateClientRejectActivity(l ReadStore, act *vocab.Activity) error {
+	if err := ValidateRejectActivity(l, act); err != nil {
+		return err
+	}
+
+	return vocab.OnActivity(act.Object, func(follow *vocab.Activity) error {
+		if follow.GetType() != vocab.FollowType {
+			return errors.NotValidf("object Activity type %s is incorrect, expected %s", follow.Type, vocab.FollowType)
+		}
+		if !act.Actor.GetLink().Equals(follow.Object.GetLink(), false) {
+			return errors.NotValidf(
+				"The %s activity has a different actor than the received %s's object: %s, expected %s",
+				act.Type, follow.Type,
+				act.Actor.GetLink(),
+				follow.Object.GetLink(),
+			)
+		}
+		return nil
+	})
+}
+
+// ValidateRejectActivity
+func ValidateRejectActivity(l ReadStore, act *vocab.Activity) error {
+	good := vocab.ActivityVocabularyTypes{vocab.RejectType, vocab.TentativeRejectType}
+	if !good.Contains(act.Type) {
+		return errors.NotValidf("Activity has wrong type %s, expected %v", act.Type, good)
+	}
 	return nil
 }
 
@@ -486,7 +569,11 @@ func (p P) ValidateClientObject(o vocab.Item) (vocab.Item, error) {
 	if vocab.IsNil(o) {
 		return nil, InvalidActivityObject("is nil")
 	}
-	if o.IsLink() {
+	fetchIRI := func(o vocab.Item) (vocab.Item, error) {
+		if vocab.IsNil(o) {
+			return o, errors.NotFoundf("Invalid activity object")
+		}
+
 		iri := o.GetLink()
 		err := p.ValidateIRI(iri)
 		if err != nil {
@@ -501,6 +588,30 @@ func (p P) ValidateClientObject(o vocab.Item) (vocab.Item, error) {
 		if vocab.IsNil(o) {
 			return o, errors.NotFoundf("Invalid activity object")
 		}
+		return o, nil
+	}
+	if o.IsLink() {
+		return fetchIRI(o)
+	}
+	if vocab.IsItemCollection(o) {
+		derefObj := make(vocab.ItemCollection, 0)
+		err := vocab.OnItemCollection(o, func(col *vocab.ItemCollection) error {
+			for _, maybeIRI := range col.Collection() {
+				ob, err := fetchIRI(maybeIRI)
+				if err != nil {
+					continue
+				}
+				_ = derefObj.Append(ob)
+			}
+			if derefObj.Count() == 0 {
+				return errors.NotFoundf("Invalid activity object, unable to dereference item collection")
+			}
+			return nil
+		})
+		if err != nil {
+			return o, nil
+		}
+		o = derefObj
 	}
 	return o, nil
 }

@@ -100,7 +100,7 @@ func AppreciationActivity(p P, act *vocab.Activity) (*vocab.Activity, error) {
 	}
 	var actors, objects vocab.ItemCollection
 	if vocab.IsItemCollection(act.Actor) {
-		vocab.OnItemCollection(act.Actor, func(c *vocab.ItemCollection) error {
+		_ = vocab.OnItemCollection(act.Actor, func(c *vocab.ItemCollection) error {
 			actors = *c
 			return nil
 		})
@@ -109,7 +109,7 @@ func AppreciationActivity(p P, act *vocab.Activity) (*vocab.Activity, error) {
 		actors[0] = act.Actor
 	}
 	if vocab.IsItemCollection(act.Object) {
-		vocab.OnItemCollection(act.Object, func(c *vocab.ItemCollection) error {
+		_ = vocab.OnItemCollection(act.Object, func(c *vocab.ItemCollection) error {
 			objects = *c
 			return nil
 		})
@@ -132,7 +132,7 @@ func firstOrItem(it vocab.Item) vocab.Item {
 		return it
 	}
 	if it.IsCollection() {
-		vocab.OnCollectionIntf(it, func(col vocab.CollectionInterface) error {
+		_ = vocab.OnCollectionIntf(it, func(col vocab.CollectionInterface) error {
 			it = col.Collection().First()
 			return nil
 		})
@@ -156,10 +156,6 @@ func AcceptActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Acti
 	if vocab.IsNil(act.Actor) {
 		return act, errors.NotValidf("Missing actor for %s Activity", act.Type)
 	}
-	good := vocab.ActivityVocabularyTypes{vocab.AcceptType, vocab.TentativeAcceptType}
-	if !good.Contains(act.Type) {
-		return act, errors.NotValidf("Activity has wrong type %s, expected %v", act.Type, good)
-	}
 
 	if act.Object.IsLink() {
 		// dereference object activity
@@ -171,20 +167,8 @@ func AcceptActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Acti
 			act.Object = firstOrItem(obj)
 		}
 	}
-	err := vocab.OnActivity(act.Object, func(objAct *vocab.Activity) error {
-		if objAct.GetType() != vocab.FollowType {
-			return nil
-		}
-		if !act.Actor.GetLink().Equals(objAct.Object.GetLink(), false) {
-			return errors.NotValidf(
-				"The %s activity has a different actor than the received %s's object: %s, expected %s",
-				act.Type,
-				objAct.Type,
-				act.Actor.GetLink(),
-				objAct.Object.GetLink(),
-			)
-		}
-		return finalizeFollowActivity(p, objAct)
+	err := vocab.OnActivity(act.Object, func(follow *vocab.Activity) error {
+		return finalizeFollowActivity(p, follow)
 	})
 	return act, err
 }
@@ -199,6 +183,7 @@ func finalizeFollowActivity(p P, a *vocab.Activity) error {
 	if err := p.AddItemToCollection(vocab.Followers.IRI(a.Object), a.Actor); err != nil {
 		errs = append(errs, err)
 	}
+	p.l.Debugf("")
 	if err := p.AddItemToCollection(vocab.Following.IRI(a.Actor), a.Object); err != nil {
 		errs = append(errs, err)
 	}
@@ -214,10 +199,6 @@ func RejectActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) 
 	}
 	if vocab.IsNil(act.Actor) {
 		return act, errors.NotValidf("Missing actor for %s Activity", act.Type)
-	}
-	good := vocab.ActivityVocabularyTypes{vocab.RejectType, vocab.TentativeRejectType}
-	if !good.Contains(act.Type) {
-		return act, errors.NotValidf("Activity has wrong type %s, expected %v", act.Type, good)
 	}
 
 	errs := make(multi, 0)
