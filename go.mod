@@ -4,7 +4,7 @@ go 1.23.0
 
 require (
 	git.sr.ht/~mariusor/lw v0.0.0-20250325163623-1639f3fb0e0d
-	git.sr.ht/~mariusor/ssm v0.0.0-20250423085606-bbcdeae30fce
+	git.sr.ht/~mariusor/ssm v0.0.0-20250531143603-dfd2809e769a
 	github.com/go-ap/activitypub v0.0.0-20250527110644-1410ed93404d
 	github.com/go-ap/client v0.0.0-20250527111551-a90c7d58948f
 	github.com/go-ap/errors v0.0.0-20250527110557-c8db454e53fd

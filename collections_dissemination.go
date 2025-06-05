@@ -43,7 +43,7 @@ const (
 )
 
 func retryFn(fn ssm.Fn) ssm.Fn {
-	return ssm.Retry(retries, ssm.BackOff(ssm.Jitter(jitterDelay, ssm.Linear(baseWaitTime, multiplier)), fn))
+	return ssm.Retry(retries, ssm.BackOff(baseWaitTime, ssm.Jitter(jitterDelay, ssm.Linear(multiplier)), fn))
 }
 
 func (p P) disseminateToRemoteCollections(it vocab.Item, iris ...vocab.IRI) error {
