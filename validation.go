@@ -597,13 +597,16 @@ func (p P) ValidateClientObject(o vocab.Item) (vocab.Item, error) {
 		derefObj := make(vocab.ItemCollection, 0)
 		err := vocab.OnItemCollection(o, func(col *vocab.ItemCollection) error {
 			for _, maybeIRI := range col.Collection() {
+				if !o.IsLink() {
+					continue
+				}
 				ob, err := fetchIRI(maybeIRI)
 				if err != nil {
 					continue
 				}
 				_ = derefObj.Append(ob)
 			}
-			if derefObj.Count() == 0 {
+			if derefObj.Count() != col.Count() {
 				return errors.NotFoundf("Invalid activity object, unable to dereference item collection")
 			}
 			return nil
