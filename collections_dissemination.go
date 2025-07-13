@@ -65,11 +65,6 @@ func (p P) disseminateToRemoteCollections(it vocab.Item, iris ...vocab.IRI) erro
 			continue
 		}
 
-		if !IsInbox(col) {
-			p.l.Infof("Attempting to disseminate to remote collection that's not an Inbox: %s", col)
-			continue
-		}
-
 		state := retryFn(func(ctx context.Context) ssm.Fn {
 			// NOTE(marius): we expect that the client has already been set up for being able to POST requests
 			// to remote servers. This means that it has been constructed using a HTTP client that includes
