@@ -2,6 +2,20 @@ package processing
 
 import vocab "github.com/go-ap/activitypub"
 
+// ValidateClientNotificationActivity
+func (p P) ValidateClientNotificationActivity(act *vocab.Activity) error {
+	if vocab.IsNil(act.Object) {
+		return InvalidActivityObject("is nil")
+	}
+
+	if ob, err := p.DereferenceItem(act.Object); err != nil {
+		return err
+	} else {
+		act.Object = ob
+	}
+	return nil
+}
+
 // NotificationActivity processes matching activities
 //
 // https://www.w3.org/TR/activitystreams-vocabulary/#h-motivations-notification

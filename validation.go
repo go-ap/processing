@@ -286,7 +286,7 @@ func (p P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab
 			} else if vocab.GeoSocialEventsActivityTypes.Contains(act.GetType()) {
 				err = ValidateClientGeoSocialEventsActivity(p.s, act)
 			} else if vocab.NotificationActivityTypes.Contains(act.GetType()) {
-				err = p.ValidateClientNotificationActivity(p.s, act)
+				err = p.ValidateClientNotificationActivity(act)
 			} else if vocab.RelationshipManagementActivityTypes.Contains(act.GetType()) {
 				err = ValidateClientRelationshipManagementActivity(p.s, act)
 			} else if vocab.NegatingActivityTypes.Contains(act.GetType()) {
@@ -446,20 +446,6 @@ func ValidateClientContentExperienceActivity(l ReadStore, act *vocab.Activity) e
 
 // ValidateClientGeoSocialEventsActivity
 func ValidateClientGeoSocialEventsActivity(l ReadStore, act *vocab.Activity) error {
-	return nil
-}
-
-// ValidateClientNotificationActivity
-func (p P) ValidateClientNotificationActivity(l ReadStore, act *vocab.Activity) error {
-	if vocab.IsNil(act.Object) {
-		return InvalidActivityObject("is nil")
-	}
-
-	if ob, err := p.DereferenceItem(act.Object); err != nil {
-		return err
-	} else {
-		act.Object = ob
-	}
 	return nil
 }
 
