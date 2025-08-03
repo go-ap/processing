@@ -180,7 +180,7 @@ func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (voca
 	case vocab.RelationshipManagementActivityTypes.Contains(typ):
 		act, err = RelationshipManagementActivity(p, act, receivedIn)
 	case vocab.NegatingActivityTypes.Contains(typ):
-		act, err = NegatingActivity(p.s, act)
+		act, err = p.NegatingActivity(act)
 	case vocab.OffersActivityTypes.Contains(typ):
 		act, err = OffersActivity(p.s, act)
 	}

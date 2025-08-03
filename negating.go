@@ -17,7 +17,7 @@ var validUndoActivityTypes = vocab.ActivityVocabularyTypes{vocab.CreateType, voc
 // The Negating Activity use case primarily deals with the ability to redact previously completed activities.
 // See 5.5 Inverse Activities and "Undo" for more information:
 // https://www.w3.org/TR/activitystreams-vocabulary/#inverse
-func NegatingActivity(l Store, act *vocab.Activity) (*vocab.Activity, error) {
+func (p P) NegatingActivity(act *vocab.Activity) (*vocab.Activity, error) {
 	if vocab.IsNil(act.Object) {
 		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
 	}
@@ -30,17 +30,15 @@ func NegatingActivity(l Store, act *vocab.Activity) (*vocab.Activity, error) {
 	// TODO(marius): a lot of validation logic should be moved to the validation package
 	if vocab.IsIRI(act.Object) {
 		// dereference object activity
-		if actLoader, ok := l.(ReadStore); ok {
-			obj, err := actLoader.Load(act.Object.GetLink())
-			if err != nil {
-				return act, errors.NewNotValid(err, "Unable to dereference object: %s", act.Object.GetLink())
-			}
-			obj = firstOrItem(obj)
-			if !vocab.IsObject(obj) && !vocab.IsItemCollection(obj) {
-				return act, errors.NotValidf("Unable to dereference object: %s", act.Object.GetLink())
-			}
-			act.Object = obj
+		obj, err := p.s.Load(act.Object.GetLink())
+		if err != nil {
+			return act, errors.NewNotValid(err, "Unable to dereference object: %s", act.Object.GetLink())
 		}
+		obj = firstOrItem(obj)
+		if !vocab.IsObject(obj) && !vocab.IsItemCollection(obj) {
+			return act, errors.NotValidf("Unable to dereference object: %s", act.Object.GetLink())
+		}
+		act.Object = obj
 	}
 	// the object of the activity needs to be an activity
 	if !vocab.ActivityTypes.Contains(act.Object.GetType()) {
@@ -58,7 +56,7 @@ func NegatingActivity(l Store, act *vocab.Activity) (*vocab.Activity, error) {
 	if err != nil {
 		return act, err
 	}
-	return UndoActivity(l, act)
+	return p.UndoActivity(act)
 }
 
 // UndoActivity
@@ -78,7 +76,7 @@ func NegatingActivity(l Store, act *vocab.Activity) (*vocab.Activity, error) {
 // The Undo activity is used to undo the side effects of previous activities. See the ActivityStreams documentation
 // on Inverse Activities and "Undo". The scope and restrictions of the Undo activity are the same as for the Undo
 // activity in the context of client to server interactions, but applied to a federated context.
-func UndoActivity(r Store, act *vocab.Activity) (*vocab.Activity, error) {
+func (p P) UndoActivity(act *vocab.Activity) (*vocab.Activity, error) {
 	var err error
 
 	iri := act.GetLink()
@@ -98,12 +96,12 @@ func UndoActivity(r Store, act *vocab.Activity) (*vocab.Activity, error) {
 		}
 		switch toUndo.GetType() {
 		case vocab.CreateType:
-			_, err = UndoCreateActivity(r, toUndo)
+			_, err = UndoCreateActivity(p.s, toUndo)
 		case vocab.DislikeType:
 			// TODO(marius): Dislikes should not trigger a removal from Likes/Liked collections
 			fallthrough
 		case vocab.LikeType:
-			_, err = UndoAppreciationActivity(r, toUndo)
+			_, err = UndoAppreciationActivity(p.s, toUndo)
 		case vocab.FollowType:
 			fallthrough
 		case vocab.BlockType:
@@ -111,7 +109,9 @@ func UndoActivity(r Store, act *vocab.Activity) (*vocab.Activity, error) {
 		case vocab.IgnoreType:
 			fallthrough
 		case vocab.FlagType:
-			_, err = UndoRelationshipManagementActivity(r, toUndo)
+			_, err = UndoRelationshipManagementActivity(p.s, toUndo)
+		case vocab.AnnounceType:
+			_, err = p.UndoAnnounceActivity(toUndo)
 		}
 		return err
 	})
@@ -119,7 +119,7 @@ func UndoActivity(r Store, act *vocab.Activity) (*vocab.Activity, error) {
 		return act, err
 	}
 
-	err = r.Delete(act.Object)
+	err = p.s.Delete(act.Object)
 	return act, err
 }
 
