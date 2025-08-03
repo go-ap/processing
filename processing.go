@@ -86,7 +86,7 @@ func WithLocalIRIChecker(isLocalFn IRIValidator) OptionFn {
 // ProcessActivity processes an Activity received
 func (p P) ProcessActivity(it vocab.Item, author vocab.Actor, receivedIn vocab.IRI) (vocab.Item, error) {
 	if vocab.IsNil(it) {
-		return nil, errors.BadRequestf("nil activity received")
+		return nil, InvalidActivity("received nil")
 	}
 	p.l = p.l.WithContext(lw.Ctx{"in": receivedIn, "type": it.GetType()})
 	p.l.Debugf("Processing started")
@@ -120,7 +120,7 @@ func createNewTags(l WriteStore, tags vocab.ItemCollection, parent vocab.Item) e
 			continue
 		}
 		if err := SetIDIfMissing(tag, nil, parent); err == nil {
-			l.Save(tag)
+			tag, _ = l.Save(tag)
 		}
 	}
 	return nil
@@ -250,7 +250,7 @@ func loadSharedInboxRecipients(p P, sharedInbox vocab.IRI) vocab.ItemCollection 
 // "John moved the file from Folder A to Folder B", etc.
 func CollectionManagementActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
 	if vocab.IsNil(act.Object) {
-		return act, errors.NotValidf("Missing object for Activity")
+		return act, InvalidActivityObject("is nil for %T[%s]", act, act.GetType())
 	}
 	switch act.Type {
 	case vocab.AddType:
@@ -269,7 +269,7 @@ func CollectionManagementActivity(l WriteStore, act *vocab.Activity) (*vocab.Act
 // The Event RSVP use case primarily deals with invitations to events and RSVP type responses.
 func EventRSVPActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
 	if vocab.IsNil(act.Object) {
-		return act, errors.NotValidf("Missing object for Activity")
+		return act, InvalidActivityObject("is nil for %T[%s]", act, act.GetType())
 	}
 	switch act.Type {
 	case vocab.AcceptType:
@@ -334,9 +334,27 @@ func GeoSocialEventsIntransitiveActivity(l WriteStore, act *vocab.IntransitiveAc
 // https://www.w3.org/TR/activitystreams-vocabulary/#h-motivations-notification
 //
 // The Notification use case primarily deals with calling attention to particular objects or notifications.
-func NotificationActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
-	// TODO(marius):
-	return act, errors.NotImplementedf("Processing %s activity is not implemented", act.GetType())
+//
+// Upon receipt of an Announce activity in an inbox, a server SHOULD increment the object's count of shares
+// by adding the received activity to the shares collection if this collection is present.
+// Note: The Announce activity is effectively what is known as "sharing", "reposting", or "boosting" in other social
+// networks.
+//
+// https://www.w3.org/TR/activitypub/#announce-activity-inbox
+func (p P) NotificationActivity(act *vocab.Activity) (*vocab.Activity, error) {
+	if vocab.IsNil(act.Object) {
+		return act, InvalidActivityObject("is nil for %T[%s]", act, act.GetType())
+	}
+
+	// NOTE(marius): this covers only "Announce" activities, as it's currently
+	// the only activity type matching the Notification group.
+	if !p.IsLocalIRI(act.Object.GetLink()) {
+		// NOTE(marius): we ignore not local objects
+		return act, nil
+	}
+	// NOTE(marius): we add the activity to the object's shares collection
+	err := p.s.AddTo(vocab.Shares.Of(act.Object).GetLink(), act)
+	return act, err
 }
 
 // OffersActivity processes matching activities

@@ -176,7 +176,7 @@ func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (voca
 	case vocab.GeoSocialEventsActivityTypes.Contains(typ):
 		act, err = GeoSocialEventsActivity(p.s, act)
 	case vocab.NotificationActivityTypes.Contains(typ):
-		act, err = NotificationActivity(p.s, act)
+		act, err = p.NotificationActivity(act)
 	case vocab.RelationshipManagementActivityTypes.Contains(typ):
 		act, err = RelationshipManagementActivity(p, act, receivedIn)
 	case vocab.NegatingActivityTypes.Contains(typ):

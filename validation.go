@@ -216,7 +216,7 @@ func (p P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab
 		return errors.Unauthorizedf("actor %q does not own the current outbox %s", name(&author), outbox)
 	}
 	if vocab.IsNil(a) {
-		return InvalidActivityActor("received nil activity")
+		return InvalidActivity("is nil")
 	}
 	if a.IsLink() {
 		return p.ValidateIRI(a.GetLink())
@@ -242,7 +242,6 @@ func (p P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab
 			act.AttributedTo = &author
 		}
 		if !vocab.IsNil(act.Target) {
-			act.Target, _ = p.DereferenceItem(act.Target)
 			if act.Target, err = p.ValidateClientObject(act.Target); err != nil {
 				return err
 			}
@@ -287,7 +286,7 @@ func (p P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab
 			} else if vocab.GeoSocialEventsActivityTypes.Contains(act.GetType()) {
 				err = ValidateClientGeoSocialEventsActivity(p.s, act)
 			} else if vocab.NotificationActivityTypes.Contains(act.GetType()) {
-				err = ValidateClientNotificationActivity(p.s, act)
+				err = p.ValidateClientNotificationActivity(p.s, act)
 			} else if vocab.RelationshipManagementActivityTypes.Contains(act.GetType()) {
 				err = ValidateClientRelationshipManagementActivity(p.s, act)
 			} else if vocab.NegatingActivityTypes.Contains(act.GetType()) {
@@ -316,7 +315,7 @@ func ValidateClientContentManagementActivity(l ReadStore, act *vocab.Activity) e
 			fallthrough
 		case vocab.DeleteType:
 			if len(ob.GetLink()) == 0 {
-				return errors.Newf("invalid object id for %s activity", act.Type)
+				return errors.Newf("empty object id for %s activity", act.Type)
 			}
 			if ob.IsLink() {
 				return nil
@@ -451,7 +450,16 @@ func ValidateClientGeoSocialEventsActivity(l ReadStore, act *vocab.Activity) err
 }
 
 // ValidateClientNotificationActivity
-func ValidateClientNotificationActivity(l ReadStore, act *vocab.Activity) error {
+func (p P) ValidateClientNotificationActivity(l ReadStore, act *vocab.Activity) error {
+	if vocab.IsNil(act.Object) {
+		return InvalidActivityObject("is nil")
+	}
+
+	if ob, err := p.DereferenceItem(act.Object); err != nil {
+		return err
+	} else {
+		act.Object = ob
+	}
 	return nil
 }
 
@@ -569,54 +577,7 @@ func (p P) ValidateClientObject(o vocab.Item) (vocab.Item, error) {
 	if vocab.IsNil(o) {
 		return nil, InvalidActivityObject("is nil")
 	}
-	fetchIRI := func(o vocab.Item) (vocab.Item, error) {
-		if vocab.IsNil(o) {
-			return o, errors.NotFoundf("Invalid activity object")
-		}
-
-		iri := o.GetLink()
-		err := p.ValidateIRI(iri)
-		if err != nil {
-			return o, err
-		}
-		if !p.IsLocalIRI(iri) {
-			return o, nil
-		}
-		if o, err = p.s.Load(iri); err != nil {
-			return o, err
-		}
-		if vocab.IsNil(o) {
-			return o, errors.NotFoundf("Invalid activity object")
-		}
-		return o, nil
-	}
-	if o.IsLink() {
-		return fetchIRI(o)
-	}
-	if vocab.IsItemCollection(o) {
-		derefObj := make(vocab.ItemCollection, 0)
-		err := vocab.OnItemCollection(o, func(col *vocab.ItemCollection) error {
-			for _, maybeIRI := range col.Collection() {
-				if !o.IsLink() {
-					continue
-				}
-				ob, err := fetchIRI(maybeIRI)
-				if err != nil {
-					continue
-				}
-				_ = derefObj.Append(ob)
-			}
-			if derefObj.Count() != col.Count() {
-				return errors.NotFoundf("Invalid activity object, unable to dereference item collection")
-			}
-			return nil
-		})
-		if err != nil {
-			return o, nil
-		}
-		o = derefObj
-	}
-	return o, nil
+	return p.DereferenceItem(o)
 }
 
 func (p P) ValidateServerObject(o vocab.Item) (vocab.Item, error) {
