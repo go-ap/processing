@@ -8,7 +8,34 @@ import (
 )
 
 // TODO(marius): add more valid types
-var validUndoActivityTypes = vocab.ActivityVocabularyTypes{vocab.CreateType, vocab.LikeType, vocab.DislikeType, vocab.BlockType, vocab.FollowType}
+var validUndoActivityTypes = vocab.ActivityVocabularyTypes{
+	vocab.CreateType, /* vocab.UndoType, vocab.DeleteType,*/
+	vocab.LikeType, vocab.DislikeType,
+	vocab.BlockType, vocab.FollowType,
+	vocab.AnnounceType,
+}
+
+// ValidateClientNegatingActivity
+func (p P) ValidateClientNegatingActivity(act *vocab.Activity) error {
+	if vocab.IsNil(act.Object) {
+		return InvalidActivityObject("is nil")
+	}
+
+	if ob, err := p.DereferenceItem(act.Object); err != nil {
+		return err
+	} else {
+		act.Object = ob
+	}
+	return vocab.OnActivity(act.Object, func(objAct *vocab.Activity) error {
+		if !act.Actor.GetLink().Equals(objAct.Actor.GetLink(), false) {
+			return errors.NotValidf("The %s activity has a different actor than its object: %s, expected %s", act.Type, act.Actor.GetLink(), objAct.Actor.GetLink())
+		}
+		if !validUndoActivityTypes.Contains(objAct.Type) {
+			return errors.NotValidf("Object Activity has wrong type %s, expected one of %v", objAct.Type, validUndoActivityTypes)
+		}
+		return nil
+	})
+}
 
 // NegatingActivity processes matching activities
 //
@@ -26,35 +53,6 @@ func (p P) NegatingActivity(act *vocab.Activity) (*vocab.Activity, error) {
 	}
 	if act.Type != vocab.UndoType {
 		return act, errors.NotValidf("Activity has wrong type %s, expected %s", act.Type, vocab.UndoType)
-	}
-	// TODO(marius): a lot of validation logic should be moved to the validation package
-	if vocab.IsIRI(act.Object) {
-		// dereference object activity
-		obj, err := p.s.Load(act.Object.GetLink())
-		if err != nil {
-			return act, errors.NewNotValid(err, "Unable to dereference object: %s", act.Object.GetLink())
-		}
-		obj = firstOrItem(obj)
-		if !vocab.IsObject(obj) && !vocab.IsItemCollection(obj) {
-			return act, errors.NotValidf("Unable to dereference object: %s", act.Object.GetLink())
-		}
-		act.Object = obj
-	}
-	// the object of the activity needs to be an activity
-	if !vocab.ActivityTypes.Contains(act.Object.GetType()) {
-		return act, errors.NotValidf("Activity object has wrong type %s, expected one of %v", act.Type, vocab.ActivityTypes)
-	}
-	err := vocab.OnActivity(act.Object, func(objAct *vocab.Activity) error {
-		if !act.Actor.GetLink().Equals(objAct.Actor.GetLink(), false) {
-			return errors.NotValidf("The %s activity has a different actor than its object: %s, expected %s", act.Type, act.Actor.GetLink(), objAct.Actor.GetLink())
-		}
-		if !validUndoActivityTypes.Contains(objAct.Type) {
-			return errors.NotValidf("Object Activity has wrong type %s, expected one of %v", objAct.Type, validUndoActivityTypes)
-		}
-		return nil
-	})
-	if err != nil {
-		return act, err
 	}
 	return p.UndoActivity(act)
 }

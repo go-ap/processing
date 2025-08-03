@@ -290,7 +290,7 @@ func (p P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab
 			} else if vocab.RelationshipManagementActivityTypes.Contains(act.GetType()) {
 				err = ValidateClientRelationshipManagementActivity(p.s, act)
 			} else if vocab.NegatingActivityTypes.Contains(act.GetType()) {
-				err = ValidateClientNegatingActivity(p.s, act)
+				err = p.ValidateClientNegatingActivity(act)
 			} else if vocab.OffersActivityTypes.Contains(act.GetType()) {
 				err = ValidateClientOffersActivity(p.s, act)
 			}
@@ -485,11 +485,6 @@ func ValidateClientRelationshipManagementActivity(l ReadStore, act *vocab.Activi
 		// TODO(marius): Object needs to be a valid Follow activity
 	default:
 	}
-	return nil
-}
-
-// ValidateClientNegatingActivity
-func ValidateClientNegatingActivity(l ReadStore, act *vocab.Activity) error {
 	return nil
 }
 
