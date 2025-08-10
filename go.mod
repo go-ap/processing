@@ -7,10 +7,10 @@ toolchain go1.24.4
 require (
 	git.sr.ht/~mariusor/lw v0.0.0-20250325163623-1639f3fb0e0d
 	git.sr.ht/~mariusor/ssm v0.0.0-20250617180832-c3c0db41a98e
-	github.com/go-ap/activitypub v0.0.0-20250810111841-460464d31c7f
-	github.com/go-ap/client v0.0.0-20250810112236-e9136342f579
+	github.com/go-ap/activitypub v0.0.0-20250810115208-cb73b20a1742
+	github.com/go-ap/client v0.0.0-20250810115406-535063f251fa
 	github.com/go-ap/errors v0.0.0-20250527110557-c8db454e53fd
-	github.com/go-ap/filters v0.0.0-20250810112128-8b18988e080c
+	github.com/go-ap/filters v0.0.0-20250810115343-b996bd3d3865
 	github.com/go-ap/jsonld v0.0.0-20221030091449-f2a191312c73
 )
 

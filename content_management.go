@@ -451,6 +451,55 @@ func loadAndUpdateSingleItem(l Store, it vocab.Item) (vocab.Item, error) {
 	return old, nil
 }
 
+func CleanOrderedCollectionDynamicProperties(col *vocab.OrderedCollection) error {
+	col.First = nil
+	col.OrderedItems = nil
+	col.TotalItems = 0
+	return nil
+}
+
+func CleanOrderedCollectionPageDynamicProperties(col *vocab.OrderedCollectionPage) error {
+	col.First = nil
+	col.OrderedItems = nil
+	col.TotalItems = 0
+	col.Prev = nil
+	col.Next = nil
+	return nil
+}
+
+func CleanCollectionDynamicProperties(col *vocab.Collection) error {
+	col.First = nil
+	col.Items = nil
+	col.TotalItems = 0
+	return nil
+}
+
+func CleanCollectionPageDynamicProperties(col *vocab.CollectionPage) error {
+	col.First = nil
+	col.Items = nil
+	col.TotalItems = 0
+	col.Prev = nil
+	col.Next = nil
+	return nil
+}
+
+func CleanItemCollectionDynamicProperties(it vocab.Item) error {
+	if vocab.IsNil(it) || vocab.IsItemCollection(it) {
+		return nil
+	}
+	switch it.GetType() {
+	case vocab.OrderedCollectionPageType:
+		return vocab.OnOrderedCollectionPage(it, CleanOrderedCollectionPageDynamicProperties)
+	case vocab.OrderedCollectionType:
+		return vocab.OnOrderedCollection(it, CleanOrderedCollectionDynamicProperties)
+	case vocab.CollectionPageType:
+		return vocab.OnCollectionPage(it, CleanCollectionPageDynamicProperties)
+	case vocab.CollectionType:
+		return vocab.OnCollection(it, CleanCollectionDynamicProperties)
+	}
+	return nil
+}
+
 func updateSingleItem(l WriteStore, found vocab.Item, with vocab.Item) (vocab.Item, error) {
 	var err error
 	if vocab.IsNil(found) {
@@ -460,6 +509,9 @@ func updateSingleItem(l WriteStore, found vocab.Item, with vocab.Item) (vocab.It
 		return found, errors.Conflictf("IRI %s does not point to a single object", with.GetLink())
 	}
 
+	if vocab.CollectionTypes.Contains(with.GetType()) {
+		_ = CleanItemCollectionDynamicProperties(with)
+	}
 	found, err = vocab.CopyItemProperties(found, with)
 	if err != nil {
 		return found, errors.NewConflict(err, "unable to copy item")
