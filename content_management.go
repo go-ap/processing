@@ -416,16 +416,15 @@ func UpdateActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) 
 	}
 
 	if vocab.IsItemCollection(ob) {
-		foundCol := make(vocab.ItemCollection, 0)
-		err := vocab.OnCollectionIntf(ob, func(col vocab.CollectionInterface) error {
-			for _, it := range col.Collection() {
+		err := vocab.OnItemCollection(ob, func(col *vocab.ItemCollection) error {
+			for i, it := range *col {
 				old, err := loadAndUpdateSingleItem(loader, it)
 				if err != nil {
 					return err
 				}
-				foundCol = append(foundCol, old)
+				(*col)[i] = old
 			}
-			act.Object = foundCol
+			act.Object = *col
 			return nil
 		})
 		if err != nil {
@@ -457,7 +456,7 @@ func updateSingleItem(l WriteStore, found vocab.Item, with vocab.Item) (vocab.It
 	if vocab.IsNil(found) {
 		return found, errors.NotFoundf("Unable to find %s %s", with.GetType(), with.GetLink())
 	}
-	if found.IsCollection() {
+	if vocab.IsItemCollection(found) {
 		return found, errors.Conflictf("IRI %s does not point to a single object", with.GetLink())
 	}
 
@@ -473,8 +472,8 @@ func updateSingleItem(l WriteStore, found vocab.Item, with vocab.Item) (vocab.It
 }
 
 func updateObjectForUpdate(l WriteStore, o *vocab.Object) error {
-	// We're trying to automatically save tags as separate objects instead of storing them inline in the current
-	// Object.
+	// NOTE(marius): We're trying to automatically save tags as separate objects instead
+	// of storing them inline in the current Object.
 	return createNewTags(l, o.Tag, o)
 }
 

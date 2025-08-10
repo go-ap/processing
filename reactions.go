@@ -131,9 +131,9 @@ func firstOrItem(it vocab.Item) vocab.Item {
 	if vocab.IsNil(it) {
 		return it
 	}
-	if it.IsCollection() {
-		_ = vocab.OnCollectionIntf(it, func(col vocab.CollectionInterface) error {
-			it = col.Collection().First()
+	if vocab.IsItemCollection(it) {
+		_ = vocab.OnItemCollection(it, func(col *vocab.ItemCollection) error {
+			it = col.First()
 			return nil
 		})
 	}
