@@ -23,25 +23,40 @@ type (
 	IRIValidator func(i vocab.IRI) bool
 )
 
+func setID(id vocab.IRI) func(ob *vocab.Object) error {
+	return func(ob *vocab.Object) error {
+		ob.ID = id
+		return nil
+	}
+}
+
+func emptyIDGenerator(it vocab.Item, col vocab.Item, maybeCreate vocab.Item) (vocab.ID, error) {
+	id := vocab.NilID
+	if vocab.IsNil(it) {
+		return id, errors.Newf("unable to set ID on nil item")
+	}
+	when := time.Now()
+	if !vocab.IsNil(col) {
+		id = col.GetLink().AddPath(timeIDFn(when))
+	}
+	if id.Equals(vocab.NilID, true) && !vocab.IsNil(maybeCreate) {
+		id = maybeCreate.GetLink().AddPath(timeIDFn(when))
+	}
+	if id.Equals(vocab.NilID, true) {
+		return id, errors.Newf("unable to generate ID, both the storing collection and the generating activity are nil")
+	}
+	return id, vocab.OnObject(it, setID(id))
+}
+
 func defaultLocalIRICheck(i vocab.IRI) bool { return false }
-
-var (
-	createID  IDGenerator
-	createKey vocab.WithActorFn = defaultKeyGenerator()
-
-	// isLocalIRI is a function that can be passed from outside the module to determine
-	// if an IRI "is local". This usually means that the storage layer can dereference the IRI to an object
-	// that is stored locally.
-	isLocalIRI IRIValidator = defaultLocalIRICheck
-)
 
 func defaultKeyGenerator() vocab.WithActorFn {
 	return func(_ *vocab.Actor) error { return nil }
 }
 
-func defaultIDGenerator(base vocab.IRI) IDGenerator {
-	timeIDFn := func(t time.Time) string { return fmt.Sprintf("%d", t.UnixMilli()) }
+var timeIDFn = func(t time.Time) string { return fmt.Sprintf("%d", t.UnixMilli()) }
 
+func defaultIDGenerator(base vocab.IRI) IDGenerator {
 	return func(it vocab.Item, col vocab.Item, byActivity vocab.Item) (vocab.ID, error) {
 		var colIRI vocab.IRI
 
@@ -81,20 +96,17 @@ func (e multiErr) Error() string {
 	return s.String()
 }
 
-func SetIDIfMissing(it vocab.Item, partOf vocab.Item, parentActivity vocab.Item) error {
-	if createID == nil {
-		return errors.Newf("no ID generator was set")
-	}
+func (p *P) SetIDIfMissing(it vocab.Item, partOf vocab.Item, parentActivity vocab.Item) error {
 	var err error
 	if !vocab.IsItemCollection(it) {
 		if len(it.GetID()) > 0 {
 			return nil
 		}
-		_, err = createID(it, partOf, parentActivity)
+		_, err = p.createIDFn(it, partOf, parentActivity)
 		return err
 	}
 	colCreateId := func(it vocab.Item, receivedIn vocab.Item, byActivity vocab.Item, idx int) (vocab.ID, error) {
-		iri, err := createID(it, receivedIn, byActivity)
+		iri, err := p.createIDFn(it, receivedIn, byActivity)
 		if err != nil {
 			return iri, err
 		}
@@ -106,7 +118,7 @@ func SetIDIfMissing(it vocab.Item, partOf vocab.Item, parentActivity vocab.Item)
 		return iri, err
 	}
 	return vocab.OnItemCollection(it, func(col *vocab.ItemCollection) error {
-		m := make(multiErr, 0)
+		m := make([]error, 0)
 		for i, c := range *col {
 			if len(c.GetID()) > 0 {
 				continue
@@ -115,10 +127,7 @@ func SetIDIfMissing(it vocab.Item, partOf vocab.Item, parentActivity vocab.Item)
 				m = append(m, err)
 			}
 		}
-		if len(m) > 0 {
-			return m
-		}
-		return nil
+		return errors.Join(m...)
 	})
 }
 
@@ -136,7 +145,7 @@ func ContentManagementActivityFromClient(p P, act *vocab.Activity) (*vocab.Activ
 	case vocab.CreateType:
 		act, err = CreateActivityFromClient(p, act)
 	case vocab.UpdateType:
-		act, err = UpdateActivity(p.s, act)
+		act, err = p.UpdateActivity(act)
 	case vocab.DeleteType:
 		act, err = DeleteActivity(p.s, act)
 	}
@@ -147,7 +156,7 @@ func ContentManagementActivityFromClient(p P, act *vocab.Activity) (*vocab.Activ
 
 	if act.Type != vocab.DeleteType && act.Tag != nil {
 		// Try to save tags as set on the activity
-		_ = createNewTags(p.s, act.Tag, act)
+		_ = p.createNewTags(act.Tag, act)
 	}
 
 	return act, err
@@ -193,6 +202,9 @@ func addNewActorCollections(p *vocab.Actor) error {
 }
 
 func addNewObjectCollections(o *vocab.Object) error {
+	if o == nil {
+		return nil
+	}
 	if o.Replies == nil {
 		o.Replies = getCollection(o, vocab.Replies)
 	}
@@ -276,18 +288,20 @@ func CreateActivityFromClient(p P, act *vocab.Activity) (*vocab.Activity, error)
 	if err := validateCreateObjectIsNew(p, act.Object); err != nil {
 		return act, err
 	}
-	if err := SetIDIfMissing(act.Object, vocab.Outbox.IRI(act.Actor), act); err != nil {
+	if err := p.SetIDIfMissing(act.Object, vocab.Outbox.IRI(act.Actor), act); err != nil {
 		return act, nil
 	}
 	if vocab.ActorTypes.Contains(act.Object.GetType()) {
-		if err := vocab.OnActor(act.Object, createKey); err != nil {
+		// TODO(marius): @PreHook@ we can replace this with a pre-hook function on Create activities to create they keys
+		if err := vocab.OnActor(act.Object, p.actorKeyGenFn); err != nil {
 			return act, errors.Annotatef(err, "unable to generate private/public key pair for object %s", act.Object.GetLink())
 		}
 	}
-	err := updateCreateActivityObject(p.s, act.Object, act)
+	err := p.updateCreateActivityObject(act.Object, act)
 	if err != nil {
 		return act, errors.Annotatef(err, "unable to create activity's object %s", act.Object.GetLink())
 	}
+	// TODO(marius): @PreHook@ we can replace this functionality with a function that creates the collections
 	act.Object, err = addNewItemCollections(act.Object)
 	if err != nil {
 		return act, errors.Annotatef(err, "unable to add object collections to object %s", act.Object.GetLink())
@@ -406,19 +420,14 @@ func CreateActivityFromServer(p P, act *vocab.Activity) (*vocab.Activity, error)
 // activity, this is not a partial update but a complete replacement of the object.
 // The receiving server MUST take care to be sure that the Update is authorized to modify its object. At minimum,
 // this may be done by ensuring that the Update and its object are of same origin.
-func UpdateActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
+func (p *P) UpdateActivity(act *vocab.Activity) (*vocab.Activity, error) {
 	var err error
 	ob := act.Object
-
-	loader, ok := l.(Store)
-	if !ok {
-		return act, nil
-	}
 
 	if vocab.IsItemCollection(ob) {
 		err := vocab.OnItemCollection(ob, func(col *vocab.ItemCollection) error {
 			for i, it := range *col {
-				old, err := loadAndUpdateSingleItem(loader, it)
+				old, err := p.loadAndUpdateSingleItem(it)
 				if err != nil {
 					return err
 				}
@@ -431,7 +440,7 @@ func UpdateActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) 
 			return act, err
 		}
 	} else {
-		old, err := loadAndUpdateSingleItem(loader, ob)
+		old, err := p.loadAndUpdateSingleItem(ob)
 		if err != nil {
 			return act, err
 		}
@@ -440,12 +449,12 @@ func UpdateActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) 
 	return act, err
 }
 
-func loadAndUpdateSingleItem(l Store, it vocab.Item) (vocab.Item, error) {
-	old, err := l.Load(it.GetLink())
+func (p *P) loadAndUpdateSingleItem(it vocab.Item) (vocab.Item, error) {
+	old, err := p.s.Load(it.GetLink())
 	if err != nil {
 		return it, err
 	}
-	if old, err = updateSingleItem(l, firstOrItem(old), it); err != nil {
+	if old, err = p.updateSingleItem(firstOrItem(old), it); err != nil {
 		return it, err
 	}
 	return old, nil
@@ -500,7 +509,7 @@ func CleanItemCollectionDynamicProperties(it vocab.Item) error {
 	return nil
 }
 
-func updateSingleItem(l WriteStore, found vocab.Item, with vocab.Item) (vocab.Item, error) {
+func (p *P) updateSingleItem(found vocab.Item, with vocab.Item) (vocab.Item, error) {
 	var err error
 	if vocab.IsNil(found) {
 		return found, errors.NotFoundf("Unable to find %s %s", with.GetType(), with.GetLink())
@@ -517,28 +526,32 @@ func updateSingleItem(l WriteStore, found vocab.Item, with vocab.Item) (vocab.It
 		return found, errors.NewConflict(err, "unable to copy item")
 	}
 
-	if err = updateUpdateActivityObject(l, found); err != nil {
+	if err = p.updateUpdateActivityObject(found); err != nil {
 		return with, errors.Annotatef(err, "unable to update activity's object %s", found.GetLink())
 	}
-	return l.Save(found)
+	return p.s.Save(found)
 }
 
-func updateObjectForUpdate(l WriteStore, o *vocab.Object) error {
+func (p *P) updateObjectForUpdate(o *vocab.Object) error {
+	if o == nil {
+		return nil
+	}
 	// NOTE(marius): We're trying to automatically save tags as separate objects instead
 	// of storing them inline in the current Object.
-	return createNewTags(l, o.Tag, o)
+	return p.createNewTags(o.Tag, o)
 }
 
-func updateUpdateActivityObject(l WriteStore, o vocab.Item) error {
+func (p *P) updateUpdateActivityObject(o vocab.Item) error {
 	if vocab.IsLink(o) {
 		return nil
 	}
-	return vocab.OnObject(o, func(o *vocab.Object) error {
-		return updateObjectForUpdate(l, o)
-	})
+	return vocab.OnObject(o, p.updateObjectForUpdate)
 }
 
-func updateObjectForCreate(l WriteStore, o *vocab.Object, act *vocab.Activity) error {
+func (p *P) updateObjectForCreate(o *vocab.Object, act *vocab.Activity) error {
+	if o == nil {
+		return nil
+	}
 	// See https://www.w3.org/TR/ActivityPub/#create-activity-outbox
 	// Copying the actor's IRI to the object's "AttributedTo"
 	if vocab.IsNil(o.AttributedTo) && !vocab.IsNil(act.Actor) {
@@ -576,15 +589,15 @@ func updateObjectForCreate(l WriteStore, o *vocab.Object, act *vocab.Activity) e
 	if o.Published.IsZero() {
 		o.Published = time.Now().UTC()
 	}
-	return updateObjectForUpdate(l, o)
+	return p.updateObjectForUpdate(o)
 }
 
-func updateCreateActivityObject(l WriteStore, o vocab.Item, act *vocab.Activity) error {
+func (p *P) updateCreateActivityObject(o vocab.Item, act *vocab.Activity) error {
 	if vocab.IsLink(o) {
 		return nil
 	}
 	return vocab.OnObject(o, func(o *vocab.Object) error {
-		return updateObjectForCreate(l, o, act)
+		return p.updateObjectForCreate(o, act)
 	})
 }
 

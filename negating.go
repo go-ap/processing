@@ -79,7 +79,7 @@ func (p P) UndoActivity(act *vocab.Activity) (*vocab.Activity, error) {
 
 	iri := act.GetLink()
 	if len(iri) == 0 {
-		iri, _ = createID(act.Object, vocab.Outbox.IRI(act.Actor), nil)
+		iri, _ = p.createIDFn(act.Object, vocab.Outbox.IRI(act.Actor), nil)
 	}
 	err = vocab.OnActivity(act.Object, func(toUndo *vocab.Activity) error {
 		for _, to := range act.Bto {

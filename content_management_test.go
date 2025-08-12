@@ -78,9 +78,12 @@ func Test_addNewObjectCollections(t *testing.T) {
 		args    args
 		wantErr bool
 	}{
-		// TODO: Add test cases.
+		{
+			name:    "empty",
+			args:    args{},
+			wantErr: false,
+		},
 	}
-	t.Skipf("TODO")
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if err := addNewObjectCollections(tt.args.o); (err != nil) != tt.wantErr {
@@ -91,6 +94,7 @@ func Test_addNewObjectCollections(t *testing.T) {
 }
 
 func Test_getCollection(t *testing.T) {
+	emptyOrderedCollection := &vocab.OrderedCollection{ID: "/", Type: vocab.OrderedCollectionType}
 	type args struct {
 		it vocab.Item
 		c  vocab.CollectionPath
@@ -100,12 +104,16 @@ func Test_getCollection(t *testing.T) {
 		args args
 		want vocab.CollectionInterface
 	}{
-		// TODO: Add test cases.
+		{
+			name: "empty",
+			args: args{},
+			want: emptyOrderedCollection,
+		},
 	}
-	t.Skipf("TODO")
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := getCollection(tt.args.it, tt.args.c); !reflect.DeepEqual(got, tt.want) {
+			got := getCollection(tt.args.it, tt.args.c)
+			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("getCollection() = %v, want %v", got, tt.want)
 			}
 		})
@@ -113,22 +121,28 @@ func Test_getCollection(t *testing.T) {
 }
 
 func Test_updateCreateActivityObject(t *testing.T) {
+
 	type args struct {
-		l   WriteStore
 		o   vocab.Item
 		act *vocab.Activity
 	}
 	tests := []struct {
 		name    string
+		initFns []OptionFn
 		args    args
 		wantErr bool
 	}{
-		// TODO: Add test cases.
+		{
+			name:    "empty",
+			initFns: nil,
+			args:    args{},
+			wantErr: false,
+		},
 	}
-	t.Skipf("TODO")
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := updateCreateActivityObject(tt.args.l, tt.args.o, tt.args.act); (err != nil) != tt.wantErr {
+			p := New(tt.initFns...)
+			if err := p.updateCreateActivityObject(tt.args.o, tt.args.act); (err != nil) != tt.wantErr {
 				t.Errorf("updateCreateActivityObject() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
@@ -137,21 +151,27 @@ func Test_updateCreateActivityObject(t *testing.T) {
 
 func Test_updateObjectForCreate(t *testing.T) {
 	type args struct {
-		l   WriteStore
 		o   *vocab.Object
 		act *vocab.Activity
 	}
 	tests := []struct {
 		name    string
+		initFns []OptionFn
 		args    args
 		wantErr bool
 	}{
-		// TODO: Add test cases.
+		{
+			name:    "empty",
+			initFns: nil,
+			args:    args{},
+			wantErr: false,
+		},
 	}
-	t.Skipf("TODO")
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := updateObjectForCreate(tt.args.l, tt.args.o, tt.args.act); (err != nil) != tt.wantErr {
+			p := New(tt.initFns...)
+			if err := p.updateObjectForCreate(tt.args.o, tt.args.act); (err != nil) != tt.wantErr {
 				t.Errorf("updateObjectForCreate() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
@@ -166,15 +186,21 @@ func Test_updateObjectForUpdate(t *testing.T) {
 	}
 	tests := []struct {
 		name    string
+		initFns []OptionFn
 		args    args
 		wantErr bool
 	}{
-		// TODO: Add test cases.
+		{
+			name:    "empty",
+			initFns: nil,
+			args:    args{},
+			wantErr: false,
+		},
 	}
-	t.Skipf("TODO")
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := updateObjectForUpdate(tt.args.l, tt.args.o); (err != nil) != tt.wantErr {
+			p := New(tt.initFns...)
+			if err := p.updateObjectForUpdate(tt.args.o); (err != nil) != tt.wantErr {
 				t.Errorf("updateObjectForUpdate() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
@@ -183,21 +209,26 @@ func Test_updateObjectForUpdate(t *testing.T) {
 
 func Test_updateUpdateActivityObject(t *testing.T) {
 	type args struct {
-		l   WriteStore
 		o   vocab.Item
 		act *vocab.Activity
 	}
 	tests := []struct {
 		name    string
+		initFns []OptionFn
 		args    args
 		wantErr bool
 	}{
-		// TODO: Add test cases.
+		{
+			name:    "empty",
+			initFns: nil,
+			args:    args{},
+			wantErr: false,
+		},
 	}
-	t.Skipf("TODO")
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := updateUpdateActivityObject(tt.args.l, tt.args.o); (err != nil) != tt.wantErr {
+			p := New(tt.initFns...)
+			if err := p.updateUpdateActivityObject(tt.args.o); (err != nil) != tt.wantErr {
 				t.Errorf("updateUpdateActivityObject() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})

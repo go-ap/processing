@@ -17,6 +17,12 @@ type P struct {
 	c       c.Basic
 	s       Store
 	l       lw.Logger
+
+	// localIRICheckFn is a function that can be passed from outside the module to determine if a [vocab.IRI] "is local".
+	// This usually means that the storage layer can dereference the IRI to an object that is stored locally.
+	localIRICheckFn IRIValidator
+	createIDFn      IDGenerator
+	actorKeyGenFn   vocab.WithActorFn
 }
 
 var (
@@ -24,7 +30,12 @@ var (
 )
 
 func New(o ...OptionFn) P {
-	p := P{l: nilLogger}
+	p := P{
+		l:               nilLogger,
+		createIDFn:      emptyIDGenerator,
+		localIRICheckFn: defaultLocalIRICheck,
+		actorKeyGenFn:   defaultKeyGenerator(),
+	}
 	for _, fn := range o {
 		fn(&p)
 	}
@@ -39,17 +50,15 @@ func Async(p *P) {
 }
 
 func WithIDGenerator(genFn IDGenerator) OptionFn {
-	new(sync.Once).Do(func() {
-		createID = genFn
-	})
-	return func(_ *P) {}
+	return func(p *P) {
+		p.createIDFn = genFn
+	}
 }
 
 func WithActorKeyGenerator(genFn vocab.WithActorFn) OptionFn {
-	new(sync.Once).Do(func() {
-		createKey = genFn
-	})
-	return func(_ *P) {}
+	return func(p *P) {
+		p.actorKeyGenFn = genFn
+	}
 }
 
 func WithLogger(l lw.Logger) OptionFn {
@@ -77,10 +86,9 @@ func WithIRI(i ...vocab.IRI) OptionFn {
 }
 
 func WithLocalIRIChecker(isLocalFn IRIValidator) OptionFn {
-	new(sync.Once).Do(func() {
-		isLocalIRI = isLocalFn
-	})
-	return func(_ *P) {}
+	return func(p *P) {
+		p.localIRICheckFn = isLocalFn
+	}
 }
 
 // ProcessActivity processes an Activity received
@@ -104,7 +112,7 @@ func (p P) ProcessActivity(it vocab.Item, author vocab.Actor, receivedIn vocab.I
 	return nil, errors.MethodNotAllowedf("unable to process activities at current IRI: %s", receivedIn)
 }
 
-func createNewTags(l WriteStore, tags vocab.ItemCollection, parent vocab.Item) error {
+func (p *P) createNewTags(tags vocab.ItemCollection, parent vocab.Item) error {
 	if len(tags) == 0 {
 		return nil
 	}
@@ -119,8 +127,8 @@ func createNewTags(l WriteStore, tags vocab.ItemCollection, parent vocab.Item) e
 		if id := tag.GetID(); len(id) > 0 {
 			continue
 		}
-		if err := SetIDIfMissing(tag, nil, parent); err == nil {
-			tag, _ = l.Save(tag)
+		if err := p.SetIDIfMissing(tag, nil, parent); err == nil {
+			tag, _ = p.s.Save(tag)
 		}
 	}
 	return nil

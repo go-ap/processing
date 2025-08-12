@@ -96,7 +96,7 @@ func (p P) ProcessOutboxDelivery(it vocab.Item, receivedIn vocab.IRI) error {
 
 func processClientIntransitiveActivity(p P, it vocab.Item, receivedIn vocab.IRI) (vocab.Item, error) {
 	if len(it.GetLink()) == 0 {
-		if err := SetIDIfMissing(it, receivedIn, nil); err != nil {
+		if err := p.SetIDIfMissing(it, receivedIn, nil); err != nil {
 			return it, err
 		}
 	}
@@ -104,7 +104,7 @@ func processClientIntransitiveActivity(p P, it vocab.Item, receivedIn vocab.IRI)
 	if vocab.QuestionActivityTypes.Contains(typ) {
 		err := vocab.OnQuestion(it, func(q *vocab.Question) error {
 			var err error
-			q, err = QuestionActivity(p.s, q)
+			q, err = p.QuestionActivity(q)
 			return err
 		})
 		if err != nil {
@@ -148,7 +148,7 @@ func processClientIntransitiveActivity(p P, it vocab.Item, receivedIn vocab.IRI)
 
 func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (vocab.Item, error) {
 	if len(act.GetLink()) == 0 {
-		if err := SetIDIfMissing(act, receivedIn, nil); err != nil {
+		if err := p.SetIDIfMissing(act, receivedIn, nil); err != nil {
 			return act, err
 		}
 	}
