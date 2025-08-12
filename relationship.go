@@ -78,7 +78,7 @@ func RelationshipManagementActivity(p P, act *vocab.Activity, receivedIn vocab.I
 func FollowActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activity, error) {
 	if !vocab.IsNil(act.Object) && !act.To.Contains(act.Object.GetLink()) {
 		// TODO(marius): add check if IRI represents an actor (or rely on the collection saver to break if not)
-		act.To.Append(act.Object.GetLink())
+		_ = act.To.Append(act.Object.GetLink())
 	}
 	return act, nil
 }

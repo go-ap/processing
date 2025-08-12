@@ -1,8 +1,6 @@
 package processing
 
 import (
-	"strings"
-
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
 )
@@ -107,7 +105,7 @@ func (p P) UndoActivity(act *vocab.Activity) (*vocab.Activity, error) {
 		case vocab.IgnoreType:
 			fallthrough
 		case vocab.FlagType:
-			_, err = UndoRelationshipManagementActivity(p.s, toUndo)
+			_, err = p.UndoRelationshipManagementActivity(toUndo)
 		case vocab.AnnounceType:
 			_, err = p.UndoAnnounceActivity(toUndo)
 		}
@@ -147,7 +145,10 @@ func UndoCreateActivity(r Store, act *vocab.Activity) (*vocab.Activity, error) {
 			errs = append(errs, err)
 		}
 	}
-	return act, errors.Join(errs...)
+	if len(errs) > 0 {
+		return act, errors.Annotatef(errors.Join(errs...), "failed to fully process Undo activity")
+	}
+	return act, nil
 }
 
 // UndoAppreciationActivity
@@ -179,56 +180,62 @@ func UndoAppreciationActivity(r Store, act *vocab.Activity) (*vocab.Activity, er
 			errs = append(errs, err)
 		}
 	}
-	return act, errors.Join(errs...)
+	if len(errs) > 0 {
+		return act, errors.Annotatef(errors.Join(errs...), "failed to fully process Undo activity")
+	}
+	return act, nil
 }
 
 // UndoRelationshipManagementActivity
 //
 // Removes the side effects of an existing RelationshipActivity activity (Follow, Block, Ignore, Flag)
-// Currently this means the removal of the objet from the collection corresponding to the original Activity type.
+// Currently this means the removal of the object from the collection corresponding to the original Activity type.
 // Follow - removes the original object from the actor's followers collection.
 // Block - removes the original object from the actor's blocked collection.
 // Ignore - removes the original object from the actor's ignored collection.
 // Flag - is a special case where there isn't a specific collection that needs to be operated on.
-func UndoRelationshipManagementActivity(r WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
+func (p *P) UndoRelationshipManagementActivity(toUndo *vocab.Activity) (*vocab.Activity, error) {
 	errs := make([]error, 0)
-	rem := act.GetLink()
-	colSaver, ok := r.(CollectionStore)
-	if !ok {
-		return act, nil
+	rem := toUndo.GetLink()
+	// NOTE(marius): we need to remove the toUndo activity from the Outbox of its actor.
+	if err := p.s.RemoveFrom(vocab.Outbox.Of(toUndo.Actor).GetLink(), rem); err != nil {
+		errs = append(errs, err)
 	}
-	allRec := act.Recipients()
-	removeFromCols := make(vocab.IRIs, 0)
-	removeFromCols = append(removeFromCols, vocab.Outbox.IRI(act.Actor))
-	switch act.Object.GetType() {
-	case vocab.FollowType:
-		removeFromCols = append(removeFromCols, vocab.Followers.IRI(act.Actor))
-	case vocab.BlockType:
-		removeFromCols = append(removeFromCols, BlockedCollection.IRI(act.Actor))
-	case vocab.IgnoreType:
-		removeFromCols = append(removeFromCols, IgnoredCollection.IRI(act.Actor))
-	}
-	for _, rec := range allRec {
-		iri := rec.GetLink()
-		if iri == vocab.PublicNS {
+
+	// NOTE(marius): for all recipients we need to remove the activity from their Inbox'es.
+	for _, rec := range toUndo.Recipients() {
+		if iri := rec.GetLink(); iri == vocab.PublicNS {
 			continue
 		}
-		if !vocab.ValidCollectionIRI(iri) {
-			// if not a valid collection, then the current iri represents an actor, and we need their inbox
-			removeFromCols = append(removeFromCols, vocab.Inbox.IRI(iri))
+		removeFrom := rec.GetLink()
+		if !vocab.ValidCollectionIRI(removeFrom) {
+			// NOTE(marius): if recipient is not a  valid collection,
+			// then the current iri represents an actor, and we try to get their Inbox
+			removeFrom = vocab.Inbox.Of(rec).GetLink()
+		}
+		if err := p.s.RemoveFrom(removeFrom, rem); err != nil {
+			errs = append(errs, err)
 		}
 	}
+
+	removeFromCols := make(vocab.IRIs, 0)
+	switch toUndo.GetType() {
+	case vocab.FollowType:
+		removeFromCols = append(removeFromCols, vocab.Following.Of(toUndo.Actor).GetLink())
+	case vocab.BlockType:
+		removeFromCols = append(removeFromCols, BlockedCollection.Of(toUndo.Actor).GetLink())
+	case vocab.IgnoreType:
+		removeFromCols = append(removeFromCols, IgnoredCollection.Of(toUndo.Actor).GetLink())
+	}
+
+	rem = toUndo.Object.GetLink()
 	for _, iri := range removeFromCols {
-		if err := colSaver.RemoveFrom(iri, rem); err != nil {
+		if err := p.s.RemoveFrom(iri, rem); err != nil {
 			errs = append(errs, err)
 		}
 	}
 	if len(errs) > 0 {
-		msgs := make([]string, len(errs))
-		for i, e := range errs {
-			msgs[i] = e.Error()
-		}
-		return act, errors.Newf("%s", strings.Join(msgs, ", "))
+		return toUndo, errors.Annotatef(errors.Join(errs...), "failed to fully process Undo activity")
 	}
-	return act, nil
+	return toUndo, nil
 }
