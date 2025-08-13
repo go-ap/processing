@@ -115,8 +115,10 @@ func (p P) UndoActivity(act *vocab.Activity) (*vocab.Activity, error) {
 		return act, err
 	}
 
-	err = p.s.Delete(act.Object)
-	return act, err
+	if err = p.s.Delete(act.Object); err != nil && !errors.IsNotFound(err) {
+		return act, err
+	}
+	return act, nil
 }
 
 // UndoCreateActivity
