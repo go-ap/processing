@@ -164,7 +164,7 @@ func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (voca
 	case vocab.ContentManagementActivityTypes.Contains(typ) && act.Object.GetType() != vocab.RelationshipType:
 		act, err = ContentManagementActivityFromClient(p, act)
 	case vocab.CollectionManagementActivityTypes.Contains(typ):
-		act, err = CollectionManagementActivity(p.s, act)
+		act, err = p.CollectionManagementActivity(act)
 	case vocab.ReactionsActivityTypes.Contains(typ):
 		act, err = ReactionsActivity(p, act, receivedIn)
 	case vocab.EventRSVPActivityTypes.Contains(typ):

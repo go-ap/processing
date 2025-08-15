@@ -256,13 +256,18 @@ func loadSharedInboxRecipients(p P, sharedInbox vocab.IRI) vocab.ItemCollection 
 // Examples of collections include things like folders, albums, friend lists, etc.
 // This includes, for instance, activities such as "Sally added a file to Folder A",
 // "John moved the file from Folder A to Folder B", etc.
-func CollectionManagementActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
+func (p *P) CollectionManagementActivity(act *vocab.Activity) (*vocab.Activity, error) {
 	if vocab.IsNil(act.Object) {
 		return act, InvalidActivityObject("is nil for %T[%s]", act, act.GetType())
 	}
 	switch act.Type {
 	case vocab.AddType:
 	case vocab.MoveType:
+		// NOTE(marius): for the special case of the Move activity having its Object being identical to the Origin
+		// we consider that to be an Update of that object to the Move activity's Target.
+		if act.Object.GetLink().Equals(act.Origin.GetLink(), true) {
+			return p.ObjectMoveActivity(act)
+		}
 	case vocab.RemoveType:
 	default:
 		return nil, errors.NotValidf("Invalid type %s", act.GetType())
