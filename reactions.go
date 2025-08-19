@@ -1,8 +1,6 @@
 package processing
 
 import (
-	"strings"
-
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
 )
@@ -43,23 +41,6 @@ func ReactionsActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.A
 	return act, err
 }
 
-type multi []error
-
-func (m multi) Error() string {
-	b := strings.Builder{}
-	for _, err := range m {
-		b.WriteString(err.Error())
-	}
-	return b.String()
-}
-
-func (m multi) As(e any) bool {
-	if len(m) == 0 {
-		return false
-	}
-	return errors.As(m[0], e)
-}
-
 // AppreciationActivity
 // The Like(and Dislike) activity indicates the actor likes the object.
 // The side effect of receiving this in an outbox is that the server SHOULD add the object to the actor's liked Collection.
@@ -76,7 +57,7 @@ func AppreciationActivity(p P, act *vocab.Activity) (*vocab.Activity, error) {
 	}
 
 	saveToCollections := func(actors, objects vocab.ItemCollection) error {
-		errs := make(multi, 0)
+		errs := make([]error, 0)
 		colToAdd := make(map[vocab.IRI][]vocab.IRI)
 		for _, object := range objects {
 			for _, actor := range actors {
@@ -93,10 +74,7 @@ func AppreciationActivity(p P, act *vocab.Activity) (*vocab.Activity, error) {
 				}
 			}
 		}
-		if len(errs) > 0 {
-			return errs
-		}
-		return nil
+		return errors.Join(errs...)
 	}
 	var actors, objects vocab.ItemCollection
 	if vocab.IsItemCollection(act.Actor) {
@@ -179,7 +157,7 @@ func finalizeFollowActivity(p P, a *vocab.Activity) error {
 		return errors.NotValidf("Object Activity has wrong type %s, expected %v", a.Type, good)
 	}
 
-	errs := make(multi, 0)
+	errs := make([]error, 0)
 	if err := p.AddItemToCollection(vocab.Followers.IRI(a.Object), a.Actor); err != nil {
 		errs = append(errs, err)
 	}
@@ -187,10 +165,7 @@ func finalizeFollowActivity(p P, a *vocab.Activity) error {
 	if err := p.AddItemToCollection(vocab.Following.IRI(a.Actor), a.Object); err != nil {
 		errs = append(errs, err)
 	}
-	if len(errs) > 0 {
-		return errs
-	}
-	return nil
+	return errors.Join(errs...)
 }
 
 func RejectActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
@@ -201,7 +176,7 @@ func RejectActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) 
 		return act, errors.NotValidf("Missing actor for %s Activity", act.Type)
 	}
 
-	errs := make(multi, 0)
+	errs := make([]error, 0)
 	if colSaver, ok := l.(CollectionStore); ok {
 		inbox := vocab.Inbox.IRI(act.Actor)
 		err := colSaver.RemoveFrom(inbox, act.Object.GetLink())
@@ -209,10 +184,7 @@ func RejectActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) 
 			errs = append(errs, err)
 		}
 	}
-	if len(errs) > 0 {
-		return act, errs
-	}
-	return act, nil
+	return act, errors.Join(errs...)
 }
 
 const BlockedCollection = vocab.CollectionPath("blocked")
