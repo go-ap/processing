@@ -1,6 +1,9 @@
 package processing
 
-import vocab "github.com/go-ap/activitypub"
+import (
+	vocab "github.com/go-ap/activitypub"
+	"github.com/go-ap/errors"
+)
 
 // ValidateClientNotificationActivity
 func (p P) ValidateClientNotificationActivity(act *vocab.Activity) error {
@@ -14,6 +17,22 @@ func (p P) ValidateClientNotificationActivity(act *vocab.Activity) error {
 		act.Object = ob
 	}
 	return nil
+}
+
+func collectionFromItem(it vocab.Item) vocab.ItemCollection {
+	if vocab.IsNil(it) {
+		return nil
+	}
+
+	var result vocab.ItemCollection
+	if !vocab.IsItemCollection(it) {
+		result = vocab.ItemCollection{it}
+	}
+	_ = vocab.OnItemCollection(it, func(col *vocab.ItemCollection) error {
+		result = *col
+		return nil
+	})
+	return result
 }
 
 // NotificationActivity processes matching activities
@@ -39,8 +58,26 @@ func (p P) NotificationActivity(act *vocab.Activity) (*vocab.Activity, error) {
 		// NOTE(marius): we ignore not local objects
 		return act, nil
 	}
+
+	saveToCollections := func(objects ...vocab.Item) error {
+		errs := make([]error, 0, len(objects))
+		colToAdd := make(map[vocab.IRI][]vocab.IRI)
+		for _, object := range objects {
+			likes := vocab.Shares.IRI(object)
+			colToAdd[likes] = append(colToAdd[likes], act.GetLink())
+		}
+		for col, iris := range colToAdd {
+			for _, iri := range iris {
+				if err := p.AddItemToCollection(col, iri); err != nil {
+					errs = append(errs, errors.Annotatef(err, "Unable to save %s to collection %s", iris, col))
+				}
+			}
+		}
+		return errors.Join(errs...)
+	}
+
 	// NOTE(marius): we add the activity to the object's shares collection
-	return act, p.AddItemToCollection(vocab.Shares.IRI(act.Object), act)
+	return act, saveToCollections(collectionFromItem(act.Object)...)
 }
 
 func (p P) UndoAnnounceActivity(act *vocab.Activity) (*vocab.Activity, error) {
