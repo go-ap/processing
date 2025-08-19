@@ -40,8 +40,7 @@ func (p P) NotificationActivity(act *vocab.Activity) (*vocab.Activity, error) {
 		return act, nil
 	}
 	// NOTE(marius): we add the activity to the object's shares collection
-	err := p.s.AddTo(vocab.Shares.Of(act.Object).GetLink(), act)
-	return act, err
+	return act, p.AddItemToCollection(vocab.Shares.IRI(act.Object), act)
 }
 
 func (p P) UndoAnnounceActivity(act *vocab.Activity) (*vocab.Activity, error) {
