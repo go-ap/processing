@@ -1,6 +1,6 @@
 module github.com/go-ap/processing
 
-go 1.24
+go 1.24.0
 
 toolchain go1.24.4
 
@@ -10,7 +10,7 @@ require (
 	github.com/go-ap/activitypub v0.0.0-20250905102448-e9df599e4528
 	github.com/go-ap/client v0.0.0-20250905102653-674f86aded3d
 	github.com/go-ap/errors v0.0.0-20250905102357-4480b47a00c4
-	github.com/go-ap/filters v0.0.0-20250905102619-f401bfda17dc
+	github.com/go-ap/filters v0.0.0-20250909130221-883df1a722e4
 	github.com/go-ap/jsonld v0.0.0-20250905102310-8480b0fe24d9
 )
 
@@ -31,9 +31,9 @@ require (
 	github.com/rs/zerolog v1.34.0 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/valyala/fastjson v1.6.4 // indirect
-	golang.org/x/crypto v0.41.0 // indirect
-	golang.org/x/oauth2 v0.30.0 // indirect
-	golang.org/x/sys v0.35.0 // indirect
-	golang.org/x/text v0.28.0 // indirect
+	golang.org/x/crypto v0.42.0 // indirect
+	golang.org/x/oauth2 v0.31.0 // indirect
+	golang.org/x/sys v0.36.0 // indirect
+	golang.org/x/text v0.29.0 // indirect
 	gopkg.in/neurosnap/sentences.v1 v1.0.7 // indirect
 )
