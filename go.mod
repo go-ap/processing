@@ -1,16 +1,14 @@
 module github.com/go-ap/processing
 
-go 1.24.0
-
-toolchain go1.24.4
+go 1.25
 
 require (
 	git.sr.ht/~mariusor/lw v0.0.0-20250325163623-1639f3fb0e0d
-	git.sr.ht/~mariusor/ssm v0.0.0-20250617180832-c3c0db41a98e
-	github.com/go-ap/activitypub v0.0.0-20250905102448-e9df599e4528
-	github.com/go-ap/client v0.0.0-20250905102653-674f86aded3d
+	git.sr.ht/~mariusor/ssm v0.0.0-20250920150353-cc21fa885fda
+	github.com/go-ap/activitypub v0.0.0-20250924114144-2429ef373dc3
+	github.com/go-ap/client v0.0.0-20250924114747-60d900e2a785
 	github.com/go-ap/errors v0.0.0-20250905102357-4480b47a00c4
-	github.com/go-ap/filters v0.0.0-20250909130221-883df1a722e4
+	github.com/go-ap/filters v0.0.0-20250924114310-9ddada298f9d
 	github.com/go-ap/jsonld v0.0.0-20250905102310-8480b0fe24d9
 )
 
