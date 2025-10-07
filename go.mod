@@ -5,10 +5,10 @@ go 1.25
 require (
 	git.sr.ht/~mariusor/lw v0.0.0-20250325163623-1639f3fb0e0d
 	git.sr.ht/~mariusor/ssm v0.0.0-20250920150353-cc21fa885fda
-	github.com/go-ap/activitypub v0.0.0-20251001083933-784b40c638ca
-	github.com/go-ap/client v0.0.0-20251003135455-d90c287a7868
+	github.com/go-ap/activitypub v0.0.0-20251007131428-e3b22fbf6257
+	github.com/go-ap/client v0.0.0-20251007131736-f7a8f55835c9
 	github.com/go-ap/errors v0.0.0-20250905102357-4480b47a00c4
-	github.com/go-ap/filters v0.0.0-20251003135225-aafe07461701
+	github.com/go-ap/filters v0.0.0-20251007131616-3481286d74d2
 	github.com/go-ap/jsonld v0.0.0-20250905102310-8480b0fe24d9
 )
 

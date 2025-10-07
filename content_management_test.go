@@ -235,9 +235,21 @@ func Test_updateUpdateActivityObject(t *testing.T) {
 	}
 }
 
-var defaultActor = &vocab.Actor{
-	ID: vocab.IRI("https://example.com/user/jdoe"),
-}
+var (
+	defaultActorID = vocab.IRI("https://jdoe.example.com")
+
+	defaultActor = &vocab.Actor{
+		ID:        defaultActorID,
+		Name:      vocab.NaturalLanguageValuesNew(vocab.DefaultLangRef("John Doe")),
+		Likes:     vocab.IRIf(defaultActorID, vocab.Likes),
+		Shares:    vocab.IRIf(defaultActorID, vocab.Shares),
+		Inbox:     vocab.IRIf(defaultActorID, vocab.Inbox),
+		Outbox:    vocab.IRIf(defaultActorID, vocab.Outbox),
+		Following: vocab.IRIf(defaultActorID, vocab.Following),
+		Followers: vocab.IRIf(defaultActorID, vocab.Followers),
+		Liked:     vocab.IRIf(defaultActorID, vocab.Liked),
+	}
+)
 
 func Test_defaultIDGenerator(t *testing.T) {
 	var publishedAt = time.Now()

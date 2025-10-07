@@ -310,12 +310,12 @@ func ValidateClientContentManagementActivity(l ReadStore, act *vocab.Activity) e
 		switch act.Type {
 		case vocab.UpdateType:
 			if vocab.ActivityTypes.Contains(ob.GetType()) {
-				return errors.Newf("trying to update an immutable activity")
+				return errors.BadRequestf("trying to update an immutable activity")
 			}
 			fallthrough
 		case vocab.DeleteType:
 			if len(ob.GetLink()) == 0 {
-				return errors.Newf("empty object id for %s activity", act.Type)
+				return errors.BadRequestf("empty object id for %s activity", act.Type)
 			}
 			if ob.IsLink() {
 				return nil

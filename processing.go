@@ -262,13 +262,11 @@ func (p *P) CollectionManagementActivity(act *vocab.Activity) (*vocab.Activity, 
 	}
 	switch act.Type {
 	case vocab.AddType:
+		return p.AddActivity(act)
 	case vocab.MoveType:
-		// NOTE(marius): for the special case of the Move activity having its Object being identical to the Origin
-		// we consider that to be an Update of that object to the Move activity's Target.
-		if act.Object.GetLink().Equals(act.Origin.GetLink(), true) {
-			return p.ObjectMoveActivity(act)
-		}
+		return p.MoveActivity(act)
 	case vocab.RemoveType:
+		return p.RemoveActivity(act)
 	default:
 		return nil, errors.NotValidf("Invalid type %s", act.GetType())
 	}
