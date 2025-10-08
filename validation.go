@@ -276,7 +276,7 @@ func (p P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab
 			} else if vocab.CollectionManagementActivityTypes.Contains(act.GetType()) {
 				err = ValidateClientCollectionManagementActivity(p.s, act)
 			} else if vocab.ReactionsActivityTypes.Contains(act.GetType()) {
-				err = ValidateClientReactionsActivity(p.s, act)
+				err = p.ValidateClientReactionsActivity(p.s, act)
 			} else if vocab.EventRSVPActivityTypes.Contains(act.GetType()) {
 				err = ValidateClientEventRSVPActivity(p.s, act)
 			} else if vocab.GroupManagementActivityTypes.Contains(act.GetType()) {
@@ -345,7 +345,7 @@ func ValidateClientCollectionManagementActivity(l ReadStore, act *vocab.Activity
 }
 
 // ValidateClientReactionsActivity
-func ValidateClientReactionsActivity(l ReadStore, act *vocab.Activity) error {
+func (p *P) ValidateClientReactionsActivity(l ReadStore, act *vocab.Activity) error {
 	if act.Object != nil {
 		switch act.Type {
 		case vocab.DislikeType:
@@ -355,7 +355,7 @@ func ValidateClientReactionsActivity(l ReadStore, act *vocab.Activity) error {
 		case vocab.RejectType, vocab.TentativeRejectType:
 			return ValidateClientRejectActivity(l, act)
 		case vocab.TentativeAcceptType, vocab.AcceptType:
-			return ValidateClientAcceptActivity(l, act)
+			return p.ValidateClientAcceptActivity(l, act)
 		case vocab.BlockType:
 			//return ValidateBlockActivity(l, act)
 		case vocab.FlagType:
@@ -369,9 +369,12 @@ func ValidateClientReactionsActivity(l ReadStore, act *vocab.Activity) error {
 }
 
 // ValidateClientAcceptActivity
-func ValidateClientAcceptActivity(l ReadStore, act *vocab.Activity) error {
+func (p *P) ValidateClientAcceptActivity(l ReadStore, act *vocab.Activity) error {
 	if err := ValidateAcceptActivity(l, act); err != nil {
 		return err
+	}
+	if vocab.IsIRI(act.Object) {
+		return nil
 	}
 	return vocab.OnActivity(act.Object, func(follow *vocab.Activity) error {
 		if follow.GetType() != vocab.FollowType {
@@ -558,7 +561,7 @@ func (p P) ValidateClientObject(o vocab.Item) (vocab.Item, error) {
 	if vocab.IsNil(o) {
 		return nil, InvalidActivityObject("is nil")
 	}
-	return p.DereferenceItem(o)
+	return o, nil
 }
 
 func (p P) ValidateServerObject(o vocab.Item) (vocab.Item, error) {
