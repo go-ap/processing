@@ -177,14 +177,14 @@ func (p P) AddItemToCollection(col vocab.IRI, it vocab.Item) error {
 			}
 		}
 	}
-	if err := p.s.AddTo(col, it); err != nil {
-		p.l.WithContext(lw.Ctx{"err": err.Error(), "col": col.GetLink(), "it": it.GetLink()}).Warnf("unable to add object to collection")
+	err := p.s.AddTo(col, it)
+	if err != nil {
 		if errors.IsConflict(err) {
-			err = nil
+			return nil
 		}
-		return err
+		p.l.WithContext(lw.Ctx{"err": err.Error(), "col": col.GetLink(), "it": it.GetLink()}).Warnf("unable to add object to collection")
 	}
-	return nil
+	return err
 }
 
 func disseminateActivityObjectToLocalReplyToCollections(p P, act *vocab.Activity) error {
