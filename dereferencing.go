@@ -11,16 +11,17 @@ import (
 //
 // If the IRI can't be loaded we return it together with an error that can be logged.
 func (p P) dereferenceIRI(iri vocab.IRI) (maybeFull vocab.Item, err error) {
-	if p.IsLocalIRI(iri) {
-		if maybeFull, err = p.s.Load(iri); err != nil {
-			maybeFull = iri
-			err = errors.Annotatef(err, "unable to load IRI from local storage")
-		}
-	} else {
+	maybeFull, err = p.s.Load(iri)
+	if err != nil {
+		err = errors.Annotatef(err, "unable to load IRI from local storage")
+	}
+	if !p.IsLocalIRI(iri) && vocab.IsNil(maybeFull) {
 		if maybeFull, err = p.c.LoadIRI(iri); err != nil {
-			maybeFull = iri
 			err = errors.Annotatef(err, "unable to fetch remote IRI")
 		}
+	}
+	if vocab.IsNil(maybeFull) {
+		maybeFull = iri
 	}
 	return maybeFull, err
 }
