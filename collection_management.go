@@ -71,13 +71,17 @@ func (p *P) RemoveActivity(remove *vocab.Activity) (*vocab.Activity, error) {
 // MoveActivity Indicates that the actor has moved object from origin to target.
 // If the origin or target are not specified, either can be determined by context.
 func (p *P) MoveActivity(move *vocab.Activity) (*vocab.Activity, error) {
+	if vocab.IsNil(move) {
+		return nil, InvalidActivity("nil Move activity")
+	}
+
 	// NOTE(marius): for the special case of the Move activity having its Object being identical to the Origin
 	// we consider that to be an Update of that object to the Move activity's Target.
 	if vocab.ItemsEqual(move.Object, move.Origin) {
 		return p.UpdateObjectID(move)
 	}
 
-	originCol, err := p.s.Load(move.Origin.GetLink())
+	originCol, err := p.DereferenceItem(move.Origin)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +100,7 @@ func (p *P) MoveActivity(move *vocab.Activity) (*vocab.Activity, error) {
 		return nil, err
 	}
 
-	targetCol, err := p.s.Load(move.Target.GetLink())
+	targetCol, err := p.DereferenceItem(move.Target)
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +133,7 @@ func (p *P) UpdateObjectID(move *vocab.Activity) (*vocab.Activity, error) {
 		return nil, ValidationError(fmt.Sprintf("Origin is not valid: is nil"))
 	}
 
-	object, err := p.s.Load(move.Object.GetLink())
+	object, err := p.DereferenceItem(move.Object)
 	if err != nil {
 		return nil, ValidationError(fmt.Sprintf("Move Object wasn't available in local storage"))
 	}

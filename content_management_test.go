@@ -121,7 +121,6 @@ func Test_getCollection(t *testing.T) {
 }
 
 func Test_updateCreateActivityObject(t *testing.T) {
-
 	type args struct {
 		o   vocab.Item
 		act *vocab.Activity

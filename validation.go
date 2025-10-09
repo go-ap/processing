@@ -276,7 +276,7 @@ func (p P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab
 			} else if vocab.CollectionManagementActivityTypes.Contains(act.GetType()) {
 				err = ValidateClientCollectionManagementActivity(p.s, act)
 			} else if vocab.ReactionsActivityTypes.Contains(act.GetType()) {
-				err = p.ValidateClientReactionsActivity(p.s, act)
+				err = p.ValidateClientReactionsActivity(act)
 			} else if vocab.EventRSVPActivityTypes.Contains(act.GetType()) {
 				err = ValidateClientEventRSVPActivity(p.s, act)
 			} else if vocab.GroupManagementActivityTypes.Contains(act.GetType()) {
@@ -345,7 +345,7 @@ func ValidateClientCollectionManagementActivity(l ReadStore, act *vocab.Activity
 }
 
 // ValidateClientReactionsActivity
-func (p *P) ValidateClientReactionsActivity(l ReadStore, act *vocab.Activity) error {
+func (p *P) ValidateClientReactionsActivity(act *vocab.Activity) error {
 	if act.Object != nil {
 		switch act.Type {
 		case vocab.DislikeType:
@@ -353,9 +353,9 @@ func (p *P) ValidateClientReactionsActivity(l ReadStore, act *vocab.Activity) er
 		case vocab.LikeType:
 			//return ValidateAppreciationActivity(l, act)
 		case vocab.RejectType, vocab.TentativeRejectType:
-			return ValidateClientRejectActivity(l, act)
+			return p.ValidateClientRejectActivity(act)
 		case vocab.TentativeAcceptType, vocab.AcceptType:
-			return p.ValidateClientAcceptActivity(l, act)
+			return p.ValidateClientAcceptActivity(act)
 		case vocab.BlockType:
 			//return ValidateBlockActivity(l, act)
 		case vocab.FlagType:
@@ -369,8 +369,8 @@ func (p *P) ValidateClientReactionsActivity(l ReadStore, act *vocab.Activity) er
 }
 
 // ValidateClientAcceptActivity
-func (p *P) ValidateClientAcceptActivity(l ReadStore, act *vocab.Activity) error {
-	if err := ValidateAcceptActivity(l, act); err != nil {
+func (p *P) ValidateClientAcceptActivity(act *vocab.Activity) error {
+	if err := ValidateAcceptActivity(p.s, act); err != nil {
 		return err
 	}
 	if vocab.IsIRI(act.Object) {
@@ -402,8 +402,8 @@ func ValidateAcceptActivity(l ReadStore, act *vocab.Activity) error {
 }
 
 // ValidateClientRejectActivity
-func ValidateClientRejectActivity(l ReadStore, act *vocab.Activity) error {
-	if err := ValidateRejectActivity(l, act); err != nil {
+func (p *P) ValidateClientRejectActivity(act *vocab.Activity) error {
+	if err := p.ValidateRejectActivity(act); err != nil {
 		return err
 	}
 
@@ -424,7 +424,7 @@ func ValidateClientRejectActivity(l ReadStore, act *vocab.Activity) error {
 }
 
 // ValidateRejectActivity
-func ValidateRejectActivity(l ReadStore, act *vocab.Activity) error {
+func (p *P) ValidateRejectActivity(act *vocab.Activity) error {
 	good := vocab.ActivityVocabularyTypes{vocab.RejectType, vocab.TentativeRejectType}
 	if !good.Contains(act.Type) {
 		return errors.NotValidf("Activity has wrong type %s, expected %v", act.Type, good)

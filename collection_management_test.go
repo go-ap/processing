@@ -240,3 +240,109 @@ func TestP_RemoveActivity(t *testing.T) {
 		})
 	}
 }
+
+func TestP_MoveActivity(t *testing.T) {
+	tests := []struct {
+		name    string
+		base    vocab.IRI
+		remove  *vocab.Activity
+		items   vocab.ItemCollection
+		want    *vocab.Activity
+		wantErr error
+	}{
+		{
+			name:    "empty",
+			base:    "https://example.local",
+			wantErr: InvalidActivity("nil Move activity"),
+		},
+		{
+			name:  "move jdoe from followers to following",
+			base:  "https://jdoe.example.local",
+			items: vocab.ItemCollection{&vocab.Actor{ID: "https://jdoe.example.com"}},
+			remove: &vocab.Activity{
+				Origin: vocab.IRI("https://jdoe.example.com/followers"),
+				Target: vocab.IRI("https://jdoe.example.com/following"),
+				Object: vocab.IRI("https://jdoe.example.com"),
+			},
+			want: &vocab.Activity{
+				Origin: vocab.IRI("https://jdoe.example.com/followers"),
+				Target: vocab.IRI("https://jdoe.example.com/following"),
+				Object: vocab.IRI("https://jdoe.example.com"),
+			},
+		},
+		{
+			name: "move random object from inbox to outbox",
+			base: "https://jdoe.example.local",
+			items: vocab.ItemCollection{
+				&vocab.Object{ID: "https://example.com", Type: vocab.ProfileType, Content: vocab.NaturalLanguageValuesNew(vocab.DefaultLangRef("test"))},
+			},
+			remove: &vocab.Activity{
+				Origin: vocab.IRI("https://jdoe.example.com/inbox"),
+				Target: vocab.IRI("https://jdoe.example.com/outbox"),
+				Object: vocab.IRI("https://example.com"),
+			},
+			want: &vocab.Activity{
+				Origin: vocab.IRI("https://jdoe.example.com/inbox"),
+				Target: vocab.IRI("https://jdoe.example.com/outbox"),
+				Object: vocab.IRI("https://example.com"),
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := mockProcessor(t, tt.base)
+			// NOTE(marius): add items to origin collection
+			for _, it := range tt.items {
+				_ = p.s.AddTo(tt.remove.Origin.GetLink(), it)
+			}
+
+			got, err := p.MoveActivity(tt.remove)
+			if (err != nil) && !errors.Is(tt.wantErr, err) {
+				t.Errorf("MoveActivity() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !vocab.ItemsEqual(got, tt.want) {
+				t.Errorf("MoveActivity() got = %v, want %v", got, tt.want)
+			}
+			if vocab.IsNil(got) {
+				return
+			}
+			_ = vocab.OnItem(got.Origin, func(orig vocab.Item) error {
+				col, err := p.s.Load(orig.GetLink())
+				if err != nil {
+					t.Errorf("MoveActivity() unable to load origin form storage: %v", err)
+					return nil
+				}
+				origin, ok := col.(vocab.CollectionInterface)
+				if !ok {
+					t.Errorf("MoveActivity() got Activity %T origin %T is not %T", got, orig, vocab.CollectionInterface(nil))
+					return nil
+				}
+				return vocab.OnItem(got.Object, func(item vocab.Item) error {
+					if origin.Contains(item) {
+						t.Errorf("MoveActivity() got Activity %T object %s still exists origin %#v", got, item.GetLink(), orig)
+					}
+					return nil
+				})
+			})
+			_ = vocab.OnItem(got.Target, func(tgt vocab.Item) error {
+				col, err := p.s.Load(tgt.GetLink())
+				if err != nil {
+					t.Errorf("MoveActivity() unable to load target form storage: %v", err)
+					return nil
+				}
+				target, ok := col.(vocab.CollectionInterface)
+				if !ok {
+					t.Errorf("MoveActivity() got Activity %T target %T is not %T", got, tgt, vocab.CollectionInterface(nil))
+					return nil
+				}
+				return vocab.OnItem(got.Object, func(item vocab.Item) error {
+					if !target.Contains(item) {
+						t.Errorf("MoveActivity() got Activity %T object %s can't be found in target %#v", got, item.GetLink(), tgt)
+					}
+					return nil
+				})
+			})
+		})
+	}
+}

@@ -54,8 +54,8 @@ func aggregateIRIs(toDeref *vocab.IRIs, toKeep *vocab.ItemCollection) func(col v
 }
 
 // DereferenceItem checks if the received argument needs dereferencing, or normalization in the case of collections.
-// It can be used in the calling code to ensure that before operating on an item, we dereference and normalize it to
-// an ActivityPub object, or slice of dereferenced objects.
+// It can be used in the calling code to ensure that before operating on an item, we dereference and de-normalize it
+// to an ActivityPub object, or slice of dereferenced objects.
 //
 // The method does nothing when encountering IRIs which can not be dereferenced.
 // We would normally log these entries but otherwise leave them alone.
