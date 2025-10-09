@@ -178,11 +178,11 @@ func TestP_RemoveActivity(t *testing.T) {
 			base:  "https://jdoe.example.local",
 			items: vocab.ItemCollection{&vocab.Actor{ID: "https://jdoe.example.com"}},
 			remove: &vocab.Activity{
-				Target: vocab.IRI("https://jdoe.example.com/followers"),
+				Origin: vocab.IRI("https://jdoe.example.com/followers"),
 				Object: vocab.IRI("https://jdoe.example.com"),
 			},
 			want: &vocab.Activity{
-				Target: vocab.IRI("https://jdoe.example.com/followers"),
+				Origin: vocab.IRI("https://jdoe.example.com/followers"),
 				Object: vocab.IRI("https://jdoe.example.com"),
 			},
 		},
@@ -191,11 +191,24 @@ func TestP_RemoveActivity(t *testing.T) {
 			base:  "https://jdoe.example.local",
 			items: vocab.ItemCollection{&vocab.Object{ID: "https://example.com", Type: vocab.ProfileType, Content: vocab.NaturalLanguageValuesNew(vocab.DefaultLangRef("test"))}},
 			remove: &vocab.Activity{
-				Target: vocab.IRI("https://jdoe.example.com/inbox"),
+				Origin: vocab.IRI("https://jdoe.example.com/inbox"),
 				Object: vocab.IRI("https://example.com"),
 			},
 			want: &vocab.Activity{
-				Target: vocab.IRI("https://jdoe.example.com/inbox"),
+				Origin: vocab.IRI("https://jdoe.example.com/inbox"),
+				Object: vocab.IRI("https://example.com"),
+			},
+		},
+		{
+			name:  "try to remove inexistent object from outbox",
+			base:  "https://jdoe.example.local",
+			items: vocab.ItemCollection{},
+			remove: &vocab.Activity{
+				Origin: vocab.IRI("https://jdoe.example.com/inbox"),
+				Object: vocab.IRI("https://example.com"),
+			},
+			want: &vocab.Activity{
+				Origin: vocab.IRI("https://jdoe.example.com/inbox"),
 				Object: vocab.IRI("https://example.com"),
 			},
 		},
@@ -205,7 +218,7 @@ func TestP_RemoveActivity(t *testing.T) {
 			p := mockProcessor(t, tt.base)
 			// NOTE(marius): add items to collection
 			for _, it := range tt.items {
-				_ = p.s.AddTo(tt.remove.Target.GetLink(), it)
+				_ = p.s.AddTo(tt.remove.Origin.GetLink(), it)
 			}
 
 			got, err := p.RemoveActivity(tt.remove)
@@ -276,6 +289,21 @@ func TestP_MoveActivity(t *testing.T) {
 			items: vocab.ItemCollection{
 				&vocab.Object{ID: "https://example.com", Type: vocab.ProfileType, Content: vocab.NaturalLanguageValuesNew(vocab.DefaultLangRef("test"))},
 			},
+			remove: &vocab.Activity{
+				Origin: vocab.IRI("https://jdoe.example.com/inbox"),
+				Target: vocab.IRI("https://jdoe.example.com/outbox"),
+				Object: vocab.IRI("https://example.com"),
+			},
+			want: &vocab.Activity{
+				Origin: vocab.IRI("https://jdoe.example.com/inbox"),
+				Target: vocab.IRI("https://jdoe.example.com/outbox"),
+				Object: vocab.IRI("https://example.com"),
+			},
+		},
+		{
+			name:  "try to move inexistent object from inbox to outbox",
+			base:  "https://jdoe.example.local",
+			items: vocab.ItemCollection{},
 			remove: &vocab.Activity{
 				Origin: vocab.IRI("https://jdoe.example.com/inbox"),
 				Target: vocab.IRI("https://jdoe.example.com/outbox"),

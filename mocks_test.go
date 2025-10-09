@@ -78,11 +78,11 @@ func (m mockStore) RemoveFrom(col vocab.IRI, it vocab.Item) error {
 	if vocab.IsNil(col) {
 		return errors.Newf("unable to remove from nil collection")
 	}
-	it, err := m.Load(col.GetLink())
+	maybeCol, err := m.Load(col.GetLink())
 	if err != nil {
 		return err
 	}
-	cc, ok := it.(vocab.CollectionInterface)
+	cc, ok := maybeCol.(vocab.CollectionInterface)
 	if !ok {
 		return errors.Newf("object of invalid type %T loaded for %s", it, col.GetLink())
 	}
