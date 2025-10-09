@@ -10,7 +10,6 @@ import (
 
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
-	"github.com/go-ap/filters"
 )
 
 type Validator interface {
@@ -524,27 +523,12 @@ func (p P) ValidateActor(a vocab.Item, expected vocab.Actor) (vocab.Item, error)
 	if vocab.IsNil(a) {
 		return a, InvalidActivityActor("is nil")
 	}
-	if a.IsLink() {
-		iri := a.GetLink()
-		err := p.ValidateIRI(iri)
-		if err != nil {
-			return a, err
-		}
-		var loadFn = p.s.Load
-		if !p.IsLocalIRI(iri) {
-			loadFn = func(iri vocab.IRI, _ ...filters.Check) (vocab.Item, error) {
-				return p.c.LoadIRI(iri)
-			}
-		}
-		if a, err = loadFn(iri); err != nil {
-			return a, err
-		}
-	} else {
-		if vocab.IsNil(a) {
-			return a, errors.NotFoundf("Invalid actor")
-		}
+
+	var err error
+	if a, err = p.DereferenceItem(a); err != nil {
+		return a, err
 	}
-	err := vocab.OnActor(a, func(act *vocab.Actor) error {
+	err = vocab.OnActor(a, func(act *vocab.Actor) error {
 		a = act
 		if !vocab.ActorTypes.Contains(act.GetType()) {
 			return InvalidActivityActor("invalid type %s", act.GetType())
