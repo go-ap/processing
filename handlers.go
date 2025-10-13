@@ -74,11 +74,11 @@ func (a ActivityHandlerFn) ValidateRequest(r *http.Request) (int, error) {
 }
 
 func reqIRI(r *http.Request) vocab.IRI {
-	proto := "https"
-	if r.TLS == nil {
-		proto = "http"
-	}
-	return vocab.IRI(fmt.Sprintf("%s://%s%s", proto, r.Host, r.RequestURI))
+	ss := strings.Builder{}
+	ss.WriteString("https://")
+	ss.WriteString(r.Host)
+	ss.WriteString(r.RequestURI)
+	return vocab.IRI(ss.String())
 }
 
 // ServeHTTP implements the http.Handler interface for the ActivityHandlerFn type
@@ -138,7 +138,7 @@ func (a ActivityHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		dat, _ = vocab.MarshalJSON(it)
 	}
 	w.WriteHeader(status)
-	w.Write(dat)
+	_, _ = w.Write(dat)
 }
 
 // CollectionHandlerFn is the type that we're using to represent handlers that will return ActivityStreams
