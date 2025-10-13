@@ -65,11 +65,13 @@ func (p P) disseminateToRemoteCollections(it vocab.Item, iris ...vocab.IRI) erro
 			continue
 		}
 
+		currentRetry := 0
 		state := retryFn(func(ctx context.Context) ssm.Fn {
 			// NOTE(marius): we expect that the client has already been set up for being able to POST requests
 			// to remote servers. This means that it has been constructed using a HTTP client that includes
 			// an HTTP-Signature RoundTripper.
-			ll := p.l.WithContext(lw.Ctx{"to": col})
+			defer func() { currentRetry += 1 }()
+			ll := p.l.WithContext(lw.Ctx{"to": col, "retry": currentRetry})
 			if _, _, err := p.c.ToCollection(col, it); err != nil {
 				ll.Warnf("Unable to disseminate activity %s", err)
 				switch {
