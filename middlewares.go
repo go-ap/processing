@@ -25,7 +25,7 @@ func RequestToDiskMw(outPath string, checkDebugEnabledFn func() bool) func(next 
 			})
 		}
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			fullPath := filepath.Join(outPath, r.Host+strings.ReplaceAll(r.URL.Path, "/", "-")+"-"+time.Now().UTC().Format(time.RFC3339)+".req")
+			fullPath := filepath.Join(outPath, r.Host+strings.ReplaceAll(r.RequestURI, "/", "-")+"-"+time.Now().UTC().Format(time.RFC3339)+".req")
 			ff, err := os.OpenFile(fullPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 			if err != nil {
 				next.ServeHTTP(w, r)
@@ -34,6 +34,10 @@ func RequestToDiskMw(outPath string, checkDebugEnabledFn func() bool) func(next 
 			r2 := cloneRequest(r, ff)
 			defer r.Body.Close()
 
+			_, _ = ff.WriteString(r.Method)
+			_, _ = ff.WriteString(" ")
+			_, _ = ff.WriteString(r.URL.String())
+			_, _ = ff.WriteString("\n")
 			if len(r.Header) > 0 {
 				_ = r.Header.Write(ff)
 				_, _ = ff.WriteString("\n\n")
