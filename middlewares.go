@@ -14,17 +14,13 @@ func RequestToDiskMw(outPath string) func(next http.Handler) http.Handler {
 	noop := func(next http.Handler) http.Handler {
 		return next
 	}
-	// NOTE(marius): if the outPath is not accessible or we're not a development build, we NOOP.
-	if !IsDev {
-		return noop
-	}
 	if _, err := os.Stat(outPath); err != nil {
 		return noop
 	}
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			fullPath := filepath.Join(outPath, r.Host+strings.Replace(r.URL.Path, "/", "-", -1)+"-"+time.Now().UTC().Format(time.RFC3339)+".req")
+			fullPath := filepath.Join(outPath, r.Host+strings.ReplaceAll(r.URL.Path, "/", "-")+"-"+time.Now().UTC().Format(time.RFC3339)+".req")
 			ff, err := os.OpenFile(fullPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 			if err != nil {
 				next.ServeHTTP(w, r)
