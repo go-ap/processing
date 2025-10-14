@@ -10,15 +10,20 @@ import (
 	"time"
 )
 
-func RequestToDiskMw(outPath string) func(next http.Handler) http.Handler {
-	noop := func(next http.Handler) http.Handler {
+func RequestToDiskMw(outPath string, checkDebugEnabledFn func() bool) func(next http.Handler) http.Handler {
+	noopMw := func(next http.Handler) http.Handler {
 		return next
 	}
 	if _, err := os.Stat(outPath); err != nil {
-		return noop
+		return noopMw
 	}
 
 	return func(next http.Handler) http.Handler {
+		if !checkDebugEnabledFn() {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				next.ServeHTTP(w, r)
+			})
+		}
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			fullPath := filepath.Join(outPath, r.Host+strings.ReplaceAll(r.URL.Path, "/", "-")+"-"+time.Now().UTC().Format(time.RFC3339)+".req")
 			ff, err := os.OpenFile(fullPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
