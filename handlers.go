@@ -74,11 +74,11 @@ func (a ActivityHandlerFn) ValidateRequest(r *http.Request) (int, error) {
 }
 
 func reqIRI(r *http.Request) vocab.IRI {
-	ss := strings.Builder{}
-	ss.WriteString("https://")
-	ss.WriteString(r.Host)
-	ss.WriteString(r.RequestURI)
-	return vocab.IRI(ss.String())
+	proto := "https"
+	if r.TLS == nil {
+		proto = "http"
+	}
+	return vocab.IRI(fmt.Sprintf("%s://%s%s", proto, r.Host, r.RequestURI))
 }
 
 // ServeHTTP implements the http.Handler interface for the ActivityHandlerFn type
