@@ -19,12 +19,11 @@ func RequestToDiskMw(outPath string, checkDebugEnabledFn func() bool) func(next 
 	}
 
 	return func(next http.Handler) http.Handler {
-		if !checkDebugEnabledFn() {
-			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				next.ServeHTTP(w, r)
-			})
-		}
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if !checkDebugEnabledFn() {
+				next.ServeHTTP(w, r)
+				return
+			}
 			fullPath := filepath.Join(outPath, r.Host+strings.ReplaceAll(r.RequestURI, "/", "-")+"-"+time.Now().UTC().Format(time.RFC3339)+".req")
 			ff, err := os.OpenFile(fullPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 			if err != nil {
