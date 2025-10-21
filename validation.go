@@ -175,9 +175,9 @@ func IRIBelongsToActor(iri vocab.IRI, actor vocab.Actor) bool {
 	return false
 }
 
-func name(a *vocab.Actor) vocab.LangRefValue {
+func name(a *vocab.Actor) vocab.Content {
 	if a == nil {
-		return vocab.LangRefValue{}
+		return nil
 	}
 	if len(a.Name) > 0 {
 		return a.Name.First()
@@ -185,7 +185,7 @@ func name(a *vocab.Actor) vocab.LangRefValue {
 	if len(a.PreferredUsername) > 0 {
 		return a.PreferredUsername.First()
 	}
-	return vocab.LangRefValue{Value: vocab.Content(filepath.Base(string(a.ID)))}
+	return vocab.Content(filepath.Base(string(a.ID)))
 }
 
 func (p P) ValidateActivity(a vocab.Item, author vocab.Actor, receivedIn vocab.IRI) error {
