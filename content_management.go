@@ -39,10 +39,10 @@ func emptyIDGenerator(it vocab.Item, col vocab.Item, maybeCreate vocab.Item) (vo
 	if !vocab.IsNil(col) {
 		id = col.GetLink().AddPath(timeIDFn(when))
 	}
-	if id.Equals(vocab.NilID, true) && !vocab.IsNil(maybeCreate) {
+	if id.Equal(vocab.NilID, true) && !vocab.IsNil(maybeCreate) {
 		id = maybeCreate.GetLink().AddPath(timeIDFn(when))
 	}
-	if id.Equals(vocab.NilID, true) {
+	if id.Equal(vocab.NilID, true) {
 		return id, errors.Newf("unable to generate ID, both the storing collection and the generating activity are nil")
 	}
 	return id, vocab.OnObject(it, setID(id))

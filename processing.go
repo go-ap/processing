@@ -232,7 +232,7 @@ func loadSharedInboxRecipients(p P, sharedInbox vocab.IRI) vocab.ItemCollection 
 						if act.Endpoints == nil || act.Endpoints.SharedInbox == nil {
 							return nil
 						}
-						if sharedInbox.Equals(act.Endpoints.SharedInbox.GetLink(), false) && !actors.Contains(act.GetLink()) {
+						if sharedInbox.Equal(act.Endpoints.SharedInbox.GetLink(), false) && !actors.Contains(act.GetLink()) {
 							_ = actors.Append(actors)
 						}
 						return nil

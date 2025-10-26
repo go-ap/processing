@@ -251,14 +251,14 @@ func (p P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab.
 		// NOTE(marius): this is needed only for client to server interactions
 		actIRI := act.Actor.GetLink()
 
-		if !vocab.PublicNS.Equals(actIRI, true) {
+		if !vocab.PublicNS.Equal(actIRI, true) {
 			_ = allRecipients.Append(vocab.Outbox.IRI(actIRI))
 		}
 	}
 
 	for _, rec := range act.Recipients() {
 		recIRI := rec.GetLink()
-		if vocab.PublicNS.Equals(recIRI, true) {
+		if vocab.PublicNS.Equal(recIRI, true) {
 			// NOTE(marius): if the activity is addressed to the Public NS, we store it in the local service's inbox,
 			//  because we consider that to be the "sharedInbox" for the server.
 			// TODO(marius): We need an async mechanism to synchronize shared inboxes with the actors that use it.

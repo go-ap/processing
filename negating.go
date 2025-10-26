@@ -25,7 +25,7 @@ func (p P) ValidateClientNegatingActivity(act *vocab.Activity) error {
 		act.Object = ob
 	}
 	return vocab.OnActivity(act.Object, func(objAct *vocab.Activity) error {
-		if !act.Actor.GetLink().Equals(objAct.Actor.GetLink(), false) {
+		if !act.Actor.GetLink().Equal(objAct.Actor.GetLink(), false) {
 			return errors.NotValidf("The %s activity has a different actor than its object: %s, expected %s", act.Type, act.Actor.GetLink(), objAct.Actor.GetLink())
 		}
 		if !validUndoActivityTypes.Contains(objAct.Type) {

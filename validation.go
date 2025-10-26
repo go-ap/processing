@@ -90,7 +90,7 @@ func (p P) ValidateServerActivity(a vocab.Item, author vocab.Actor, inbox vocab.
 	if !IsInbox(inbox) {
 		return errors.NotValidf("Trying to validate a non inbox IRI %s", inbox)
 	}
-	if author.GetLink().Equals(vocab.PublicNS, true) {
+	if author.GetLink().Equal(vocab.PublicNS, true) {
 		// NOTE(marius): Should we use 403 Forbidden here?
 		return errors.Unauthorizedf("%s actor is not allowed posting to current inbox: %s", name(&author), inbox)
 	}
@@ -142,34 +142,34 @@ func IsInbox(i vocab.IRI) bool {
 
 // IRIBelongsToActor checks if the search iri represents any of the collections associated with the actor.
 func IRIBelongsToActor(iri vocab.IRI, actor vocab.Actor) bool {
-	if vocab.Inbox.IRI(actor).Equals(iri, false) {
+	if vocab.Inbox.IRI(actor).Equal(iri, false) {
 		return true
 	}
-	if vocab.Outbox.IRI(actor).Equals(iri, false) {
+	if vocab.Outbox.IRI(actor).Equal(iri, false) {
 		return true
 	}
 	// If it exists the sharedInbox IRI is a valid collection associated with the actor.
 	if actor.Endpoints != nil && actor.Endpoints.SharedInbox != nil {
-		return actor.Endpoints.SharedInbox.GetLink().Equals(iri, false)
+		return actor.Endpoints.SharedInbox.GetLink().Equal(iri, false)
 	}
 	// The following should not really come into question at any point.
 	// This function should be used for checking inbox/outbox/sharedInbox IRIS
-	if vocab.Following.IRI(actor).Equals(iri, false) {
+	if vocab.Following.IRI(actor).Equal(iri, false) {
 		return true
 	}
-	if vocab.Followers.IRI(actor).Equals(iri, false) {
+	if vocab.Followers.IRI(actor).Equal(iri, false) {
 		return true
 	}
-	if vocab.Replies.IRI(actor).Equals(iri, false) {
+	if vocab.Replies.IRI(actor).Equal(iri, false) {
 		return true
 	}
-	if vocab.Liked.IRI(actor).Equals(iri, false) {
+	if vocab.Liked.IRI(actor).Equal(iri, false) {
 		return true
 	}
-	if vocab.Shares.IRI(actor).Equals(iri, false) {
+	if vocab.Shares.IRI(actor).Equal(iri, false) {
 		return true
 	}
-	if vocab.Likes.IRI(actor).Equals(iri, false) {
+	if vocab.Likes.IRI(actor).Equal(iri, false) {
 		return true
 	}
 	return false
@@ -379,7 +379,7 @@ func (p *P) ValidateClientAcceptActivity(act *vocab.Activity) error {
 		if follow.GetType() != vocab.FollowType {
 			return errors.NotValidf("object Activity type %s is incorrect, expected %s", follow.Type, vocab.FollowType)
 		}
-		if !act.Actor.GetLink().Equals(follow.Object.GetLink(), false) {
+		if !act.Actor.GetLink().Equal(follow.Object.GetLink(), false) {
 			return errors.NotValidf(
 				"The %s activity has a different actor than the received %s's object: %s, expected %s",
 				act.Type, follow.Type,
@@ -410,7 +410,7 @@ func (p *P) ValidateClientRejectActivity(act *vocab.Activity) error {
 		if follow.GetType() != vocab.FollowType {
 			return errors.NotValidf("object Activity type %s is incorrect, expected %s", follow.Type, vocab.FollowType)
 		}
-		if !act.Actor.GetLink().Equals(follow.Object.GetLink(), false) {
+		if !act.Actor.GetLink().Equal(follow.Object.GetLink(), false) {
 			return errors.NotValidf(
 				"The %s activity has a different actor than the received %s's object: %s, expected %s",
 				act.Type, follow.Type,
@@ -506,7 +506,7 @@ func (p P) ValidateClientActor(a vocab.Item, expected vocab.Actor) (vocab.Item, 
 }
 
 func (p P) ValidateIRI(i vocab.IRI) error {
-	if i.Equals(vocab.PublicNS, false) {
+	if i.Equal(vocab.PublicNS, false) {
 		return InvalidIRI("Public namespace is not a valid IRI")
 	}
 	if _, err := i.URL(); err != nil {
@@ -533,7 +533,7 @@ func (p P) ValidateActor(a vocab.Item, expected vocab.Actor) (vocab.Item, error)
 		if !vocab.ActorTypes.Contains(act.GetType()) {
 			return InvalidActivityActor("invalid type %s", act.GetType())
 		}
-		if !expected.GetLink().Equals(act.GetLink(), false) {
+		if !expected.GetLink().Equal(act.GetLink(), false) {
 			return InvalidActivityActor("the actor doesn't match the authenticated one")
 		}
 		return nil
