@@ -29,9 +29,9 @@ type WriteStore interface {
 // CollectionStore allows operations on ActivityStreams collections
 type CollectionStore interface {
 	// Create creates the "col" collection.
-	Create(col vocab.CollectionInterface) (vocab.CollectionInterface, error)
+	Create(vocab.CollectionInterface) (vocab.CollectionInterface, error)
 	// AddTo adds "it" element to the "col" collection.
-	AddTo(col vocab.IRI, it vocab.Item) error
+	AddTo(vocab.IRI, ...vocab.Item) error
 	// RemoveFrom removes "it" item from "col" collection
-	RemoveFrom(col vocab.IRI, it vocab.Item) error
+	RemoveFrom(vocab.IRI, ...vocab.Item) error
 }

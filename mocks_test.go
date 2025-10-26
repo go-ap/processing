@@ -56,7 +56,7 @@ func (m mockStore) Create(col vocab.CollectionInterface) (vocab.CollectionInterf
 	return cc, nil
 }
 
-func (m mockStore) AddTo(col vocab.IRI, it vocab.Item) error {
+func (m mockStore) AddTo(col vocab.IRI, items ...vocab.Item) error {
 	if vocab.IsNil(col) {
 		return errors.Newf("unable to add to nil collection")
 	}
@@ -68,13 +68,13 @@ func (m mockStore) AddTo(col vocab.IRI, it vocab.Item) error {
 	if !ok {
 		return errors.Newf("object of invalid type %T loaded for %s", maybeCol, col.GetLink())
 	}
-	if err = cc.Append(it); err != nil {
+	if err = cc.Append(items...); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (m mockStore) RemoveFrom(col vocab.IRI, it vocab.Item) error {
+func (m mockStore) RemoveFrom(col vocab.IRI, items ...vocab.Item) error {
 	if vocab.IsNil(col) {
 		return errors.Newf("unable to remove from nil collection")
 	}
@@ -84,9 +84,9 @@ func (m mockStore) RemoveFrom(col vocab.IRI, it vocab.Item) error {
 	}
 	cc, ok := maybeCol.(vocab.CollectionInterface)
 	if !ok {
-		return errors.Newf("object of invalid type %T loaded for %s", it, col.GetLink())
+		return errors.Newf("object of invalid type %T loaded for %s", maybeCol, col.GetLink())
 	}
-	cc.Remove(it)
+	cc.Remove(items...)
 	return nil
 }
 
