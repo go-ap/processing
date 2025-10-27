@@ -122,7 +122,7 @@ func (p *P) UpdateObjectID(move *vocab.Activity) (*vocab.Activity, error) {
 	if err != nil {
 		return nil, ValidationError(fmt.Sprintf("Move Object wasn't available in local storage"))
 	}
-	if !object.GetLink().Equal(origin.GetLink(), true) {
+	if !object.GetLink().Equal(origin.GetLink()) {
 		return nil, ValidationError(fmt.Sprintf("Object and Origin of Move activity should not be different"))
 	}
 	if !vocab.IsObject(move.Target) {
