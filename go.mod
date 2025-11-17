@@ -8,7 +8,7 @@ require (
 	github.com/go-ap/activitypub v0.0.0-20251028130710-8bc6217f6c8d
 	github.com/go-ap/client v0.0.0-20251112172340-641dcf1a65af
 	github.com/go-ap/errors v0.0.0-20250905102357-4480b47a00c4
-	github.com/go-ap/filters v0.0.0-20251107171832-f29304e3da0b
+	github.com/go-ap/filters v0.0.0-20251117144141-b3e7ce46ead4
 	github.com/go-ap/jsonld v0.0.0-20250905102310-8480b0fe24d9
 )
 
@@ -17,7 +17,7 @@ require (
 	git.sr.ht/~mariusor/go-xsd-duration v0.0.0-20220703122237-02e73435a078 // indirect
 	git.sr.ht/~mariusor/mask v0.0.0-20250114195353-98705a6977b7 // indirect
 	github.com/RoaringBitmap/roaring v1.9.4 // indirect
-	github.com/bits-and-blooms/bitset v1.24.3 // indirect
+	github.com/bits-and-blooms/bitset v1.24.4 // indirect
 	github.com/go-chi/chi/v5 v5.2.3 // indirect
 	github.com/go-fed/httpsig v1.1.0 // indirect
 	github.com/jdkato/prose v1.2.1 // indirect
