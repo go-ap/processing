@@ -1,7 +1,6 @@
 package processing
 
 import (
-	"sync"
 	"testing"
 
 	"git.sr.ht/~mariusor/lw"
@@ -102,17 +101,17 @@ func Test_defaultValidator_validateLocalIRI(t *testing.T) {
 		{
 			name:    "IP 127.0.2.1",
 			arg:     vocab.IRI("https://127.0.2.1"),
-			wantErr: false,
+			wantErr: true,
 		},
 		{
 			name:    "IP 127.0.2.1 with port :8443",
 			arg:     vocab.IRI("https://127.0.2.1:8443"),
-			wantErr: false,
+			wantErr: true,
 		},
 		{
 			name:    "localhost",
 			arg:     vocab.IRI("https://localhost"),
-			wantErr: false,
+			wantErr: true,
 		},
 		{
 			name:    "example.com host",
@@ -148,7 +147,6 @@ func Test_defaultValidator_validateLocalIRI(t *testing.T) {
 			wantErr: true,
 		},
 	}
-	localAddressCache = ipCache{addr: sync.Map{}}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

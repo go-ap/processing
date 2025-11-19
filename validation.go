@@ -2,8 +2,6 @@ package processing
 
 import (
 	"fmt"
-	"net"
-	"net/netip"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -39,7 +37,7 @@ type ActivityValidator interface {
 }
 
 //type AudienceValidator interface {
-//	ValidateAudience(...vocab.ItemCollection) error
+//	ValidateAudienceForRemoteActivity(...vocab.ItemCollection) error
 //}
 
 // ObjectValidator is an interface used for validating generic objects
@@ -62,8 +60,6 @@ type ActorValidator interface {
 type ipCache struct {
 	addr sync.Map
 }
-
-var localAddressCache ipCache
 
 var ValidationError = errors.BadRequestf
 
@@ -190,7 +186,7 @@ func name(a *vocab.Actor) vocab.Content {
 
 func (p P) ValidateActivity(a vocab.Item, author vocab.Actor, receivedIn vocab.IRI) error {
 	if vocab.IsNil(a) {
-		return InvalidActivityActor("received nil activity")
+		return InvalidActivity("received nil activity")
 	}
 	if IsOutbox(receivedIn) {
 		return p.ValidateClientActivity(a, author, receivedIn)
@@ -497,7 +493,10 @@ func (p P) ValidateClientActor(a vocab.Item, expected vocab.Actor) (vocab.Item, 
 	}
 
 	err := vocab.OnItem(a, func(item vocab.Item) error {
-		return p.validateLocalIRI(a.GetLink())
+		if !p.IsLocal(a.GetLink()) {
+			return errors.Newf("%s is not a local IRI", a.GetLink())
+		}
+		return nil
 	})
 	if err != nil {
 		return a, InvalidActivityActor("%s is not local", a.GetLink())
@@ -571,13 +570,10 @@ func (p P) ValidateTarget(t vocab.Item) error {
 	return nil
 }
 
-func (p P) ValidateAudience(audience ...vocab.ItemCollection) error {
+func (p P) ValidateAudienceForRemoteActivity(audience ...vocab.ItemCollection) error {
 	for _, elem := range audience {
 		for _, iri := range elem {
-			if err := p.validateLocalIRI(iri.GetLink()); err == nil {
-				return nil
-			}
-			if iri.GetLink() == vocab.PublicNS {
+			if p.IsLocal(iri.GetLink()) || iri.GetLink().Equal(vocab.PublicNS) {
 				return nil
 			}
 		}
@@ -605,38 +601,5 @@ func (p P) validateLocalIRI(i vocab.IRI) error {
 		}
 		return errors.Newf("%s is not a local IRI", i)
 	}
-	u, err := i.URL()
-	if err != nil {
-		return errors.Annotatef(err, "%s is not a local IRI", i)
-	}
-	if _, ok := localAddressCache.addr.Load(u.Host); !ok {
-		h, _ := hostSplit(u.Host)
-
-		if ip, err := netip.ParseAddr(h); err == nil && !ip.IsUnspecified() {
-			localAddressCache.addr.Store(u.Host, []netip.Addr{ip})
-		} else {
-			addrs, err := net.LookupHost(u.Host)
-			if err != nil {
-				return errors.Annotatef(err, "%s is not a local IRI", i)
-			}
-			hosts := make([]netip.Addr, len(addrs))
-			for i, a := range addrs {
-				if ip, err = netip.ParseAddr(a); err == nil && !ip.IsUnspecified() {
-					hosts[i] = ip
-				}
-			}
-			localAddressCache.addr.Store(u.Host, hosts)
-		}
-	}
-
-	if v, found := localAddressCache.addr.Load(u.Host); found {
-		if ips, ok := v.([]netip.Addr); ok {
-			for _, ip := range ips {
-				if ip.IsLoopback() {
-					return nil
-				}
-			}
-		}
-	}
-	return InvalidIRI("%s is not a local IRI", i)
+	return errors.Newf("%s is not a local IRI", i)
 }

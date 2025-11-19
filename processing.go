@@ -2,7 +2,6 @@ package processing
 
 import (
 	"crypto"
-	"sync"
 	"time"
 
 	"git.sr.ht/~mariusor/lw"
@@ -39,7 +38,6 @@ func New(o ...OptionFn) P {
 	for _, fn := range o {
 		fn(&p)
 	}
-	localAddressCache = ipCache{addr: sync.Map{}}
 	return p
 }
 

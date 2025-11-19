@@ -111,10 +111,10 @@ func (p P) AddToLocalCollections(it vocab.Item, recipients ...vocab.Item) error 
 	localRecipients := make(vocab.IRIs, 0)
 	for _, rec := range recipients {
 		recIRI := rec.GetLink()
-		if !p.IsLocal(recIRI) || localRecipients.Contains(recIRI) {
+		if !p.IsLocal(recIRI) {
 			continue
 		}
-		localRecipients = append(localRecipients, recIRI)
+		_ = localRecipients.Append(recIRI)
 	}
 	if len(localRecipients) > 0 {
 		p.l.Debugf("Starting dissemination to local collections.")
