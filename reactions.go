@@ -158,11 +158,11 @@ func finalizeFollowActivity(p P, a *vocab.Activity) error {
 	}
 
 	errs := make([]error, 0)
-	if err := p.AddItemToCollection(vocab.Followers.IRI(a.Object), a.Actor); err != nil {
+	if err := p.AddToLocalCollections(a.Actor, vocab.Followers.IRI(a.Object)); err != nil {
 		errs = append(errs, err)
 	}
-	p.l.Debugf("")
-	if err := p.AddItemToCollection(vocab.Following.IRI(a.Actor), a.Object); err != nil {
+
+	if err := p.AddToLocalCollections(a.Object, vocab.Following.IRI(a.Actor)); err != nil {
 		errs = append(errs, err)
 	}
 	return errors.Join(errs...)
