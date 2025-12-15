@@ -5,10 +5,10 @@ go 1.25
 require (
 	git.sr.ht/~mariusor/lw v0.0.0-20250325163623-1639f3fb0e0d
 	git.sr.ht/~mariusor/ssm v0.0.0-20250920150353-cc21fa885fda
-	github.com/go-ap/activitypub v0.0.0-20251124111637-be8249f2f382
-	github.com/go-ap/client v0.0.0-20251124134453-e43d584b3ea0
+	github.com/go-ap/activitypub v0.0.0-20251215102718-6daa5f68e1b6
+	github.com/go-ap/client v0.0.0-20251215103128-dd130c03e4d8
 	github.com/go-ap/errors v0.0.0-20250905102357-4480b47a00c4
-	github.com/go-ap/filters v0.0.0-20251124134220-b2256cd4a877
+	github.com/go-ap/filters v0.0.0-20251215103009-83db92ca9d83
 	github.com/go-ap/jsonld v0.0.0-20250905102310-8480b0fe24d9
 )
 
@@ -28,10 +28,10 @@ require (
 	github.com/rs/xid v1.6.0 // indirect
 	github.com/rs/zerolog v1.34.0 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
-	github.com/valyala/fastjson v1.6.4 // indirect
-	golang.org/x/crypto v0.45.0 // indirect
-	golang.org/x/oauth2 v0.33.0 // indirect
-	golang.org/x/sys v0.38.0 // indirect
-	golang.org/x/text v0.31.0 // indirect
+	github.com/valyala/fastjson v1.6.7 // indirect
+	golang.org/x/crypto v0.46.0 // indirect
+	golang.org/x/oauth2 v0.34.0 // indirect
+	golang.org/x/sys v0.39.0 // indirect
+	golang.org/x/text v0.32.0 // indirect
 	gopkg.in/neurosnap/sentences.v1 v1.0.7 // indirect
 )
