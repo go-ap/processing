@@ -93,7 +93,7 @@ func (p P) ValidateServerActivity(a vocab.Item, author vocab.Actor, inbox vocab.
 	if vocab.IsNil(a) {
 		return InvalidActivity("received nil")
 	}
-	if a.IsLink() {
+	if vocab.IsIRI(a) {
 		return p.ValidateIRI(a.GetLink())
 	}
 	if !vocab.ActivityTypes.Contains(a.GetType()) {
@@ -213,7 +213,7 @@ func (p P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab
 	if vocab.IsNil(a) {
 		return InvalidActivity("is nil")
 	}
-	if a.IsLink() {
+	if vocab.IsIRI(a) {
 		return p.ValidateIRI(a.GetLink())
 	}
 
@@ -551,17 +551,17 @@ func (p P) ValidateServerObject(o vocab.Item) (vocab.Item, error) {
 	if vocab.IsNil(o) {
 		return o, InvalidActivityObject("is nil")
 	}
-	if err := p.ValidateIRI(o.GetLink()); err != nil {
-		return o, err
-	}
-	return o, nil
+	err := vocab.OnItem(o, func(it vocab.Item) error {
+		return p.ValidateIRI(it.GetLink())
+	})
+	return o, err
 }
 
 func (p P) ValidateTarget(t vocab.Item) error {
 	if vocab.IsNil(t) {
 		return InvalidActivityObject("is nil")
 	}
-	if t.IsLink() {
+	if vocab.IsIRI(t) {
 		return p.ValidateIRI(t.GetLink())
 	}
 	if !(vocab.ObjectTypes.Contains(t.GetType()) || vocab.ActorTypes.Contains(t.GetType()) || vocab.ActivityTypes.Contains(t.GetType())) {
