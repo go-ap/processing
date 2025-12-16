@@ -146,7 +146,15 @@ func AcceptActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Acti
 		}
 	}
 	err := vocab.OnActivity(act.Object, func(follow *vocab.Activity) error {
-		return finalizeFollowActivity(p, follow)
+		err := finalizeFollowActivity(p, follow)
+		if err != nil {
+			return err
+		}
+		// NOTE(marius): Accepts need to be propagated back to the originating actor if missing from recipients list
+		if act.Type == vocab.AcceptType && !p.IsLocal(follow.Actor) && !act.Recipients().Contains(follow.Actor) {
+			act.BCC.Append(follow.Actor)
+		}
+		return nil
 	})
 	return act, err
 }

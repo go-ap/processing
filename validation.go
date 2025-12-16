@@ -479,12 +479,12 @@ func ValidateClientOffersActivity(l ReadStore, act *vocab.Activity) error {
 
 // IsLocal shows if the received IRI belongs to the current instance
 func (p P) IsLocal(i vocab.Item) bool {
-	return p.localIRICheckFn(i.GetLink()) || p.validateLocalIRI(i.GetLink()) == nil
+	return p.validateLocalIRI(i.GetLink()) == nil || p.localIRICheckFn(i.GetLink())
 }
 
 // IsLocalIRI shows if the received IRI belongs to the current instance
 func (p P) IsLocalIRI(i vocab.IRI) bool {
-	return p.localIRICheckFn(i) || p.validateLocalIRI(i) == nil
+	return p.validateLocalIRI(i) == nil || p.localIRICheckFn(i)
 }
 
 func (p P) ValidateClientActor(a vocab.Item, expected vocab.Actor) (vocab.Item, error) {
