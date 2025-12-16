@@ -151,8 +151,11 @@ func AcceptActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Acti
 			return err
 		}
 		// NOTE(marius): Accepts need to be propagated back to the originating actor if missing from recipients list
-		if act.Type == vocab.AcceptType && !p.IsLocal(follow.Actor) && !act.Recipients().Contains(follow.Actor) {
-			act.BCC.Append(follow.Actor)
+		if act.Type == vocab.AcceptType {
+			actor := follow.Actor
+			if !actor.GetLink().Equal(vocab.PublicNS) && !p.IsLocal(actor) && !act.Recipients().Contains(actor) {
+				act.BCC.Append(actor)
+			}
 		}
 		return nil
 	})
