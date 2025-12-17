@@ -76,9 +76,18 @@ func RelationshipManagementActivity(p P, act *vocab.Activity, receivedIn vocab.I
 // server remove the subscriber from the followers list. Timeframes and behavior for dealing with unreachable
 // actors are left to the discretion of the delivering server.
 func FollowActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activity, error) {
-	if !vocab.IsNil(act.Object) && !act.To.Contains(act.Object.GetLink()) {
+	if !vocab.IsNil(act.Object) {
+		validForRecipient := func(i vocab.IRI) bool {
+			return len(i) > 0 && !i.Equal(vocab.PublicNS) && !act.To.Contains(i)
+		}
 		// TODO(marius): add check if IRI represents an actor (or rely on the collection saver to break if not)
-		_ = act.To.Append(act.Object.GetLink())
+		//   This should be moved to the validation logic
+		_ = vocab.OnItem(act.Object, func(object vocab.Item) error {
+			if obIRI := object.GetLink(); validForRecipient(obIRI) {
+				_ = act.To.Append(obIRI)
+			}
+			return nil
+		})
 	}
 	return act, nil
 }

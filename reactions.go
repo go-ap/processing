@@ -146,7 +146,7 @@ func AcceptActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Acti
 		}
 	}
 	err := vocab.OnActivity(act.Object, func(follow *vocab.Activity) error {
-		err := finalizeFollowActivity(p, follow)
+		err := dispatchFollowSideEffectToLocalCollections(p, follow)
 		if err != nil {
 			return err
 		}
@@ -162,13 +162,13 @@ func AcceptActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Acti
 	return act, err
 }
 
-func finalizeFollowActivity(p P, a *vocab.Activity) error {
+func dispatchFollowSideEffectToLocalCollections(p P, a *vocab.Activity) error {
 	good := vocab.ActivityVocabularyTypes{vocab.FollowType}
 	if !good.Contains(a.Type) {
 		return errors.NotValidf("Object Activity has wrong type %s, expected %v", a.Type, good)
 	}
 
-	errs := make([]error, 0)
+	errs := make([]error, 0, 2)
 	if err := p.AddToLocalCollections(a.Actor, vocab.Followers.IRI(a.Object)); err != nil {
 		errs = append(errs, err)
 	}
@@ -187,15 +187,12 @@ func RejectActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) 
 		return act, errors.NotValidf("Missing actor for %s Activity", act.Type)
 	}
 
-	errs := make([]error, 0)
 	if colSaver, ok := l.(CollectionStore); ok {
 		inbox := vocab.Inbox.IRI(act.Actor)
 		err := colSaver.RemoveFrom(inbox, act.Object.GetLink())
-		if err != nil {
-			errs = append(errs, err)
-		}
+		return act, err
 	}
-	return act, errors.Join(errs...)
+	return act, nil
 }
 
 const BlockedCollection = vocab.CollectionPath("blocked")

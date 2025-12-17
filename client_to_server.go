@@ -247,14 +247,16 @@ func (p P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab.
 	loader := p.s
 
 	allRecipients := make(vocab.ItemCollection, 0)
-	if !vocab.IsNil(act.Actor) && p.IsLocal(act.Actor) {
+	_ = vocab.OnItem(act.Actor, func(actor vocab.Item) error {
+		if vocab.IsNil(actor) || p.IsLocal(actor) {
+			return nil
+		}
 		// NOTE(marius): this is needed only for client to server interactions
-		actIRI := act.Actor.GetLink()
-
-		if !vocab.PublicNS.Equal(actIRI) {
+		if actIRI := actor.GetLink(); !vocab.PublicNS.Equal(actIRI) {
 			_ = allRecipients.Append(vocab.Outbox.IRI(actIRI))
 		}
-	}
+		return nil
+	})
 
 	for _, rec := range act.Recipients() {
 		recIRI := rec.GetLink()
