@@ -316,20 +316,54 @@ func CreateActivityFromClient(p P, act *vocab.Activity) (*vocab.Activity, error)
 	return act, disseminateActivityObjectToLocalReplyToCollections(p, act)
 }
 
-func (p P) createCollectionObject(col vocab.Item, public bool) error {
+func (p P) saveCollectionObjectForParent(parent, col vocab.Item) error {
 	if vocab.IsNil(col) {
+		// NOTE(marius): We respect the originating's object creator intention regarding which collections of an object to
+		// create, so it's their responsibility to populate them with IRIs, or full Collection Objects.
 		return nil
 	}
-	var bcc vocab.ItemCollection
-	if public {
-		bcc = vocab.ItemCollection{vocab.PublicNS}
+	if !col.IsCollection() {
+		// NOTE(marius): if the collection passed from the parent object is a Collection type we respect that,
+		// otherwise we replace it with an OrderedCollection.
+		col = &vocab.OrderedCollection{
+			ID:   col.GetLink(),
+			Type: vocab.OrderedCollectionType,
+		}
 	}
-	_, err := p.s.Save(vocab.OrderedCollection{
-		ID:        col.GetLink(),
-		Type:      vocab.OrderedCollectionType,
-		Published: time.Now().UTC(),
-		BCC:       bcc,
+
+	var to, cc, bto, bcc vocab.ItemCollection
+	published := time.Now().Truncate(time.Second).UTC()
+	_ = vocab.OnObject(parent, func(p *vocab.Object) error {
+		to = p.To
+		cc = p.CC
+		bto = p.Bto
+		bcc = p.BCC
+		if !p.Published.IsZero() {
+			published = p.Published
+		}
+		return nil
 	})
+
+	if _, maybePrivateCol := vocab.Split(col.GetLink()); filters.HiddenCollections.Contains(maybePrivateCol) {
+		// NOTE(marius): for blocked and ignored collections we forcibly remove the public collection
+		to.Remove(vocab.PublicNS)
+		cc.Remove(vocab.PublicNS)
+		bto.Remove(vocab.PublicNS)
+		bcc.Remove(vocab.PublicNS)
+	}
+
+	_ = vocab.OnObject(col, func(c *vocab.Object) error {
+		c.To = to
+		c.CC = cc
+		c.Bto = bto
+		c.BCC = bcc
+		c.Published = published
+		if authorIRI := parent.GetLink(); authorIRI != "" {
+			c.AttributedTo = authorIRI
+		}
+		return nil
+	})
+	_, err := p.s.Save(col)
 	return err
 }
 
@@ -341,21 +375,21 @@ func (p P) CreateCollectionsForObject(it vocab.Item) error {
 
 	if vocab.ActorTypes.Contains(it.GetType()) {
 		_ = vocab.OnActor(it, func(a *vocab.Actor) error {
-			_ = p.createCollectionObject(a.Inbox, true)
-			_ = p.createCollectionObject(a.Outbox, true)
-			_ = p.createCollectionObject(a.Followers, true)
-			_ = p.createCollectionObject(a.Following, true)
-			_ = p.createCollectionObject(a.Liked, true)
+			_ = p.saveCollectionObjectForParent(a, a.Inbox)
+			_ = p.saveCollectionObjectForParent(a, a.Outbox)
+			_ = p.saveCollectionObjectForParent(a, a.Followers)
+			_ = p.saveCollectionObjectForParent(a, a.Following)
+			_ = p.saveCollectionObjectForParent(a, a.Liked)
 			// NOTE(marius): shadow creating hidden collections for Blocked and Ignored items
-			_ = p.createCollectionObject(filters.BlockedType.Of(a), false)
-			_ = p.createCollectionObject(filters.IgnoredType.Of(a), false)
+			_ = p.saveCollectionObjectForParent(a, filters.BlockedType.Of(a))
+			_ = p.saveCollectionObjectForParent(a, filters.IgnoredType.Of(a))
 			return nil
 		})
 	}
 	return vocab.OnObject(it, func(o *vocab.Object) error {
-		_ = p.createCollectionObject(o.Replies, true)
-		_ = p.createCollectionObject(o.Likes, true)
-		_ = p.createCollectionObject(o.Shares, true)
+		_ = p.saveCollectionObjectForParent(o, o.Replies)
+		_ = p.saveCollectionObjectForParent(o, o.Likes)
+		_ = p.saveCollectionObjectForParent(o, o.Shares)
 		return nil
 	})
 }
