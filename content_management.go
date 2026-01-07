@@ -331,13 +331,14 @@ func (p P) saveCollectionObjectForParent(parent, col vocab.Item) error {
 		}
 	}
 
-	var to, cc, bto, bcc vocab.ItemCollection
+	var to, cc, bto, bcc, audience vocab.ItemCollection
 	published := time.Now().Truncate(time.Second).UTC()
 	_ = vocab.OnObject(parent, func(p *vocab.Object) error {
 		to = p.To
 		cc = p.CC
 		bto = p.Bto
 		bcc = p.BCC
+		audience = p.Audience
 		if !p.Published.IsZero() {
 			published = p.Published
 		}
@@ -350,6 +351,7 @@ func (p P) saveCollectionObjectForParent(parent, col vocab.Item) error {
 		cc.Remove(vocab.PublicNS)
 		bto.Remove(vocab.PublicNS)
 		bcc.Remove(vocab.PublicNS)
+		audience.Remove(vocab.PublicNS)
 	}
 
 	_ = vocab.OnObject(col, func(c *vocab.Object) error {
@@ -357,6 +359,7 @@ func (p P) saveCollectionObjectForParent(parent, col vocab.Item) error {
 		c.CC = cc
 		c.Bto = bto
 		c.BCC = bcc
+		c.Audience = audience
 		c.Published = published
 		if authorIRI := parent.GetLink(); authorIRI != "" {
 			c.AttributedTo = authorIRI
