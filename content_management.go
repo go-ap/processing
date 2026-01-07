@@ -316,17 +316,17 @@ func CreateActivityFromClient(p P, act *vocab.Activity) (*vocab.Activity, error)
 	return act, disseminateActivityObjectToLocalReplyToCollections(p, act)
 }
 
-func (p P) saveCollectionObjectForParent(parent, col vocab.Item) error {
-	if vocab.IsNil(col) {
+func (p P) saveCollectionObjectForParent(parent, colIt vocab.Item) error {
+	if vocab.IsNil(colIt) {
 		// NOTE(marius): We respect the originating's object creator intention regarding which collections of an object to
 		// create, so it's their responsibility to populate them with IRIs, or full Collection Objects.
 		return nil
 	}
-	if !col.IsCollection() {
+	if !colIt.IsCollection() {
 		// NOTE(marius): if the collection passed from the parent object is a Collection type we respect that,
 		// otherwise we replace it with an OrderedCollection.
-		col = &vocab.OrderedCollection{
-			ID:   col.GetLink(),
+		colIt = &vocab.OrderedCollection{
+			ID:   colIt.GetLink(),
 			Type: vocab.OrderedCollectionType,
 		}
 	}
@@ -345,7 +345,7 @@ func (p P) saveCollectionObjectForParent(parent, col vocab.Item) error {
 		return nil
 	})
 
-	if _, maybePrivateCol := vocab.Split(col.GetLink()); filters.HiddenCollections.Contains(maybePrivateCol) {
+	if _, maybePrivateCol := vocab.Split(colIt.GetLink()); filters.HiddenCollections.Contains(maybePrivateCol) {
 		// NOTE(marius): for blocked and ignored collections we forcibly remove the public collection
 		to.Remove(vocab.PublicNS)
 		cc.Remove(vocab.PublicNS)
@@ -354,7 +354,7 @@ func (p P) saveCollectionObjectForParent(parent, col vocab.Item) error {
 		audience.Remove(vocab.PublicNS)
 	}
 
-	_ = vocab.OnObject(col, func(c *vocab.Object) error {
+	_ = vocab.OnObject(colIt, func(c *vocab.Object) error {
 		c.To = to
 		c.CC = cc
 		c.Bto = bto
@@ -366,7 +366,11 @@ func (p P) saveCollectionObjectForParent(parent, col vocab.Item) error {
 		}
 		return nil
 	})
-	_, err := p.s.Save(col)
+	col, ok := colIt.(vocab.CollectionInterface)
+	if !ok {
+		return errors.Newf("invalid collection type to create %T", colIt)
+	}
+	_, err := p.s.Create(col)
 	return err
 }
 
