@@ -92,12 +92,12 @@ func (p P) UndoActivity(act *vocab.Activity) (*vocab.Activity, error) {
 		}
 		switch toUndo.GetType() {
 		case vocab.CreateType:
-			_, err = UndoCreateActivity(p.s, toUndo)
+			_, err = p.UndoCreateActivity(toUndo)
 		case vocab.DislikeType:
 			// TODO(marius): Dislikes should not trigger a removal from Likes/Liked collections
 			fallthrough
 		case vocab.LikeType:
-			_, err = UndoAppreciationActivity(p.s, toUndo)
+			_, err = p.UndoAppreciationActivity(toUndo)
 		case vocab.FollowType:
 			fallthrough
 		case vocab.BlockType:
@@ -125,25 +125,27 @@ func (p P) UndoActivity(act *vocab.Activity) (*vocab.Activity, error) {
 //
 // Removes the side effects of an existing Create activity
 // Currently this means only removal of the Create object
-func UndoCreateActivity(r Store, act *vocab.Activity) (*vocab.Activity, error) {
+func (p P) UndoCreateActivity(act *vocab.Activity) (*vocab.Activity, error) {
 	errs := make([]error, 0)
 	rem := act.GetLink()
 
 	allRec := act.Recipients()
 	removeFromCols := make(vocab.IRIs, 0)
-	removeFromCols = append(removeFromCols, vocab.Outbox.IRI(act.Actor))
+	if p.IsLocal(act.Actor) {
+		removeFromCols = append(removeFromCols, vocab.Outbox.IRI(act.Actor))
+	}
 	for _, rec := range allRec {
-		iri := rec.GetLink()
-		if iri == vocab.PublicNS {
+		recIRI := rec.GetLink()
+		if recIRI == vocab.PublicNS || !p.IsLocalIRI(recIRI) {
 			continue
 		}
-		if !vocab.ValidCollectionIRI(iri) {
-			// if not a valid collection, then the current iri represents an actor, and we need their inbox
-			removeFromCols = append(removeFromCols, vocab.Inbox.IRI(iri))
+		if !vocab.ValidCollectionIRI(recIRI) {
+			// if not a valid collection, then the current recIRI represents an actor, and we need their inbox
+			removeFromCols = append(removeFromCols, vocab.Inbox.IRI(recIRI))
 		}
 	}
 	for _, iri := range removeFromCols {
-		if err := r.RemoveFrom(iri, rem); err != nil {
+		if err := p.s.RemoveFrom(iri, rem); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -158,27 +160,31 @@ func UndoCreateActivity(r Store, act *vocab.Activity) (*vocab.Activity, error) {
 // Removes the side effects of an existing Appreciation activity (Like or Dislike)
 // Currently this means only removal of the Liked/Disliked object from the actor's `liked` collection and
 // removal of the Like/Dislike Activity from the object's `likes` collection
-func UndoAppreciationActivity(r Store, act *vocab.Activity) (*vocab.Activity, error) {
+func (p P) UndoAppreciationActivity(act *vocab.Activity) (*vocab.Activity, error) {
 	errs := make([]error, 0)
 	rem := act.GetLink()
 
 	allRec := act.Recipients()
 	removeFromCols := make(vocab.IRIs, 0)
-	removeFromCols = append(removeFromCols, vocab.Outbox.IRI(act.Actor))
-	removeFromCols = append(removeFromCols, vocab.Liked.IRI(act.Actor))
-	removeFromCols = append(removeFromCols, vocab.Likes.IRI(act.Object))
+	if p.IsLocal(act.Actor) {
+		removeFromCols = append(removeFromCols, vocab.Outbox.IRI(act.Actor))
+		removeFromCols = append(removeFromCols, vocab.Liked.IRI(act.Actor))
+	}
+	if p.IsLocal(act.Object) {
+		removeFromCols = append(removeFromCols, vocab.Likes.IRI(act.Object))
+	}
 	for _, rec := range allRec {
-		iri := rec.GetLink()
-		if iri == vocab.PublicNS {
+		recIRI := rec.GetLink()
+		if recIRI == vocab.PublicNS || !p.IsLocalIRI(recIRI) {
 			continue
 		}
-		if !vocab.ValidCollectionIRI(iri) {
-			// if not a valid collection, then the current iri represents an actor, and we need their inbox
-			removeFromCols = append(removeFromCols, vocab.Inbox.IRI(iri))
+		if !vocab.ValidCollectionIRI(recIRI) {
+			// if not a valid collection, then the current recIRI represents an actor, and we need their inbox
+			removeFromCols = append(removeFromCols, vocab.Inbox.IRI(recIRI))
 		}
 	}
 	for _, iri := range removeFromCols {
-		if err := r.RemoveFrom(iri, rem); err != nil {
+		if err := p.s.RemoveFrom(iri, rem); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -206,10 +212,10 @@ func (p *P) UndoRelationshipManagementActivity(toUndo *vocab.Activity) (*vocab.A
 
 	// NOTE(marius): for all recipients we need to remove the activity from their Inbox'es.
 	for _, rec := range toUndo.Recipients() {
-		if iri := rec.GetLink(); iri == vocab.PublicNS {
+		removeFrom := rec.GetLink()
+		if removeFrom == vocab.PublicNS || !p.IsLocalIRI(removeFrom) {
 			continue
 		}
-		removeFrom := rec.GetLink()
 		if !vocab.ValidCollectionIRI(removeFrom) {
 			// NOTE(marius): if recipient is not a  valid collection,
 			// then the current iri represents an actor, and we try to get their Inbox
@@ -223,11 +229,17 @@ func (p *P) UndoRelationshipManagementActivity(toUndo *vocab.Activity) (*vocab.A
 	removeFromCols := make(vocab.IRIs, 0)
 	switch toUndo.GetType() {
 	case vocab.FollowType:
-		removeFromCols = append(removeFromCols, vocab.Following.Of(toUndo.Actor).GetLink())
+		if colIRI := vocab.Following.Of(toUndo.Actor).GetLink(); p.IsLocalIRI(colIRI) {
+			removeFromCols = append(removeFromCols, colIRI)
+		}
 	case vocab.BlockType:
-		removeFromCols = append(removeFromCols, BlockedCollection.Of(toUndo.Actor).GetLink())
+		if colIRI := BlockedCollection.Of(toUndo.Actor).GetLink(); p.IsLocalIRI(colIRI) {
+			removeFromCols = append(removeFromCols, colIRI)
+		}
 	case vocab.IgnoreType:
-		removeFromCols = append(removeFromCols, IgnoredCollection.Of(toUndo.Actor).GetLink())
+		if colIRI := IgnoredCollection.Of(toUndo.Actor).GetLink(); p.IsLocalIRI(colIRI) {
+			removeFromCols = append(removeFromCols, colIRI)
+		}
 	}
 
 	rem = toUndo.Object.GetLink()
