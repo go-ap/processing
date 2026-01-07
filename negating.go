@@ -115,8 +115,11 @@ func (p P) UndoActivity(act *vocab.Activity) (*vocab.Activity, error) {
 		return act, err
 	}
 
-	if err = p.s.Delete(act.Object); err != nil && !errors.IsNotFound(err) {
-		return act, err
+	if p.IsLocal(act.Object) {
+		// NOTE(marius): remove the activity that we operated Undo on
+		if err = p.s.Delete(act.Object.GetLink()); err != nil && !errors.IsNotFound(err) {
+			return act, err
+		}
 	}
 	return act, nil
 }
@@ -151,6 +154,11 @@ func (p P) UndoCreateActivity(act *vocab.Activity) (*vocab.Activity, error) {
 	}
 	if len(errs) > 0 {
 		return act, errors.Annotatef(errors.Join(errs...), "failed to fully process Undo activity")
+	}
+	if p.IsLocal(act.Object) {
+		if err := p.s.Delete(act.Object.GetLink()); err != nil {
+			return act, nil
+		}
 	}
 	return act, nil
 }
