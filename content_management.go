@@ -319,7 +319,7 @@ func CreateActivityFromClient(p P, act *vocab.Activity) (*vocab.Activity, error)
 func (p P) saveCollectionObjectForParent(parent, colIt vocab.Item) error {
 	if vocab.IsNil(colIt) {
 		// NOTE(marius): We respect the originating's object creator intention regarding which collections of an object to
-		// create, so it's their responsibility to populate them with IRIs, or full Collection Objects.
+		// create, so it's their responsibility to populate them with IRIs or full Collection Objects.
 		return nil
 	}
 	if !colIt.IsCollection() {
@@ -329,6 +329,9 @@ func (p P) saveCollectionObjectForParent(parent, colIt vocab.Item) error {
 			ID:   colIt.GetLink(),
 			Type: vocab.OrderedCollectionType,
 		}
+	}
+	if _, err := p.s.Load(colIt.GetLink()); err == nil {
+		return nil
 	}
 
 	var to, cc, bto, bcc, audience vocab.ItemCollection
