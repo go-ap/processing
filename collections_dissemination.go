@@ -166,17 +166,16 @@ func (p P) AddItemToCollection(col vocab.IRI, it vocab.Item) error {
 	if !p.IsLocalIRI(col) {
 		return nil
 	}
-	if !p.IsLocal(it) {
-		if vocab.IsIRI(it) {
-			deref, err := p.c.LoadIRI(it.GetLink())
-			if err != nil {
-				p.l.Warnf("unable to load remote object [%s]: %s", it.GetLink(), err.Error())
-			} else {
-				it = deref
-			}
-			if _, err = p.s.Save(it); err != nil {
-				p.l.Warnf("unable to save remote object [%s] locally: %s", it.GetLink(), err.Error())
-			}
+	if !p.IsLocal(it) && vocab.IsIRI(it) {
+		// NOTE(marius): the fetching and saving of the remote item is a candidate for switching to async
+		deref, err := p.c.LoadIRI(it.GetLink())
+		if err != nil {
+			p.l.Warnf("unable to load remote object [%s]: %s", it.GetLink(), err.Error())
+		} else {
+			it = deref
+		}
+		if _, err = p.s.Save(it); err != nil {
+			p.l.Warnf("unable to save remote object [%s] locally: %s", it.GetLink(), err.Error())
 		}
 	}
 	err := p.s.AddTo(col, it)
