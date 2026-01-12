@@ -150,7 +150,6 @@ func ContentManagementActivityFromClient(p P, act *vocab.Activity) (*vocab.Activ
 		act, err = DeleteActivity(p.s, act)
 	}
 	if err != nil && !isDuplicateKey(err) {
-		p.l.Errorf("unable to save activity's object: %+s", err)
 		return act, err
 	}
 
