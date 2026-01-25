@@ -6,9 +6,9 @@ require (
 	git.sr.ht/~mariusor/lw v0.0.0-20250325163623-1639f3fb0e0d
 	git.sr.ht/~mariusor/ssm v0.0.0-20250920150353-cc21fa885fda
 	github.com/go-ap/activitypub v0.0.0-20260123105353-38736987d071
-	github.com/go-ap/client v0.0.0-20260124112821-eb9b6af99f4f
+	github.com/go-ap/client v0.0.0-20260125130259-841c3ff4fdcc
 	github.com/go-ap/errors v0.0.0-20251229095444-2702aa2d8569
-	github.com/go-ap/filters v0.0.0-20260124112747-f1400f81a7a6
+	github.com/go-ap/filters v0.0.0-20260125130200-6086ab387cb0
 	github.com/go-ap/jsonld v0.0.0-20251216162253-e38fa664ea77
 )
 
