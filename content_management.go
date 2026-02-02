@@ -141,19 +141,19 @@ func (p *P) SetIDIfMissing(it vocab.Item, partOf vocab.Item, parentActivity voca
 // "Sally updated an article", and "Joe deleted the photo".
 func ContentManagementActivityFromClient(p P, act *vocab.Activity) (*vocab.Activity, error) {
 	var err error
-	switch act.Type {
-	case vocab.CreateType:
+	switch {
+	case vocab.CreateType.Match(act.Type):
 		act, err = CreateActivityFromClient(p, act)
-	case vocab.UpdateType:
+	case vocab.UpdateType.Match(act.Type):
 		act, err = p.UpdateActivity(act)
-	case vocab.DeleteType:
+	case vocab.DeleteType.Match(act.Type):
 		act, err = DeleteActivity(p.s, act)
 	}
 	if err != nil && !isDuplicateKey(err) {
 		return act, err
 	}
 
-	if act.Type != vocab.DeleteType && act.Tag != nil {
+	if !vocab.DeleteType.Match(act.Type) && act.Tag != nil {
 		// Try to save tags as set on the activity
 		_ = p.createNewTags(act.Tag, act)
 	}
@@ -186,7 +186,7 @@ func addNewActorCollections(p *vocab.Actor) error {
 	if p.Liked == nil {
 		p.Liked = getCollection(p, vocab.Liked)
 	}
-	if p.Type == vocab.PersonType {
+	if vocab.PersonType.Match(p.Type) {
 		if p.Endpoints == nil {
 			p.Endpoints = &vocab.Endpoints{}
 		}
@@ -218,7 +218,7 @@ func addNewObjectCollections(o *vocab.Object) error {
 
 func addNewItemCollections(it vocab.Item) (vocab.Item, error) {
 	var err error
-	if vocab.ActorTypes.Contains(it.GetType()) {
+	if vocab.ActorTypes.Match(it.GetType()) {
 		err = vocab.OnActor(it, addNewActorCollections)
 	} else {
 		err = vocab.OnObject(it, addNewObjectCollections)
@@ -290,7 +290,7 @@ func CreateActivityFromClient(p P, act *vocab.Activity) (*vocab.Activity, error)
 	if err := p.SetIDIfMissing(act.Object, vocab.Outbox.IRI(act.Actor), act); err != nil {
 		return act, nil
 	}
-	if vocab.ActorTypes.Contains(act.Object.GetType()) {
+	if vocab.ActorTypes.Match(act.Object.GetType()) {
 		// TODO(marius): @PreHook@ we can replace this with a pre-hook function on Create activities to create they keys
 		if err := vocab.OnActor(act.Object, p.actorKeyGenFn); err != nil {
 			return act, errors.Annotatef(err, "unable to generate private/public key pair for object %s", act.Object.GetLink())
@@ -382,7 +382,7 @@ func (p P) CreateCollectionsForObject(it vocab.Item) error {
 		return nil
 	}
 
-	if vocab.ActorTypes.Contains(it.GetType()) {
+	if vocab.ActorTypes.Match(it.GetType()) {
 		_ = vocab.OnActor(it, func(a *vocab.Actor) error {
 			_ = p.saveCollectionObjectForParent(a, a.Inbox)
 			_ = p.saveCollectionObjectForParent(a, a.Outbox)
@@ -539,14 +539,15 @@ func CleanItemCollectionDynamicProperties(it vocab.Item) error {
 	if vocab.IsNil(it) || vocab.IsItemCollection(it) {
 		return nil
 	}
-	switch it.GetType() {
-	case vocab.OrderedCollectionPageType:
+	typ := it.GetType()
+	switch {
+	case vocab.OrderedCollectionPageType.Match(typ):
 		return vocab.OnOrderedCollectionPage(it, CleanOrderedCollectionPageDynamicProperties)
-	case vocab.OrderedCollectionType:
+	case vocab.OrderedCollectionType.Match(typ):
 		return vocab.OnOrderedCollection(it, CleanOrderedCollectionDynamicProperties)
-	case vocab.CollectionPageType:
+	case vocab.CollectionPageType.Match(typ):
 		return vocab.OnCollectionPage(it, CleanCollectionPageDynamicProperties)
-	case vocab.CollectionType:
+	case vocab.CollectionType.Match(typ):
 		return vocab.OnCollection(it, CleanCollectionDynamicProperties)
 	}
 	return nil
@@ -561,7 +562,7 @@ func (p *P) updateSingleItem(found vocab.Item, with vocab.Item) (vocab.Item, err
 		return found, errors.Conflictf("IRI %s does not point to a single object", with.GetLink())
 	}
 
-	if vocab.CollectionTypes.Contains(with.GetType()) {
+	if vocab.CollectionTypes.Match(with.GetType()) {
 		_ = CleanItemCollectionDynamicProperties(with)
 	}
 	found, err = vocab.CopyItemProperties(found, with)
@@ -728,7 +729,7 @@ func loadTombstoneForDelete(loader ReadStore, toRemove *vocab.ItemCollection) fu
 				To:      vocab.ItemCollection{vocab.PublicNS},
 				Deleted: time.Now().UTC(),
 			}
-			if fob.GetType() != vocab.TombstoneType {
+			if !vocab.TombstoneType.Match(fob.GetType()) {
 				t.FormerType = fob.GetType()
 			}
 			*toRemove = append(*toRemove, t)

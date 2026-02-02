@@ -96,7 +96,7 @@ func (p P) ValidateServerActivity(a vocab.Item, author vocab.Actor, inbox vocab.
 	if vocab.IsIRI(a) {
 		return p.ValidateIRI(a.GetLink())
 	}
-	if !vocab.ActivityTypes.Contains(a.GetType()) {
+	if !vocab.ActivityTypes.Match(a.GetType()) {
 		return InvalidActivity("invalid type %s", a.GetType())
 	}
 
@@ -218,7 +218,7 @@ func (p P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab
 	}
 
 	validActivityTypes := append(vocab.ActivityTypes, vocab.IntransitiveActivityTypes...)
-	if !validActivityTypes.Contains(a.GetType()) {
+	if !validActivityTypes.Match(a.GetType()) {
 		return InvalidActivity("invalid type %s", a.GetType())
 	}
 
@@ -247,7 +247,8 @@ func (p P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab
 		return err
 	}
 
-	if vocab.QuestionActivityTypes.Contains(a.GetType()) {
+	typ := a.GetType()
+	if vocab.QuestionActivityTypes.Match(typ) {
 		err = vocab.OnQuestion(a, func(q *vocab.Question) error {
 			return ValidateClientQuestionActivity(p.s, q)
 		})
@@ -256,7 +257,7 @@ func (p P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab
 		}
 	}
 
-	if vocab.ActivityTypes.Contains(a.GetType()) {
+	if vocab.ActivityTypes.Match(typ) {
 		err = vocab.OnActivity(a, func(act *vocab.Activity) error {
 			// @TODO(marius): this needs to be extended by a ValidateActivityClientObject
 			//   because the first step would be to test the object in the context of the activity
@@ -266,27 +267,27 @@ func (p P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab
 				return err
 			}
 
-			if vocab.ContentManagementActivityTypes.Contains(act.GetType()) && act.Object.GetType() != vocab.RelationshipType {
+			if vocab.ContentManagementActivityTypes.Match(typ) && vocab.RelationshipType.Match(act.Object.GetType()) {
 				err = ValidateClientContentManagementActivity(p.s, act)
-			} else if vocab.CollectionManagementActivityTypes.Contains(act.GetType()) {
+			} else if vocab.CollectionManagementActivityTypes.Match(typ) {
 				err = ValidateClientCollectionManagementActivity(p.s, act)
-			} else if vocab.ReactionsActivityTypes.Contains(act.GetType()) {
+			} else if vocab.ReactionsActivityTypes.Match(typ) {
 				err = p.ValidateClientReactionsActivity(act)
-			} else if vocab.EventRSVPActivityTypes.Contains(act.GetType()) {
+			} else if vocab.EventRSVPActivityTypes.Match(typ) {
 				err = ValidateClientEventRSVPActivity(p.s, act)
-			} else if vocab.GroupManagementActivityTypes.Contains(act.GetType()) {
+			} else if vocab.GroupManagementActivityTypes.Match(typ) {
 				err = ValidateClientGroupManagementActivity(p.s, act)
-			} else if vocab.ContentExperienceActivityTypes.Contains(act.GetType()) {
+			} else if vocab.ContentExperienceActivityTypes.Match(typ) {
 				err = ValidateClientContentExperienceActivity(p.s, act)
-			} else if vocab.GeoSocialEventsActivityTypes.Contains(act.GetType()) {
+			} else if vocab.GeoSocialEventsActivityTypes.Match(typ) {
 				err = ValidateClientGeoSocialEventsActivity(p.s, act)
-			} else if vocab.NotificationActivityTypes.Contains(act.GetType()) {
+			} else if vocab.NotificationActivityTypes.Match(typ) {
 				err = p.ValidateClientNotificationActivity(act)
-			} else if vocab.RelationshipManagementActivityTypes.Contains(act.GetType()) {
+			} else if vocab.RelationshipManagementActivityTypes.Match(typ) {
 				err = ValidateClientRelationshipManagementActivity(p.s, act)
-			} else if vocab.NegatingActivityTypes.Contains(act.GetType()) {
+			} else if vocab.NegatingActivityTypes.Match(typ) {
 				err = p.ValidateClientNegatingActivity(act)
-			} else if vocab.OffersActivityTypes.Contains(act.GetType()) {
+			} else if vocab.OffersActivityTypes.Match(typ) {
 				err = ValidateClientOffersActivity(p.s, act)
 			}
 			return err
@@ -302,13 +303,13 @@ func ValidateClientContentManagementActivity(l ReadStore, act *vocab.Activity) e
 	}
 
 	return vocab.OnItem(act.Object, func(ob vocab.Item) error {
-		switch act.Type {
-		case vocab.UpdateType:
-			if vocab.ActivityTypes.Contains(ob.GetType()) {
+		switch {
+		case vocab.UpdateType.Match(act.Type):
+			if vocab.ActivityTypes.Match(ob.GetType()) {
 				return errors.BadRequestf("trying to update an immutable activity")
 			}
 			fallthrough
-		case vocab.DeleteType:
+		case vocab.DeleteType.Match(act.Type):
 			if len(ob.GetLink()) == 0 {
 				return errors.BadRequestf("empty object id for %s activity", act.Type)
 			}
@@ -327,7 +328,7 @@ func ValidateClientContentManagementActivity(l ReadStore, act *vocab.Activity) e
 			if found == nil {
 				return errors.NotFoundf("found nil object in storage")
 			}
-		case vocab.CreateType:
+		case vocab.CreateType.Match(act.Type):
 		default:
 		}
 		return nil
@@ -342,20 +343,20 @@ func ValidateClientCollectionManagementActivity(l ReadStore, act *vocab.Activity
 // ValidateClientReactionsActivity
 func (p *P) ValidateClientReactionsActivity(act *vocab.Activity) error {
 	if act.Object != nil {
-		switch act.Type {
-		case vocab.DislikeType:
+		switch {
+		case vocab.DislikeType.Match(act.Type):
 			fallthrough
-		case vocab.LikeType:
+		case vocab.LikeType.Match(act.Type):
 			//return ValidateAppreciationActivity(l, act)
-		case vocab.RejectType, vocab.TentativeRejectType:
+		case vocab.ActivityVocabularyTypes{vocab.RejectType, vocab.TentativeRejectType}.Match(act.Type):
 			return p.ValidateClientRejectActivity(act)
-		case vocab.TentativeAcceptType, vocab.AcceptType:
+		case vocab.ActivityVocabularyTypes{vocab.TentativeAcceptType, vocab.AcceptType}.Match(act.Type):
 			return p.ValidateClientAcceptActivity(act)
-		case vocab.BlockType:
+		case vocab.BlockType.Match(act.Type):
 			//return ValidateBlockActivity(l, act)
-		case vocab.FlagType:
+		case vocab.FlagType.Match(act.Type):
 			//return ValidateFlagActivity(l, act)
-		case vocab.IgnoreType:
+		case vocab.IgnoreType.Match(act.Type):
 			//return ValidateIgnoreActivity(l, act)
 		}
 	}
@@ -372,7 +373,7 @@ func (p *P) ValidateClientAcceptActivity(act *vocab.Activity) error {
 		return nil
 	}
 	return vocab.OnActivity(act.Object, func(follow *vocab.Activity) error {
-		if follow.GetType() != vocab.FollowType {
+		if !vocab.FollowType.Match(follow.GetType()) {
 			return errors.NotValidf("object Activity type %s is incorrect, expected %s", follow.Type, vocab.FollowType)
 		}
 		if !act.Actor.GetLink().Equals(follow.Object.GetLink(), false) {
@@ -390,7 +391,7 @@ func (p *P) ValidateClientAcceptActivity(act *vocab.Activity) error {
 // ValidateAcceptActivity
 func ValidateAcceptActivity(l ReadStore, act *vocab.Activity) error {
 	good := vocab.ActivityVocabularyTypes{vocab.AcceptType, vocab.TentativeAcceptType}
-	if !good.Contains(act.Type) {
+	if !good.Match(act.Type) {
 		return errors.NotValidf("Activity has wrong type %s, expected %v", act.Type, good)
 	}
 	return nil
@@ -403,7 +404,7 @@ func (p *P) ValidateClientRejectActivity(act *vocab.Activity) error {
 	}
 
 	return vocab.OnActivity(act.Object, func(follow *vocab.Activity) error {
-		if follow.GetType() != vocab.FollowType {
+		if !vocab.FollowType.Match(follow.GetType()) {
 			return errors.NotValidf("object Activity type %s is incorrect, expected %s", follow.Type, vocab.FollowType)
 		}
 		if !act.Actor.GetLink().Equals(follow.Object.GetLink(), false) {
@@ -421,7 +422,7 @@ func (p *P) ValidateClientRejectActivity(act *vocab.Activity) error {
 // ValidateRejectActivity
 func (p *P) ValidateRejectActivity(act *vocab.Activity) error {
 	good := vocab.ActivityVocabularyTypes{vocab.RejectType, vocab.TentativeRejectType}
-	if !good.Contains(act.Type) {
+	if !good.Match(act.Type) {
 		return errors.NotValidf("Activity has wrong type %s, expected %v", act.Type, good)
 	}
 	return nil
@@ -454,15 +455,15 @@ func ValidateClientQuestionActivity(l ReadStore, act *vocab.Question) error {
 
 // ValidateClientRelationshipManagementActivity
 func ValidateClientRelationshipManagementActivity(l ReadStore, act *vocab.Activity) error {
-	switch act.Type {
-	case vocab.FollowType:
+	switch {
+	case vocab.FollowType.Match(act.Type):
 		if iri := act.GetLink(); len(iri) > 0 {
 			if a, _ := l.Load(iri); !vocab.IsNil(firstOrItem(a)) {
 				return errors.Conflictf("%s already exists for this actor/object pair", act.Type)
 			}
 		}
-	case vocab.AddType, vocab.BlockType, vocab.CreateType, vocab.DeleteType,
-		vocab.IgnoreType, vocab.InviteType, vocab.AcceptType, vocab.RejectType:
+	case vocab.ActivityVocabularyTypes{vocab.AddType, vocab.BlockType, vocab.CreateType, vocab.DeleteType,
+		vocab.IgnoreType, vocab.InviteType, vocab.AcceptType, vocab.RejectType}.Match(act.Type):
 		// TODO(marius): either the actor or the object needs to be local for this action to be valid
 		//   in the case of C2S... the actor needs to be local
 		//   in the case of S2S... the object needs to be local
@@ -529,7 +530,7 @@ func (p P) ValidateActor(a vocab.Item, expected vocab.Actor) (vocab.Item, error)
 	}
 	err = vocab.OnActor(a, func(act *vocab.Actor) error {
 		a = act
-		if !vocab.ActorTypes.Contains(act.GetType()) {
+		if !vocab.ActorTypes.Match(act.GetType()) {
 			return InvalidActivityActor("invalid type %s", act.GetType())
 		}
 		if !expected.GetLink().Equals(act.GetLink(), false) {
@@ -563,9 +564,6 @@ func (p P) ValidateTarget(t vocab.Item) error {
 	}
 	if vocab.IsIRI(t) {
 		return p.ValidateIRI(t.GetLink())
-	}
-	if !(vocab.ObjectTypes.Contains(t.GetType()) || vocab.ActorTypes.Contains(t.GetType()) || vocab.ActivityTypes.Contains(t.GetType())) {
-		return InvalidActivityObject("invalid type %s", t.GetType())
 	}
 	return nil
 }

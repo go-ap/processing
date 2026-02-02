@@ -117,9 +117,9 @@ func (p *P) createNewTags(tags vocab.ItemCollection, parent vocab.Item) error {
 	// According to the example in the Implementation Notes on the Activity Streams Vocabulary spec,
 	// tag objects are ActivityStreams Objects without a type, that's why we use an empty string valid type:
 	// https://www.w3.org/TR/activitystreams-vocabulary/#microsyntaxes
-	validTagTypes := vocab.ActivityVocabularyTypes{vocab.MentionType, vocab.ObjectType, vocab.ActivityVocabularyType("")}
+	validTagTypes := vocab.ActivityVocabularyTypes{vocab.MentionType, vocab.ObjectType, vocab.NilType}
 	for _, tag := range tags {
-		if typ := tag.GetType(); !validTagTypes.Contains(typ) {
+		if validTagTypes.Match(tag.GetType()) {
 			continue
 		}
 		if id := tag.GetID(); len(id) > 0 {
@@ -191,15 +191,16 @@ func loadSharedInboxRecipients(p P, sharedInbox vocab.IRI) vocab.ItemCollection 
 
 	next := func(it vocab.Item) vocab.IRI {
 		var next vocab.IRI
-		switch it.GetType() {
-		case vocab.CollectionPageType, vocab.OrderedCollectionPageType:
+		typ := it.GetType()
+		switch {
+		case vocab.ActivityVocabularyTypes{vocab.CollectionPageType, vocab.OrderedCollectionPageType}.Match(typ):
 			_ = vocab.OnCollectionPage(it, func(p *vocab.CollectionPage) error {
 				if p.Next != nil {
 					next = p.Next.GetLink()
 				}
 				return nil
 			})
-		case vocab.CollectionType, vocab.OrderedCollectionType:
+		case vocab.ActivityVocabularyTypes{vocab.CollectionType, vocab.OrderedCollectionType}.Match(typ):
 			_ = vocab.OnCollection(it, func(p *vocab.Collection) error {
 				if p.First != nil {
 					next = p.First.GetLink()
@@ -258,12 +259,12 @@ func (p *P) CollectionManagementActivity(act *vocab.Activity) (*vocab.Activity, 
 	if vocab.IsNil(act.Object) {
 		return act, InvalidActivityObject("is nil for %T[%s]", act, act.GetType())
 	}
-	switch act.Type {
-	case vocab.AddType:
+	switch {
+	case vocab.AddType.Match(act.Type):
 		return p.AddActivity(act)
-	case vocab.MoveType:
+	case vocab.MoveType.Match(act.Type):
 		return p.MoveActivity(act)
-	case vocab.RemoveType:
+	case vocab.RemoveType.Match(act.Type):
 		return p.RemoveActivity(act)
 	default:
 		return nil, errors.NotValidf("Invalid type %s", act.GetType())
@@ -280,13 +281,13 @@ func EventRSVPActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, erro
 	if vocab.IsNil(act.Object) {
 		return act, InvalidActivityObject("is nil for %T[%s]", act, act.GetType())
 	}
-	switch act.Type {
-	case vocab.AcceptType:
-	case vocab.IgnoreType:
-	case vocab.InviteType:
-	case vocab.RejectType:
-	case vocab.TentativeAcceptType:
-	case vocab.TentativeRejectType:
+	switch {
+	case vocab.AcceptType.Match(act.Type):
+	case vocab.IgnoreType.Match(act.Type):
+	case vocab.InviteType.Match(act.Type):
+	case vocab.RejectType.Match(act.Type):
+	case vocab.TentativeAcceptType.Match(act.Type):
+	case vocab.TentativeRejectType.Match(act.Type):
 	default:
 		return nil, errors.NotValidf("Invalid type %s", act.GetType())
 	}

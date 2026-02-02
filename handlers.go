@@ -99,7 +99,7 @@ func (a ActivityHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	typ := it.GetType()
-	if vocab.ActivityTypes.Contains(typ) {
+	if vocab.ActivityTypes.Match(typ) {
 		err = vocab.OnActivity(it, func(act *vocab.Activity) error {
 			if vocab.IsIRI(act.Object) {
 				return nil
@@ -110,10 +110,10 @@ func (a ActivityHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			return nil
 		})
-	} else if vocab.IntransitiveActivityTypes.Contains(typ) {
+	} else if vocab.IntransitiveActivityTypes.Match(typ) {
 		status = http.StatusNoContent
 	} else {
-		err = errors.BadRequestf("Invalid activity type %s received", typ)
+		err = errors.BadRequestf("Invalid activity type %s received", it.GetType())
 	}
 	if err != nil {
 		errors.HandleError(err).ServeHTTP(w, r)
@@ -307,7 +307,8 @@ func (i ItemHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if r.Header.Get("Authorization") != "" {
 				cacheType = "private"
 			}
-			if vocab.ActivityTypes.Contains(o.Type) {
+			allActivities := append(vocab.IntransitiveActivityTypes, vocab.ActivityTypes...)
+			if allActivities.Match(o.Type) {
 				w.Header().Set("Cache-Control", fmt.Sprintf("%s, max-age=%d, immutable", cacheType, int(year.Seconds())))
 			} else {
 				w.Header().Set("Cache-Control", fmt.Sprintf("%s, max-age=%d", cacheType, int(day.Seconds())))
@@ -326,7 +327,7 @@ func (i ItemHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	status = http.StatusOK
 	switch r.Method {
 	case http.MethodGet:
-		if it.GetType() == vocab.TombstoneType {
+		if vocab.TombstoneType.Match(it.GetType()) {
 			status = http.StatusGone
 		}
 	case http.MethodHead:

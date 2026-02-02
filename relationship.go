@@ -20,31 +20,31 @@ func RelationshipManagementActivity(p P, act *vocab.Activity, receivedIn vocab.I
 	if vocab.IsNil(act.Actor) {
 		return act, errors.NotValidf("Missing actor for %s Activity", act.Type)
 	}
-	switch act.Type {
-	case vocab.FollowType:
+	switch {
+	case vocab.FollowType.Match(act.Type):
 		return FollowActivity(p, act, receivedIn)
-	case vocab.RejectType:
+	case vocab.RejectType.Match(act.Type):
 		fallthrough
-	case vocab.TentativeRejectType:
+	case vocab.TentativeRejectType.Match(act.Type):
 		return RejectActivity(p.s, act)
-	case vocab.TentativeAcceptType:
+	case vocab.TentativeAcceptType.Match(act.Type):
 		fallthrough
-	case vocab.AcceptType:
+	case vocab.AcceptType.Match(act.Type):
 		return AcceptActivity(p, act, receivedIn)
-	case vocab.BlockType:
+	case vocab.BlockType.Match(act.Type):
 		return BlockActivity(p, act, receivedIn)
-	case vocab.AddType:
+	case vocab.AddType.Match(act.Type):
 		fallthrough
-	case vocab.CreateType:
+	case vocab.CreateType.Match(act.Type):
 		fallthrough
-	case vocab.DeleteType:
+	case vocab.DeleteType.Match(act.Type):
 		fallthrough
-	case vocab.IgnoreType:
+	case vocab.IgnoreType.Match(act.Type):
 		fallthrough
-	case vocab.InviteType:
+	case vocab.InviteType.Match(act.Type):
 		fallthrough
 	default:
-		return act, errors.NotImplementedf("Activity %s is not implemented", act.GetType())
+		return act, errors.NotImplementedf("Activity %s is not implemented", act.Type)
 	}
 	return act, nil
 }

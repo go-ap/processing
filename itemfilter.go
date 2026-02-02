@@ -16,8 +16,8 @@ func (i itemFilter) GetLink() vocab.IRI {
 	return i.item.GetLink()
 }
 
-func (i itemFilter) Types() vocab.ActivityVocabularyTypes {
-	return vocab.ActivityVocabularyTypes{i.item.GetType()}
+func (i itemFilter) Types() vocab.Typer {
+	return i.item.GetType()
 }
 
 func (i itemFilter) IRIs() vocab.IRIs {
@@ -30,13 +30,13 @@ func (i itemFilter) IRIs() vocab.IRIs {
 
 func (i itemFilter) Actors() vocab.IRIs {
 	iris := make(vocab.IRIs, 0)
-	if vocab.ActivityTypes.Contains(i.item.GetType()) {
+	if vocab.ActivityTypes.Match(i.item.GetType()) {
 		_ = vocab.OnActivity(i.item, func(a *vocab.Activity) error {
 			iris = append(iris, a.Actor.GetLink())
 			return nil
 		})
 	}
-	if vocab.IntransitiveActivityTypes.Contains(i.item.GetType()) {
+	if vocab.IntransitiveActivityTypes.Match(i.item.GetType()) {
 		_ = vocab.OnIntransitiveActivity(i.item, func(a *vocab.IntransitiveActivity) error {
 			iris = append(iris, a.Actor.GetLink())
 			return nil
@@ -47,7 +47,7 @@ func (i itemFilter) Actors() vocab.IRIs {
 
 func (i itemFilter) Objects() vocab.IRIs {
 	iris := make(vocab.IRIs, 0)
-	if vocab.ActivityTypes.Contains(i.item.GetType()) {
+	if vocab.ActivityTypes.Match(i.item.GetType()) {
 		_ = vocab.OnActivity(i.item, func(a *vocab.Activity) error {
 			iris = append(iris, a.Object.GetLink())
 			return nil
@@ -58,13 +58,14 @@ func (i itemFilter) Objects() vocab.IRIs {
 
 func (i itemFilter) Targets() vocab.IRIs {
 	iris := make(vocab.IRIs, 0)
-	if vocab.ActivityTypes.Contains(i.item.GetType()) {
+	typ := i.item.GetType()
+	if vocab.ActivityTypes.Match(typ) {
 		_ = vocab.OnActivity(i.item, func(a *vocab.Activity) error {
 			iris = append(iris, a.Target.GetLink())
 			return nil
 		})
 	}
-	if vocab.IntransitiveActivityTypes.Contains(i.item.GetType()) {
+	if vocab.IntransitiveActivityTypes.Match(typ) {
 		_ = vocab.OnIntransitiveActivity(i.item, func(a *vocab.IntransitiveActivity) error {
 			iris = append(iris, a.Target.GetLink())
 			return nil
@@ -75,7 +76,7 @@ func (i itemFilter) Targets() vocab.IRIs {
 
 func (i itemFilter) AttributedTo() vocab.IRIs {
 	iris := make(vocab.IRIs, 0)
-	if vocab.ObjectTypes.Contains(i.item.GetType()) {
+	if vocab.ObjectTypes.Match(i.item.GetType()) {
 		_ = vocab.OnObject(i.item, func(o *vocab.Object) error {
 			iris = append(iris, o.AttributedTo.GetLink())
 			return nil
@@ -86,7 +87,7 @@ func (i itemFilter) AttributedTo() vocab.IRIs {
 
 func (i itemFilter) InReplyTo() vocab.IRIs {
 	iris := make(vocab.IRIs, 0)
-	if vocab.ObjectTypes.Contains(i.item.GetType()) {
+	if vocab.ObjectTypes.Match(i.item.GetType()) {
 		vocab.OnObject(i.item, func(o *vocab.Object) error {
 			iris = append(iris, o.InReplyTo.GetLink())
 			return nil
@@ -97,7 +98,7 @@ func (i itemFilter) InReplyTo() vocab.IRIs {
 
 func (i itemFilter) MediaTypes() []vocab.MimeType {
 	types := make([]vocab.MimeType, 0)
-	if vocab.ObjectTypes.Contains(i.item.GetType()) {
+	if vocab.ObjectTypes.Match(i.item.GetType()) {
 		vocab.OnObject(i.item, func(o *vocab.Object) error {
 			types = append(types, o.MediaType)
 			return nil
@@ -108,7 +109,8 @@ func (i itemFilter) MediaTypes() []vocab.MimeType {
 
 func (i itemFilter) Names() []vocab.Content {
 	names := make([]vocab.Content, 0)
-	if vocab.ActivityTypes.Contains(i.item.GetType()) {
+	typ := i.item.GetType()
+	if vocab.ActivityTypes.Match(typ) {
 		_ = vocab.OnActivity(i.item, func(a *vocab.Activity) error {
 			for _, name := range a.Name {
 				names = append(names, name)
@@ -116,7 +118,7 @@ func (i itemFilter) Names() []vocab.Content {
 			return nil
 		})
 	}
-	if vocab.ObjectTypes.Contains(i.item.GetType()) {
+	if vocab.ObjectTypes.Match(typ) {
 		_ = vocab.OnObject(i.item, func(o *vocab.Object) error {
 			for _, name := range o.Name {
 				names = append(names, name)
@@ -124,7 +126,7 @@ func (i itemFilter) Names() []vocab.Content {
 			return nil
 		})
 	}
-	if vocab.ActivityTypes.Contains(i.item.GetType()) {
+	if vocab.ActivityTypes.Match(typ) {
 		_ = vocab.OnActor(i.item, func(p *vocab.Actor) error {
 			for _, name := range p.Name {
 				names = append(names, name)

@@ -15,25 +15,25 @@ import (
 func ReactionsActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activity, error) {
 	var err error
 	if act.Object != nil {
-		switch act.Type {
-		case vocab.DislikeType:
+		switch {
+		case vocab.DislikeType.Match(act.Type):
 			fallthrough
-		case vocab.LikeType:
+		case vocab.LikeType.Match(act.Type):
 			act, err = AppreciationActivity(p, act)
-		case vocab.RejectType:
+		case vocab.RejectType.Match(act.Type):
 			fallthrough
-		case vocab.TentativeRejectType:
+		case vocab.TentativeRejectType.Match(act.Type):
 			// I think nothing happens here.
 			act, err = RejectActivity(p.s, act)
-		case vocab.TentativeAcceptType:
+		case vocab.TentativeAcceptType.Match(act.Type):
 			fallthrough
-		case vocab.AcceptType:
+		case vocab.AcceptType.Match(act.Type):
 			act, err = AcceptActivity(p, act, receivedIn)
-		case vocab.BlockType:
+		case vocab.BlockType.Match(act.Type):
 			act, err = BlockActivity(p, act, receivedIn)
-		case vocab.FlagType:
+		case vocab.FlagType.Match(act.Type):
 			act, err = FlagActivity(p.s, act)
-		case vocab.IgnoreType:
+		case vocab.IgnoreType.Match(act.Type):
 			act, err = IgnoreActivity(p, act)
 		}
 	}
@@ -52,7 +52,7 @@ func AppreciationActivity(p P, act *vocab.Activity) (*vocab.Activity, error) {
 		return act, errors.NotValidf("Missing actor for %s Activity", act.Type)
 	}
 	good := vocab.ActivityVocabularyTypes{vocab.LikeType, vocab.DislikeType}
-	if !good.Contains(act.Type) {
+	if !good.Match(act.Type) {
 		return act, errors.NotValidf("Activity has wrong type %s, expected %v", act.Type, good)
 	}
 
@@ -97,7 +97,7 @@ func AppreciationActivity(p P, act *vocab.Activity) (*vocab.Activity, error) {
 	}
 
 	// NOTE(marius): we're only saving to the Liked and Likes collections for Likes in order to conform to the spec.
-	if act.GetType() == vocab.LikeType {
+	if vocab.LikeType.Match(act.GetType()) {
 		// TODO(marius): do something sensible with these errors, they shouldn't stop execution,
 		//               but they are still good to know
 		_ = saveToCollections(actors, objects)
@@ -151,7 +151,7 @@ func AcceptActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Acti
 			return err
 		}
 		// NOTE(marius): Accepts need to be propagated back to the originating actor if missing from recipients list
-		if act.Type == vocab.AcceptType {
+		if vocab.AcceptType.Match(act.Type) {
 			actor := follow.Actor
 			if !actor.GetLink().Equal(vocab.PublicNS) && !p.IsLocal(actor) && !act.Recipients().Contains(actor) {
 				act.BCC.Append(actor)
@@ -164,7 +164,7 @@ func AcceptActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Acti
 
 func dispatchFollowSideEffectToLocalCollections(p P, a *vocab.Activity) error {
 	good := vocab.ActivityVocabularyTypes{vocab.FollowType}
-	if !good.Contains(a.Type) {
+	if !good.Match(a.Type) {
 		return errors.NotValidf("Object Activity has wrong type %s, expected %v", a.Type, good)
 	}
 
@@ -213,7 +213,7 @@ func BlockActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activ
 	if vocab.IsNil(act.Actor) {
 		return act, errors.NotValidf("Missing actor for %s Activity", act.Type)
 	}
-	if act.Type != vocab.BlockType {
+	if !vocab.BlockType.Match(act.Type) {
 		return act, errors.NotValidf("Activity has wrong type %s, expected %s", act.Type, vocab.BlockType)
 	}
 
@@ -238,13 +238,13 @@ func FlagActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
 	if vocab.IsNil(act.Actor) {
 		return act, errors.NotValidf("Missing actor for %s Activity", act.Type)
 	}
-	if act.Type != vocab.FlagType {
+	if !vocab.FlagType.Match(act.Type) {
 		return act, errors.NotValidf("Activity has wrong type %s, expected %s", act.Type, vocab.FlagType)
 	}
 
 	vocab.OnObject(act.Object, func(o *vocab.Object) error {
 		var toRemoveIRI vocab.IRI
-		if !vocab.ActorTypes.Contains(o.Type) {
+		if !vocab.ActorTypes.Match(o.Type) {
 			if o.AttributedTo != nil {
 				// Remove object's author from any recipients collections
 				toRemoveIRI = o.AttributedTo.GetLink()
@@ -277,7 +277,7 @@ func IgnoreActivity(p P, act *vocab.Activity) (*vocab.Activity, error) {
 	if vocab.IsNil(act.Actor) {
 		return act, errors.NotValidf("Missing actor for %s Activity", act.Type)
 	}
-	if act.Type != vocab.IgnoreType {
+	if !vocab.IgnoreType.Match(act.Type) {
 		return act, errors.NotValidf("Activity has wrong type %s, expected %s", act.Type, vocab.IgnoreType)
 	}
 

@@ -53,7 +53,7 @@ func (p P) ProcessServerActivity(it vocab.Item, author vocab.Actor, receivedIn v
 	}
 
 	var err error
-	if vocab.IntransitiveActivityTypes.Contains(it.GetType()) {
+	if vocab.IntransitiveActivityTypes.Match(it.GetType()) {
 		err = vocab.OnIntransitiveActivity(it, p.dereferenceIntransitiveActivityProperties(receivedIn))
 	} else {
 		err = vocab.OnActivity(it, p.dereferenceActivityProperties(receivedIn))
@@ -69,7 +69,7 @@ func (p P) ProcessServerActivity(it vocab.Item, author vocab.Actor, receivedIn v
 	// NOTE(marius): the separation between transitive and intransitive activities overlaps the separation we're
 	// using in the processingClientActivity function between the ActivityStreams motivations separation.
 	// This means that 'it' should probably be treated as a vocab.Item until the last possible moment.
-	if vocab.IntransitiveActivityTypes.Contains(it.GetType()) {
+	if vocab.IntransitiveActivityTypes.Match(it.GetType()) {
 		err = vocab.OnIntransitiveActivity(it, func(act *vocab.IntransitiveActivity) error {
 			if err := p.saveRemoteIntransitiveActivity(act); err != nil {
 				p.l.WithContext(lw.Ctx{"err": err.Error()}).Warnf("unable to save remote activity and objects locally")
@@ -205,7 +205,6 @@ func (p P) ObjectShouldBeInboxForwarded(it vocab.Item, maxDepth int) bool {
 	shouldForward := false
 
 	typ := it.GetType()
-
 	switch {
 	case vocab.IsIRI(it):
 		return p.IsLocal(it)
@@ -227,7 +226,7 @@ func (p P) ObjectShouldBeInboxForwarded(it vocab.Item, maxDepth int) bool {
 			}
 			return nil
 		})
-	case vocab.IntransitiveActivityTypes.Contains(typ):
+	case vocab.IntransitiveActivityTypes.Match(typ):
 		_ = vocab.OnIntransitiveActivity(it, func(act *vocab.IntransitiveActivity) error {
 			if shouldForward = p.IsLocal(act); shouldForward {
 				return nil
@@ -237,7 +236,7 @@ func (p P) ObjectShouldBeInboxForwarded(it vocab.Item, maxDepth int) bool {
 			}
 			return nil
 		})
-	case vocab.ActivityTypes.Contains(typ):
+	case vocab.ActivityTypes.Match(typ):
 		_ = vocab.OnActivity(it, func(act *vocab.Activity) error {
 			if shouldForward = p.IsLocal(act); shouldForward {
 				return nil
@@ -313,11 +312,11 @@ func processServerActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (voca
 	var err error
 	typ := act.GetType()
 	switch {
-	case vocab.CreateType == typ:
+	case vocab.CreateType.Match(typ):
 		act, err = CreateActivityFromServer(p, act)
-	case vocab.DeleteType == typ:
+	case vocab.DeleteType.Match(typ):
 		act, err = DeleteActivity(p.s, act)
-	case vocab.ReactionsActivityTypes.Contains(typ):
+	case vocab.ReactionsActivityTypes.Match(typ):
 		act, err = ReactionsActivity(p, act, receivedIn)
 	}
 	return act, err
@@ -350,7 +349,7 @@ func (p P) BuildInboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab.I
 		}
 
 		// NOTE(marius): at this stage we only want the actor recipients
-		if vocab.ActorTypes.Contains(lr.GetType()) {
+		if vocab.ActorTypes.Match(lr.GetType()) {
 			_ = allRecipients.Append(vocab.Inbox.IRI(lr))
 		}
 	}
@@ -402,15 +401,13 @@ func (p P) BuildLocalCollectionsRecipients(it vocab.Item, receivedIn vocab.IRI) 
 			continue
 		}
 
-		typ := lr.GetType()
-		if !vocab.CollectionTypes.Contains(typ) {
+		if !vocab.CollectionTypes.Match(lr.GetType()) {
 			continue
 		}
-
 		_ = vocab.OnCollectionIntf(lr, func(col vocab.CollectionInterface) error {
 			for _, m := range col.Collection() {
 				// NOTE(marius): we append all valid recipients, local or remote.
-				if !vocab.ActorTypes.Contains(m.GetType()) || isBlocked(loader, recIRI, act.Actor) {
+				if !vocab.ActorTypes.Match(m.GetType()) || isBlocked(loader, recIRI, act.Actor) {
 					continue
 				}
 				_ = vocab.OnActor(m, func(act *vocab.Actor) error {

@@ -28,7 +28,7 @@ func (p P) ValidateClientNegatingActivity(act *vocab.Activity) error {
 		if !act.Actor.GetLink().Equals(objAct.Actor.GetLink(), false) {
 			return errors.NotValidf("The %s activity has a different actor than its object: %s, expected %s", act.Type, act.Actor.GetLink(), objAct.Actor.GetLink())
 		}
-		if !validUndoActivityTypes.Contains(objAct.Type) {
+		if !validUndoActivityTypes.Match(objAct.Type) {
 			return errors.NotValidf("Object Activity has wrong type %s, expected one of %v", objAct.Type, validUndoActivityTypes)
 		}
 		return nil
@@ -49,7 +49,7 @@ func (p P) NegatingActivity(act *vocab.Activity) (*vocab.Activity, error) {
 	if vocab.IsNil(act.Actor) {
 		return act, errors.NotValidf("Missing actor for %s Activity", act.Type)
 	}
-	if act.Type != vocab.UndoType {
+	if !vocab.UndoType.Match(act.Type) {
 		return act, errors.NotValidf("Activity has wrong type %s, expected %s", act.Type, vocab.UndoType)
 	}
 	return p.UndoActivity(act)
@@ -90,23 +90,24 @@ func (p P) UndoActivity(act *vocab.Activity) (*vocab.Activity, error) {
 				toUndo.BCC = append(toUndo.BCC, to)
 			}
 		}
-		switch toUndo.GetType() {
-		case vocab.CreateType:
+		typ := toUndo.GetType()
+		switch {
+		case vocab.CreateType.Match(typ):
 			_, err = p.UndoCreateActivity(toUndo)
-		case vocab.DislikeType:
+		case vocab.DislikeType.Match(typ):
 			// TODO(marius): Dislikes should not trigger a removal from Likes/Liked collections
 			fallthrough
-		case vocab.LikeType:
+		case vocab.LikeType.Match(typ):
 			_, err = p.UndoAppreciationActivity(toUndo)
-		case vocab.FollowType:
+		case vocab.FollowType.Match(typ):
 			fallthrough
-		case vocab.BlockType:
+		case vocab.BlockType.Match(typ):
 			fallthrough
-		case vocab.IgnoreType:
+		case vocab.IgnoreType.Match(typ):
 			fallthrough
-		case vocab.FlagType:
+		case vocab.FlagType.Match(typ):
 			_, err = p.UndoRelationshipManagementActivity(toUndo)
-		case vocab.AnnounceType:
+		case vocab.AnnounceType.Match(typ):
 			_, err = p.UndoAnnounceActivity(toUndo)
 		}
 		return err

@@ -55,7 +55,7 @@ func (p P) ProcessClientActivity(it vocab.Item, author vocab.Actor, receivedIn v
 	// NOTE(marius): the separation between transitive and intransitive activities overlaps the separation we're
 	// using in the processingClientActivity function between the ActivityStreams motivations separation.
 	// This means that 'it' should probably be treated as a vocab.Item until the last possible moment.
-	if vocab.IntransitiveActivityTypes.Contains(it.GetType()) {
+	if vocab.IntransitiveActivityTypes.Match(it.GetType()) {
 		return processClientIntransitiveActivity(p, it, receivedIn)
 	}
 	return it, vocab.OnActivity(it, func(act *vocab.Activity) error {
@@ -101,7 +101,7 @@ func processClientIntransitiveActivity(p P, it vocab.Item, receivedIn vocab.IRI)
 		}
 	}
 	typ := it.GetType()
-	if vocab.QuestionActivityTypes.Contains(typ) {
+	if vocab.QuestionActivityTypes.Match(typ) {
 		err := vocab.OnQuestion(it, func(q *vocab.Question) error {
 			var err error
 			q, err = p.QuestionActivity(q)
@@ -113,7 +113,7 @@ func processClientIntransitiveActivity(p P, it vocab.Item, receivedIn vocab.IRI)
 	}
 	err := vocab.OnIntransitiveActivity(it, func(act *vocab.IntransitiveActivity) error {
 		var err error
-		if vocab.GeoSocialEventsActivityTypes.Contains(typ) {
+		if vocab.GeoSocialEventsActivityTypes.Match(typ) {
 			act, err = GeoSocialEventsIntransitiveActivity(p.s, act)
 		}
 		if err != nil {
@@ -161,27 +161,27 @@ func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (voca
 	// TODO(marius): this does not work correctly if act.Object is an ItemCollection
 	//  First we process the activity to effect whatever changes we need to on the activity properties.
 	switch {
-	case vocab.ContentManagementActivityTypes.Contains(typ) && act.Object.GetType() != vocab.RelationshipType:
+	case vocab.ContentManagementActivityTypes.Match(typ) && !vocab.RelationshipType.Match(act.Object.GetType()):
 		act, err = ContentManagementActivityFromClient(p, act)
-	case vocab.CollectionManagementActivityTypes.Contains(typ):
+	case vocab.CollectionManagementActivityTypes.Match(typ):
 		act, err = p.CollectionManagementActivity(act)
-	case vocab.ReactionsActivityTypes.Contains(typ):
+	case vocab.ReactionsActivityTypes.Match(typ):
 		act, err = ReactionsActivity(p, act, receivedIn)
-	case vocab.EventRSVPActivityTypes.Contains(typ):
+	case vocab.EventRSVPActivityTypes.Match(typ):
 		act, err = EventRSVPActivity(p.s, act)
-	case vocab.GroupManagementActivityTypes.Contains(typ):
+	case vocab.GroupManagementActivityTypes.Match(typ):
 		act, err = GroupManagementActivity(p.s, act)
-	case vocab.ContentExperienceActivityTypes.Contains(typ):
+	case vocab.ContentExperienceActivityTypes.Match(typ):
 		act, err = ContentExperienceActivity(p.s, act)
-	case vocab.GeoSocialEventsActivityTypes.Contains(typ):
+	case vocab.GeoSocialEventsActivityTypes.Match(typ):
 		act, err = GeoSocialEventsActivity(p.s, act)
-	case vocab.NotificationActivityTypes.Contains(typ):
+	case vocab.NotificationActivityTypes.Match(typ):
 		act, err = p.NotificationActivity(act)
-	case vocab.RelationshipManagementActivityTypes.Contains(typ):
+	case vocab.RelationshipManagementActivityTypes.Match(typ):
 		act, err = RelationshipManagementActivity(p, act, receivedIn)
-	case vocab.NegatingActivityTypes.Contains(typ):
+	case vocab.NegatingActivityTypes.Match(typ):
 		act, err = p.NegatingActivity(act)
-	case vocab.OffersActivityTypes.Contains(typ):
+	case vocab.OffersActivityTypes.Match(typ):
 		act, err = OffersActivity(p.s, act)
 	}
 	if err != nil {
@@ -286,10 +286,10 @@ func (p P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab.
 
 		typ := lr.GetType()
 		switch {
-		case vocab.CollectionTypes.Contains(typ):
+		case vocab.CollectionTypes.Match(typ):
 			_ = vocab.OnCollectionIntf(lr, func(col vocab.CollectionInterface) error {
 				for _, m := range col.Collection() {
-					if !vocab.ActorTypes.Contains(m.GetType()) || isBlocked(loader, m, act.Actor) {
+					if !vocab.ActorTypes.Match(m.GetType()) || isBlocked(loader, m, act.Actor) {
 						continue
 					}
 					_ = vocab.OnActor(m, func(act *vocab.Actor) error {
@@ -303,7 +303,7 @@ func (p P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab.
 				}
 				return nil
 			})
-		case vocab.ActorTypes.Contains(typ):
+		case vocab.ActorTypes.Match(typ):
 			if isBlocked(loader, recIRI, act.Actor) {
 				continue
 			}
