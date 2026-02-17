@@ -305,12 +305,12 @@ func CreateActivityFromClient(p P, act *vocab.Activity) (*vocab.Activity, error)
 	if err != nil {
 		return act, errors.Annotatef(err, "unable to add object collections to object %s", act.Object.GetLink())
 	}
-	act.Object, err = p.s.Save(act.Object)
-	if err != nil {
-		return act, errors.Annotatef(err, "unable to save object to storage %s", act.Object.GetLink())
-	}
 	if err = p.CreateCollectionsForObject(act.Object); err != nil {
 		return act, errors.Annotatef(err, "unable to save collections for activity object")
+	}
+	act.Object, err = p.s.Save(vocab.FlattenProperties(act.Object))
+	if err != nil {
+		return act, errors.Annotatef(err, "unable to save object to storage %s", act.Object.GetLink())
 	}
 	return act, disseminateActivityObjectToLocalReplyToCollections(p, act)
 }
