@@ -6,9 +6,9 @@ require (
 	git.sr.ht/~mariusor/lw v0.0.0-20250325163623-1639f3fb0e0d
 	git.sr.ht/~mariusor/ssm v0.0.0-20260220115209-1adc83acc174
 	github.com/go-ap/activitypub v0.0.0-20260314162927-f37166117816
-	github.com/go-ap/client v0.0.0-20260314172213-e86ab32299ee
+	github.com/go-ap/client v0.0.0-20260318093433-0fb72021bf38
 	github.com/go-ap/errors v0.0.0-20260208110149-e1b309365966
-	github.com/go-ap/filters v0.0.0-20260314171937-f049bd20de96
+	github.com/go-ap/filters v0.0.0-20260318092102-3b81ed7315b1
 	github.com/go-ap/jsonld v0.0.0-20251216162253-e38fa664ea77
 )
 
@@ -34,5 +34,5 @@ require (
 	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/text v0.35.0 // indirect
 	gopkg.in/neurosnap/sentences.v1 v1.0.7 // indirect
-	quamina.net/go/quamina v1.5.2-0.20260219224429-4b74c3864009 // indirect
+	quamina.net/go/quamina/v2 v2.0.2 // indirect
 )
