@@ -19,17 +19,18 @@ type ReadStore interface {
 
 // WriteStore saves ActivityStreams objects.
 type WriteStore interface {
-	// Save saves the incoming ActivityStreams Object, and returns it together with any properties
+	// Save saves the incoming vocabulary Object, and returns it together with any properties
 	// populated by the method's side effects. (eg, Published property can point to the current time, etc.).
 	Save(vocab.Item) (vocab.Item, error)
-	// Delete deletes completely from storage the ActivityStreams Object
+	// Delete completely deletes from storage the vocabulary Object, this is usually
+	// a side effect of an Undo activity.
 	Delete(vocab.Item) error
 }
 
 // CollectionStore allows operations on ActivityStreams collections
 type CollectionStore interface {
 	// Create creates the "col" collection.
-	// NOTE(marius): we only use Create in FedBOX, which uses this interface for a type
+	// Deprecated: as we only use Create in FedBOX.
 	Create(vocab.CollectionInterface) (vocab.CollectionInterface, error)
 
 	// AddTo adds "it" element to the "col" collection.
