@@ -7,6 +7,8 @@ import (
 	"time"
 
 	vocab "github.com/go-ap/activitypub"
+	"github.com/go-ap/errors"
+	"github.com/google/go-cmp/cmp"
 )
 
 func TestContentManagementActivity(t *testing.T) {
@@ -293,3 +295,79 @@ func Test_defaultIDGenerator(t *testing.T) {
 		})
 	}
 }
+
+func Test_cleanupMediaObjectFromItem(t *testing.T) {
+	tests := []struct {
+		name    string
+		it      vocab.Item
+		want    vocab.Item
+		wantErr error
+	}{
+		{
+			name: "empty",
+		},
+		{
+			name: "non empty, w/o data content",
+			it:   &vocab.Object{Content: vocab.DefaultNaturalLanguage("test")},
+			want: &vocab.Object{Content: vocab.DefaultNaturalLanguage("test")},
+		},
+		{
+			name: "non empty, w/ data content, no ID",
+			it:   &vocab.Object{Content: vocab.DefaultNaturalLanguage("data:image/png;base64,AAA")},
+			want: &vocab.Object{},
+		},
+		{
+			name: "non empty, w/ data content, has ID",
+			it:   &vocab.Object{ID: vocab.IRI("https://example.com"), Content: vocab.DefaultNaturalLanguage("data:image/png;base64,AAA")},
+			want: &vocab.Object{ID: vocab.IRI("https://example.com"), URL: vocab.IRI("https://example.com")},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := cleanupMediaObjectFromItem(tt.it); !cmp.Equal(err, tt.wantErr, EquateWeakErrors) {
+				t.Errorf("cleanupMediaObjectFromItem() error = %s", cmp.Diff(tt.wantErr, err, EquateWeakErrors))
+			}
+
+			if !cmp.Equal(tt.it, tt.want, EquateItems) {
+				t.Errorf("cleanupMediaObjectFromItem() item mismatch = %s", cmp.Diff(tt.want, tt.it, EquateItems))
+			}
+		})
+	}
+}
+
+func areErrors(a, b any) bool {
+	_, ok1 := a.(error)
+	_, ok2 := b.(error)
+	return ok1 && ok2
+}
+
+func compareErrors(x, y any) bool {
+	xe := x.(error)
+	ye := y.(error)
+	if errors.Is(xe, ye) || errors.Is(ye, xe) {
+		return true
+	}
+	return xe.Error() == ye.Error()
+}
+
+var EquateWeakErrors = cmp.FilterValues(areErrors, cmp.Comparer(compareErrors))
+
+func areItems(a, b any) bool {
+	_, ok1 := a.(vocab.Item)
+	_, ok2 := b.(vocab.Item)
+	return ok1 && ok2
+}
+
+func compareItems(x, y any) bool {
+	var i1 vocab.Item
+	var i2 vocab.Item
+	if ic1, ok := x.(vocab.Item); ok {
+		i1 = ic1
+	}
+	if ic2, ok := y.(vocab.Item); ok {
+		i2 = ic2
+	}
+	return vocab.ItemsEqual(i1, i2) || vocab.ItemsEqual(i2, i1)
+}
+
+var EquateItems = cmp.FilterValues(areItems, cmp.Comparer(compareItems))

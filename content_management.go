@@ -1,6 +1,7 @@
 package processing
 
 import (
+	"bytes"
 	"fmt"
 	"strconv"
 	"strings"
@@ -153,12 +154,89 @@ func ContentManagementActivityFromClient(p P, act *vocab.Activity) (*vocab.Activ
 		return act, err
 	}
 
-	if !vocab.DeleteType.Match(act.Type) && act.Tag != nil {
-		// Try to save tags as set on the activity
-		_ = p.createNewTags(act.Tag, act)
+	if !vocab.DeleteType.Match(act.Type) {
+		if !vocab.IsNil(act.Tag) {
+			// NOTE(marius): try to save tags as set on the activity
+			// Upd : see if this is something we still need. /Marius 26-04-01
+			_ = p.createNewTags(act.Tag, act)
+		}
+
+		// NOTE(marius): for binary content objects (Image, Video, Audio) we use the content
+		// property as a base64 encoded container using the data URI scheme (RFC2397).
+		// So we need to remove that before we disseminate the object/activity to remote actors' inboxes.
+		//
+		// TODO(marius): add support for cleaning up the URL with the same rule as Content.
+		//
+		_ = cleanupMediaObjectFromItem(act.Object)
 	}
 
 	return act, err
+}
+
+func cleanupMediaObjectsFromCollection(col vocab.CollectionInterface) error {
+	errs := make([]error, 0)
+	for _, it := range col.Collection() {
+		if err := cleanupMediaObjectFromItem(it); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func contentHasBinaryData(nlv vocab.NaturalLanguageValues) bool {
+	for _, nv := range nlv {
+		if bytes.HasPrefix(nv, []byte("data:")) {
+			return true
+		}
+	}
+	return false
+}
+
+func cleanupMediaObject(o *vocab.Object) error {
+	if contentHasBinaryData(o.Content) {
+		// NOTE(marius): remove inline content from media ActivityPub objects
+		o.Content = make(vocab.NaturalLanguageValues)
+		_ = vocab.OnItem(o.URL, func(u vocab.Item) error {
+			// Add an explicit URL if missing.
+			if _, ok := u.(vocab.IRI); ok {
+				o.URL = o.ID
+			}
+			_ = vocab.OnObject(u, func(uu *vocab.Object) error {
+				uu.ID = o.ID
+				return nil
+			})
+			_ = vocab.OnLink(u, func(uu *vocab.Link) error {
+				uu.Href = o.ID
+				return nil
+			})
+			return nil
+		})
+	}
+	return cleanupMediaObjectFromItem(o.Attachment)
+}
+
+func cleanupMediaObjectFromActivity(act *vocab.Activity) error {
+	if err := cleanupMediaObjectFromItem(act.Object); err != nil {
+		return err
+	}
+	if err := cleanupMediaObjectFromItem(act.Target); err != nil {
+		return err
+	}
+	return nil
+}
+
+func cleanupMediaObjectFromItem(it vocab.Item) error {
+	if vocab.IsNil(it) {
+		return nil
+	}
+	//it = vocab.Clone(it)
+	if it.IsCollection() {
+		return vocab.OnCollectionIntf(it, cleanupMediaObjectsFromCollection)
+	}
+	if vocab.ActivityTypes.Match(it.GetType()) {
+		return vocab.OnActivity(it, cleanupMediaObjectFromActivity)
+	}
+	return vocab.OnObject(it, cleanupMediaObject)
 }
 
 func getCollection(it vocab.Item, c vocab.CollectionPath) vocab.CollectionInterface {
@@ -168,7 +246,7 @@ func getCollection(it vocab.Item, c vocab.CollectionPath) vocab.CollectionInterf
 	}
 }
 
-// addNewActorCollections appends the MUST have collections for an Actor under the ActivityPub specification
+// addNewActorCollections appends the "MUST have" collections for an Actor under the ActivityPub specification
 // if they are missing.
 func addNewActorCollections(p *vocab.Actor) error {
 	if p.Inbox == nil {
@@ -722,7 +800,7 @@ func loadTombstoneForDelete(loader ReadStore, toRemove *vocab.ItemCollection) fu
 		if vocab.IsNil(found) {
 			return errors.NotFoundf("Unable to find %s %s", ob.GetType(), ob.GetLink())
 		}
-		vocab.OnObject(found, func(fob *vocab.Object) error {
+		_ = vocab.OnObject(found, func(fob *vocab.Object) error {
 			t := vocab.Tombstone{
 				ID:      fob.GetLink(),
 				Type:    vocab.TombstoneType,
