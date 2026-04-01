@@ -7,12 +7,15 @@ PROJECT_NAME := $(shell basename $(PWD))
 
 .PHONY: test coverage clean download
 
-download:
-	$(GO) mod download all
+download: go.sum
+
+go.sum: go.mod
 	$(GO) mod tidy
 
-test: download
-	$(TEST) $(TEST_FLAGS) $(TEST_TARGET)
+test: go.sum clean
+	@
+	$(TEST) $(TEST_FLAGS) -cover $(TEST_TARGET) -json > tests.json
+	go tool tparse -file tests.json
 
 coverage: TEST_TARGET := .
 coverage: TEST_FLAGS += -covermode=count -coverprofile $(PROJECT_NAME).coverprofile
