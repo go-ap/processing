@@ -5,10 +5,10 @@ go 1.25.0
 require (
 	git.sr.ht/~mariusor/lw v0.0.0-20250325163623-1639f3fb0e0d
 	git.sr.ht/~mariusor/ssm v0.0.0-20260220115209-1adc83acc174
-	github.com/go-ap/activitypub v0.0.0-20260330133938-2e4972ff690b
-	github.com/go-ap/client v0.0.0-20260330134301-ba3c2e78d276
+	github.com/go-ap/activitypub v0.0.0-20260402093412-528d4eaf86a8
+	github.com/go-ap/client v0.0.0-20260402093944-cbd9738627d5
 	github.com/go-ap/errors v0.0.0-20260208110149-e1b309365966
-	github.com/go-ap/filters v0.0.0-20260330134234-a70aa1bf886d
+	github.com/go-ap/filters v0.0.0-20260402093843-285aba89aa03
 	github.com/go-ap/jsonld v0.0.0-20251216162253-e38fa664ea77
 	github.com/google/go-cmp v0.7.0
 )
