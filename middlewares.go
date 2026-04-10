@@ -1,9 +1,8 @@
 package processing
 
 import (
-	"bytes"
-	"io"
 	"net/http"
+	"net/http/httputil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -30,40 +29,14 @@ func RequestToDiskMw(outPath string, checkDebugEnabledFn func() bool) func(next 
 				next.ServeHTTP(w, r)
 				return
 			}
-			r2 := cloneRequest(r, ff)
 			defer r.Body.Close()
 
-			_, _ = ff.WriteString(r.Method)
-			_, _ = ff.WriteString(" ")
-			_, _ = ff.WriteString(r.URL.String())
-			_, _ = ff.WriteString("\n")
-			if len(r.Header) > 0 {
-				_ = r.Header.Write(ff)
-				_, _ = ff.WriteString("\n\n")
+			raw, err := httputil.DumpRequest(r, true)
+			if err == nil {
+				_, _ = ff.Write(raw)
 			}
-			_, _ = io.ReadAll(r.Body)
-			next.ServeHTTP(w, r2)
+
+			next.ServeHTTP(w, r)
 		})
 	}
-}
-
-// cloneRequest returns a clone of the provided *http.Request.
-func cloneRequest(r *http.Request, ff io.ReadWriter) *http.Request {
-	// shallow copy of the struct
-	r2 := new(http.Request)
-	*r2 = *r
-
-	// deep copy of the Header
-	r2.Header = make(http.Header, len(r.Header))
-	for k, s := range r.Header {
-		r2.Header[k] = append([]string(nil), s...)
-	}
-
-	body := bytes.Buffer{}
-	// replace old body with the teeReader
-	r.Body = io.NopCloser(io.TeeReader(r.Body, io.MultiWriter(ff, &body)))
-	// new request body
-	r2.Body = io.NopCloser(&body)
-
-	return r2
 }
