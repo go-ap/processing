@@ -13,9 +13,7 @@ go.sum: go.mod
 	$(GO) mod tidy
 
 test: go.sum clean
-	@
-	$(TEST) $(TEST_FLAGS) -cover $(TEST_TARGET) -json > tests.json
-	go tool tparse -file tests.json
+	$(TEST) $(TEST_FLAGS) -cover $(TEST_TARGET) -json | go tool tparse -all
 
 coverage: TEST_TARGET := .
 coverage: TEST_FLAGS += -covermode=count -coverprofile $(PROJECT_NAME).coverprofile
