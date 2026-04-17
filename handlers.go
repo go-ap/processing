@@ -78,7 +78,11 @@ func reqIRI(r *http.Request) vocab.IRI {
 	if r.TLS == nil {
 		proto = "http"
 	}
-	return vocab.IRI(fmt.Sprintf("%s://%s%s", proto, r.Host, r.RequestURI))
+	host := r.Host
+	if forwardedHost := r.Header.Get("X-Forwarded-Host"); forwardedHost != "" {
+		host = forwardedHost
+	}
+	return vocab.IRI(fmt.Sprintf("%s://%s%s", proto, host, r.RequestURI))
 }
 
 // ServeHTTP implements the http.Handler interface for the ActivityHandlerFn type
