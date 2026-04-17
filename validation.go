@@ -128,12 +128,17 @@ func (p P) ValidateServerActivity(a vocab.Item, author vocab.Actor, inbox vocab.
 	})
 }
 
+func collectionMatchesIRI(i vocab.IRI, col vocab.CollectionPath) bool {
+	_, maybePath := vocab.Split(i)
+	return maybePath == col
+}
+
 func IsOutbox(i vocab.IRI) bool {
-	return strings.ToLower(filepath.Base(i.String())) == strings.ToLower(string(vocab.Outbox))
+	return collectionMatchesIRI(i, vocab.Outbox)
 }
 
 func IsInbox(i vocab.IRI) bool {
-	return strings.ToLower(filepath.Base(i.String())) == strings.ToLower(string(vocab.Inbox))
+	return collectionMatchesIRI(i, vocab.Inbox)
 }
 
 // IRIBelongsToActor checks if the search iri represents any of the collections associated with the actor.
