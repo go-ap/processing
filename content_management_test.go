@@ -96,7 +96,7 @@ func Test_addNewObjectCollections(t *testing.T) {
 }
 
 func Test_getCollection(t *testing.T) {
-	emptyOrderedCollection := &vocab.OrderedCollection{ID: "/", Type: vocab.OrderedCollectionType}
+	emptyOrderedCollection := &vocab.OrderedCollection{ID: "", Type: vocab.OrderedCollectionType}
 	type args struct {
 		it vocab.Item
 		c  vocab.CollectionPath
@@ -115,8 +115,8 @@ func Test_getCollection(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := getCollection(tt.args.it, tt.args.c)
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("getCollection() = %v, want %v", got, tt.want)
+			if !cmp.Equal(got, tt.want, EquateItems) {
+				t.Errorf("getCollection() = %s", cmp.Diff(tt.want, got, EquateItems))
 			}
 		})
 	}

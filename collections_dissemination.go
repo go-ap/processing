@@ -72,7 +72,7 @@ func (p P) disseminateToRemoteCollections(it vocab.Item, iris ...vocab.IRI) erro
 			// an HTTP-Signature RoundTripper.
 			defer func() { currentRetry += 1 }()
 			ll := p.l.WithContext(lw.Ctx{"to": col, "retry": currentRetry})
-			if _, _, err := p.c.ToCollection(col, it); err != nil {
+			if _, _, err := p.c.ToCollection(it, col); err != nil {
 				ll.Warnf("Unable to disseminate activity %s", err)
 				switch {
 				case errors.IsConflict(err):

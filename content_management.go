@@ -446,11 +446,7 @@ func (p P) saveCollectionObjectForParent(parent, colIt vocab.Item) error {
 		}
 		return nil
 	})
-	col, ok := colIt.(vocab.CollectionInterface)
-	if !ok {
-		return errors.Newf("invalid collection type to create %T", colIt)
-	}
-	_, err := p.s.Create(col)
+	_, err := p.s.Save(colIt)
 	return err
 }
 
