@@ -94,10 +94,10 @@ func (p P) ProcessActivity(it vocab.Item, author vocab.Actor, receivedIn vocab.I
 	if vocab.IsNil(it) {
 		return nil, InvalidActivity("received nil")
 	}
-	p.l = p.l.WithContext(lw.Ctx{"in": receivedIn, "type": it.GetType()})
+	p.l = p.l.WithContext(lw.Ctx{"in": receivedIn, "type": it.GetType(), "author": author.ID})
 	p.l.Debugf("Processing started")
 	defer func(start time.Time) {
-		p.l.WithContext(lw.Ctx{"duration": time.Now().Sub(start)}).Debugf("Processing ended")
+		p.l.WithContext(lw.Ctx{"duration": time.Since(start)}).Debugf("Processing ended")
 	}(time.Now())
 
 	if IsOutbox(receivedIn) {

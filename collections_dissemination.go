@@ -74,7 +74,7 @@ func (p P) disseminateToRemoteCollections(it vocab.Item, iris ...vocab.IRI) erro
 			// an HTTP-Signature RoundTripper.
 			defer func() {
 				currentRetry += 1
-				delay = time.Now().UTC().Round(time.Microsecond).Sub(start)
+				delay = time.Since(start)
 			}()
 			ll := p.l.WithContext(lw.Ctx{"to": col, "retry": currentRetry, "delay": delay.String()})
 			if _, _, err := p.c.ToCollection(it, col); err != nil {
