@@ -31,7 +31,7 @@ type WriteStore interface {
 type CollectionStore interface {
 	// Create creates the "col" collection.
 	// Deprecated: as we only use Create in FedBOX.
-	Create(vocab.CollectionInterface) (vocab.CollectionInterface, error)
+	//Create(vocab.CollectionInterface) (vocab.CollectionInterface, error)
 
 	// AddTo adds "it" element to the "col" collection.
 	AddTo(vocab.IRI, ...vocab.Item) error
