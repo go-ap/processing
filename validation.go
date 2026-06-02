@@ -97,7 +97,7 @@ func (p P) ValidateServerActivity(a vocab.Item, author vocab.Actor, inbox vocab.
 		return p.ValidateIRI(a.GetLink())
 	}
 	if !vocab.ActivityTypes.Match(a.GetType()) {
-		return InvalidActivity("invalid type %s", a.GetType())
+		return InvalidActivity("invalid type %v", a.GetType())
 	}
 
 	return vocab.OnActivity(a, func(act *vocab.Activity) error {
@@ -224,7 +224,7 @@ func (p P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab
 
 	validActivityTypes := append(vocab.ActivityTypes, vocab.IntransitiveActivityTypes...)
 	if !validActivityTypes.Match(a.GetType()) {
-		return InvalidActivity("invalid type %s", a.GetType())
+		return InvalidActivity("invalid type %v", a.GetType())
 	}
 
 	err := vocab.OnIntransitiveActivity(a, func(act *vocab.IntransitiveActivity) error {
@@ -535,10 +535,10 @@ func (p P) ValidateActor(a vocab.Item, expected vocab.Actor) (vocab.Item, error)
 	}
 	err = vocab.OnActor(a, func(act *vocab.Actor) error {
 		a = act
-		if !vocab.ActorTypes.Match(act.GetType()) {
-			return InvalidActivityActor("invalid type %s", act.GetType())
+		if typ := act.GetType(); !vocab.ActorTypes.Match(typ) {
+			return InvalidActivityActor("invalid type %v", typ)
 		}
-		if !expected.GetLink().Equals(act.GetLink(), false) {
+		if !expected.GetLink().Equal(act.GetLink()) {
 			return InvalidActivityActor("the actor doesn't match the authenticated one")
 		}
 		return nil
