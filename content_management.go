@@ -84,6 +84,7 @@ func SetIDIfMissing(it vocab.Item, parentActivity vocab.Item, createIDFn IDGener
 			// to always set it.
 			return vocab.OnObject(it, setID(id))
 		}
+		return nil
 	}
 	colCreateId := func(it vocab.Item, byActivity vocab.Item, idx int) (vocab.ID, error) {
 		iri, err := createIDFn(it, byActivity)
