@@ -129,7 +129,7 @@ func (p *P) createNewTags(tags vocab.ItemCollection, parent vocab.Item) error {
 		if id := tag.GetID(); len(id) > 0 {
 			continue
 		}
-		if err := p.SetIDIfMissing(tag, parent); err == nil {
+		if err := SetIDIfMissing(tag, parent, p.createIDFn); err == nil {
 			tag, _ = p.s.Save(tag)
 		}
 	}

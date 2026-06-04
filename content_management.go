@@ -68,12 +68,12 @@ func defaultIDGenerator(base vocab.IRI) IDGenerator {
 	}
 }
 
-func (p P) SetIDIfMissing(it vocab.Item, parentActivity vocab.Item) error {
+func SetIDIfMissing(it vocab.Item, parentActivity vocab.Item, createIDFn IDGenerator) error {
 	if !vocab.IsItemCollection(it) {
 		if len(it.GetID()) > 0 {
 			return nil
 		}
-		id, err := p.createIDFn(it, parentActivity)
+		id, err := createIDFn(it, parentActivity)
 		if err != nil {
 			return err
 		}
@@ -86,7 +86,7 @@ func (p P) SetIDIfMissing(it vocab.Item, parentActivity vocab.Item) error {
 		}
 	}
 	colCreateId := func(it vocab.Item, byActivity vocab.Item, idx int) (vocab.ID, error) {
-		iri, err := p.createIDFn(it, byActivity)
+		iri, err := createIDFn(it, byActivity)
 		if err != nil {
 			return iri, err
 		}
@@ -338,9 +338,6 @@ func validateCreateObjectIsNew(p P, ob vocab.Item) error {
 func CreateActivityFromClient(p P, act *vocab.Activity) (*vocab.Activity, error) {
 	if err := validateCreateObjectIsNew(p, act.Object); err != nil {
 		return act, err
-	}
-	if err := p.SetIDIfMissing(act.Object, vocab.Outbox.IRI(act.Actor), act); err != nil {
-		return act, nil
 	}
 	if vocab.ActorTypes.Match(act.Object.GetType()) {
 		// TODO(marius): @PreHook@ we can replace this with a pre-hook function on Create activities to create they keys
@@ -680,6 +677,12 @@ func (p *P) updateObjectForCreate(o *vocab.Object, act *vocab.Activity) error {
 	// Set the published date
 	if o.Published.IsZero() {
 		o.Published = time.Now().UTC()
+	}
+
+	// NOTE(marius): now that we've set the object's attributedTo, we
+	// can try to set its ID.
+	if err := SetIDIfMissing(o, act, p.createIDFn); err != nil {
+		return err
 	}
 	return p.updateObjectForUpdate(o)
 }

@@ -29,7 +29,7 @@ func (p *P) saveQuestionAnswers(q *vocab.Question) func(col *vocab.ItemCollectio
 		var err error
 		for _, ans := range col.Collection() {
 			if iri := ans.GetLink(); len(iri) == 0 {
-				err = p.SetIDIfMissing(ans, q)
+				err = SetIDIfMissing(ans, q, p.createIDFn)
 			}
 
 			_ = vocab.OnActivity(q, func(act *vocab.Activity) error {
