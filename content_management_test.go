@@ -237,6 +237,8 @@ func Test_updateUpdateActivityObject(t *testing.T) {
 }
 
 var (
+	defaultDomain = vocab.IRI("https://example.com")
+
 	defaultActorID = vocab.IRI("https://jdoe.example.com")
 
 	defaultActor = &vocab.Actor{
@@ -253,12 +255,11 @@ var (
 )
 
 func Test_defaultIDGenerator(t *testing.T) {
-	var publishedAt = time.Now()
+	var publishedAt = time.Now().Truncate(time.Millisecond).UTC()
 
 	type args struct {
-		it     vocab.Item
-		partOf vocab.Item
-		by     vocab.Item
+		it vocab.Item
+		by vocab.Item
 	}
 	tests := []struct {
 		name string
@@ -268,28 +269,26 @@ func Test_defaultIDGenerator(t *testing.T) {
 		{
 			name: "plain inbox",
 			args: args{
-				&vocab.Object{Published: publishedAt},
-				vocab.Inbox.IRI(defaultActor),
-				nil,
+				it: &vocab.Object{Published: publishedAt},
+				by: nil,
 			},
-			want: vocab.Inbox.IRI(defaultActor).AddPath(fmt.Sprintf("%d", publishedAt.UnixMilli())),
+			want: defaultDomain.GetLink().AddPath(fmt.Sprintf("%d", publishedAt.UnixMilli())),
 		},
 		{
 			name: "empty collection",
 			args: args{
-				&vocab.Object{
+				it: &vocab.Object{
 					AttributedTo: defaultActor,
 					Published:    publishedAt,
 				},
-				nil,
-				nil,
+				by: nil,
 			},
-			want: vocab.Outbox.IRI(vocab.IRI("https://example.com")).AddPath(fmt.Sprintf("%d", publishedAt.UnixMilli())),
+			want: vocab.IRI("https://jdoe.example.com").AddPath(fmt.Sprintf("%d", publishedAt.UnixMilli())),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got, _ := defaultIDGenerator("https://example.com")(tt.args.it, tt.args.partOf, tt.args.by); got != tt.want {
+			if got, _ := defaultIDGenerator(defaultDomain)(tt.args.it, tt.args.by); got != tt.want {
 				t.Errorf("defaultIDGenerator() = %v, want %v", got, tt.want)
 			}
 		})

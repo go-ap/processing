@@ -94,24 +94,24 @@ func (p P) ProcessOutboxDelivery(it vocab.Item, receivedIn vocab.IRI) error {
 	return nil
 }
 
-func processClientIntransitiveActivity(p P, it vocab.Item, receivedIn vocab.IRI) (vocab.Item, error) {
-	if len(it.GetLink()) == 0 {
-		if err := p.SetIDIfMissing(it, receivedIn, nil); err != nil {
-			return it, err
+func processClientIntransitiveActivity(p P, act vocab.Item, receivedIn vocab.IRI) (vocab.Item, error) {
+	if len(act.GetLink()) == 0 {
+		if err := p.SetIDIfMissing(act, nil); err != nil {
+			return act, err
 		}
 	}
-	typ := it.GetType()
+	typ := act.GetType()
 	if vocab.QuestionActivityTypes.Match(typ) {
-		err := vocab.OnQuestion(it, func(q *vocab.Question) error {
+		err := vocab.OnQuestion(act, func(q *vocab.Question) error {
 			var err error
 			q, err = p.QuestionActivity(q)
 			return err
 		})
 		if err != nil {
-			return it, err
+			return act, err
 		}
 	}
-	err := vocab.OnIntransitiveActivity(it, func(act *vocab.IntransitiveActivity) error {
+	err := vocab.OnIntransitiveActivity(act, func(act *vocab.IntransitiveActivity) error {
 		var err error
 		if vocab.GeoSocialEventsActivityTypes.Match(typ) {
 			act, err = GeoSocialEventsIntransitiveActivity(p.s, act)
@@ -125,15 +125,15 @@ func processClientIntransitiveActivity(p P, it vocab.Item, receivedIn vocab.IRI)
 		return nil
 	})
 	if err != nil {
-		return it, err
+		return act, err
 	}
 
-	if it, err = p.s.Save(vocab.FlattenProperties(it)); err != nil {
-		return it, err
+	if act, err = p.s.Save(vocab.FlattenProperties(act)); err != nil {
+		return act, err
 	}
 
 	sync := func() {
-		if err := p.ProcessOutboxDelivery(it, receivedIn); err != nil {
+		if err := p.ProcessOutboxDelivery(act, receivedIn); err != nil {
 			p.l.Errorf("%+s", err)
 		}
 	}
@@ -143,12 +143,12 @@ func processClientIntransitiveActivity(p P, it vocab.Item, receivedIn vocab.IRI)
 		sync()
 	}
 
-	return it, nil
+	return act, nil
 }
 
 func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (vocab.Item, error) {
 	if len(act.GetLink()) == 0 {
-		if err := p.SetIDIfMissing(act, receivedIn, nil); err != nil {
+		if err := p.SetIDIfMissing(act, nil); err != nil {
 			return act, err
 		}
 	}

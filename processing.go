@@ -20,13 +20,17 @@ type P struct {
 	// localIRICheckFn is a function that can be passed from outside the module to determine if a [vocab.IRI] "is local".
 	// This usually means that the storage layer can dereference the IRI to an object that is stored locally.
 	localIRICheckFn IRIValidator
-	createIDFn      IDGenerator
-	actorKeyGenFn   vocab.WithActorFn
+
+	// createIDFn is a function that can be used to generate IDs for the ActivityPub objects that get created during the
+	// processing of **client** activities.
+	createIDFn IDGenerator
+
+	// actorKeyGenFn is a function that can be used to generate the public and private key pairs for actors that get
+	// created during the processing of **client** activities.
+	actorKeyGenFn vocab.WithActorFn
 }
 
-var (
-	nilLogger = lw.Nil()
-)
+var nilLogger = lw.Nil()
 
 func New(o ...OptionFn) P {
 	p := P{
@@ -125,7 +129,7 @@ func (p *P) createNewTags(tags vocab.ItemCollection, parent vocab.Item) error {
 		if id := tag.GetID(); len(id) > 0 {
 			continue
 		}
-		if err := p.SetIDIfMissing(tag, nil, parent); err == nil {
+		if err := p.SetIDIfMissing(tag, parent); err == nil {
 			tag, _ = p.s.Save(tag)
 		}
 	}

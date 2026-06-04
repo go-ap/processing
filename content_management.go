@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	vocab "github.com/go-ap/activitypub"
@@ -14,11 +13,12 @@ import (
 )
 
 type (
-	// IDGenerator takes an ActivityStreams object, a collection to store it in, and the activity that has it as object:
-	//  "it" is the object we want to generate the ID for.
-	//  "partOf" represents the IRI of the Collection that it is a part of.
-	//  "by" represents the Activity that generated the object
-	IDGenerator func(it vocab.Item, receivedIn vocab.Item, byActivity vocab.Item) (vocab.ID, error)
+	// IDGenerator takes an ActivityStreams item, the collection in which it will be stored in,
+	// and the activity that has it as object:
+	//  "it" is the item we want to generate the ID for.
+	//  "partOf" represents the IRI of the Collection that "it" will be a part of.
+	//  "by" represents the Activity that generated the object.
+	IDGenerator func(it vocab.Item, byActivity vocab.Item) (vocab.ID, error)
 	// IRIValidator designates the type for a function that can validate an IRI
 	// It's currently used as the type for var isLocalIRI
 	IRIValidator func(i vocab.IRI) bool
@@ -31,22 +31,19 @@ func setID(id vocab.IRI) func(ob *vocab.Object) error {
 	}
 }
 
-func emptyIDGenerator(it vocab.Item, col vocab.Item, maybeCreate vocab.Item) (vocab.ID, error) {
+func emptyIDGenerator(it vocab.Item, maybeCreate vocab.Item) (vocab.ID, error) {
 	id := vocab.NilID
 	if vocab.IsNil(it) {
 		return id, errors.Newf("unable to set ID on nil item")
 	}
 	when := time.Now()
-	if !vocab.IsNil(col) {
-		id = col.GetLink().AddPath(timeIDFn(when))
-	}
 	if id.Equal(vocab.NilID) && !vocab.IsNil(maybeCreate) {
 		id = maybeCreate.GetLink().AddPath(timeIDFn(when))
 	}
 	if id.Equal(vocab.NilID) {
 		return id, errors.Newf("unable to generate ID, both the storing collection and the generating activity are nil")
 	}
-	return id, vocab.OnObject(it, setID(id))
+	return id, nil
 }
 
 func defaultLocalIRICheck(i vocab.IRI) bool { return false }
@@ -58,16 +55,8 @@ func defaultKeyGenerator() vocab.WithActorFn {
 var timeIDFn = func(t time.Time) string { return fmt.Sprintf("%d", t.UnixMilli()) }
 
 func defaultIDGenerator(base vocab.IRI) IDGenerator {
-	return func(it vocab.Item, col vocab.Item, byActivity vocab.Item) (vocab.ID, error) {
-		var colIRI vocab.IRI
-
-		if !vocab.IsNil(col) {
-			colIRI = col.GetLink()
-		} else {
-			colIRI = vocab.Outbox.IRI(base)
-		}
-
-		when := time.Now()
+	return func(it vocab.Item, byActivity vocab.Item) (vocab.ID, error) {
+		when := time.Now().Truncate(time.Millisecond).UTC()
 		_ = vocab.OnObject(it, func(o *vocab.Object) error {
 			if !o.Published.IsZero() {
 				when = o.Published
@@ -77,46 +66,33 @@ func defaultIDGenerator(base vocab.IRI) IDGenerator {
 			}
 			return nil
 		})
-		if len(colIRI) == 0 {
-			return vocab.NilID, errors.Newf("invalid collection to generate the ID")
-		}
-		return colIRI.AddPath(timeIDFn(when)), nil
+		return base.AddPath(timeIDFn(when)), nil
 	}
 }
 
-type multiErr []error
-
-func (e multiErr) Error() string {
-	s := strings.Builder{}
-	for i, err := range e {
-		s.WriteString(err.Error())
-		if i < len(e)-1 {
-			s.WriteString(": ")
-		}
-	}
-	return s.String()
-}
-
-func (p *P) SetIDIfMissing(it vocab.Item, partOf vocab.Item, parentActivity vocab.Item) error {
-	var err error
+func (p P) SetIDIfMissing(it vocab.Item, parentActivity vocab.Item) error {
 	if !vocab.IsItemCollection(it) {
 		if len(it.GetID()) > 0 {
 			return nil
 		}
-		_, err = p.createIDFn(it, partOf, parentActivity)
-		return err
+		id, err := p.createIDFn(it, parentActivity)
+		if err != nil {
+			return err
+		}
+		if it.GetID().Equal("") {
+			// NOTE(marius): if the createIDFn didn't set the ID itself, we set it.
+			// This feels a bit redundant at the moment, especially since we can get the ID with it.GetID() if we need it.
+			// A potential solution is to remove the ID from the return value of the createIDFn and expect the funciton
+			// to always set it.
+			return vocab.OnObject(it, setID(id))
+		}
 	}
-	colCreateId := func(it vocab.Item, receivedIn vocab.Item, byActivity vocab.Item, idx int) (vocab.ID, error) {
-		iri, err := p.createIDFn(it, receivedIn, byActivity)
+	colCreateId := func(it vocab.Item, byActivity vocab.Item, idx int) (vocab.ID, error) {
+		iri, err := p.createIDFn(it, byActivity)
 		if err != nil {
 			return iri, err
 		}
-		iri = iri.AddPath(strconv.Itoa(idx + 1))
-		err = vocab.OnObject(it, func(ob *vocab.Object) error {
-			ob.ID = iri
-			return nil
-		})
-		return iri, err
+		return iri.AddPath(strconv.Itoa(idx + 1)), nil
 	}
 	return vocab.OnItemCollection(it, func(col *vocab.ItemCollection) error {
 		m := make([]error, 0)
@@ -124,7 +100,7 @@ func (p *P) SetIDIfMissing(it vocab.Item, partOf vocab.Item, parentActivity voca
 			if len(c.GetID()) > 0 {
 				continue
 			}
-			if _, err := colCreateId(c, partOf, parentActivity, i); err != nil {
+			if _, err := colCreateId(c, parentActivity, i); err != nil {
 				m = append(m, err)
 			}
 		}
