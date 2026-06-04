@@ -48,9 +48,7 @@ func emptyIDGenerator(it vocab.Item, maybeCreate vocab.Item) (vocab.ID, error) {
 
 func defaultLocalIRICheck(i vocab.IRI) bool { return false }
 
-func defaultKeyGenerator() vocab.WithActorFn {
-	return func(_ *vocab.Actor) error { return nil }
-}
+func defaultKeyGenerator(_ *vocab.Actor) error { return nil }
 
 var timeIDFn = func(t time.Time) string { return fmt.Sprintf("%d", t.UnixMilli()) }
 

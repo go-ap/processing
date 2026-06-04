@@ -45,7 +45,7 @@ func mockProcessor(t *testing.T, base vocab.IRI) *P {
 		l:               l,
 		localIRICheckFn: defaultLocalIRICheck,
 		createIDFn:      defaultIDGenerator(base),
-		actorKeyGenFn:   defaultKeyGenerator(),
+		actorKeyGenFn:   defaultKeyGenerator,
 	}
 }
 

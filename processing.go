@@ -37,7 +37,7 @@ func New(o ...OptionFn) P {
 		l:               nilLogger,
 		createIDFn:      emptyIDGenerator,
 		localIRICheckFn: defaultLocalIRICheck,
-		actorKeyGenFn:   defaultKeyGenerator(),
+		actorKeyGenFn:   defaultKeyGenerator,
 	}
 	for _, fn := range o {
 		fn(&p)
