@@ -1,14 +1,23 @@
 image: archlinux
 packages:
   - go
+  - golangci-lint
 sources:
   - https://github.com/go-ap/processing
 environment:
   GO111MODULE: 'on'
 tasks:
+  - fmt: |
+      cd processing
+      test -z $(gofmt -l .)
   - tests: |
       cd processing
       make test
   - coverage: |
-      set -a +x
-      cd processing && make coverage
+      cd processing
+      git switch -C master origin/master
+      make coverage
+      #go tool goveralls -flagname unit-tests -service=${CI_NAME} -coverprofile processing.coverprofile -repotokenfile ~/.coveralls.tok
+  - lint: |
+      cd processing
+      golangci-lint run || true
