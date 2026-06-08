@@ -16,6 +16,7 @@ type P struct {
 	c       c.Basic
 	s       Store
 	l       lw.Logger
+	retries int
 
 	// localIRICheckFn is a function that can be passed from outside the module to determine if a [vocab.IRI] "is local".
 	// This usually means that the storage layer can dereference the IRI to an object that is stored locally.
@@ -35,6 +36,7 @@ var nilLogger = lw.Nil()
 func New(o ...OptionFn) P {
 	p := P{
 		l:               nilLogger,
+		retries:         DefaultRetryCount,
 		createIDFn:      emptyIDGenerator,
 		localIRICheckFn: defaultLocalIRICheck,
 		actorKeyGenFn:   defaultKeyGenerator,
@@ -49,6 +51,14 @@ type OptionFn func(s *P)
 
 func Async(p *P) {
 	p.async = true
+}
+
+// WithDisseminationRetryCount specifies the number of retries for failed remote activity dissemination.
+// The default value is 0 when building with -tags dev, and 5 otherwise.
+func WithDisseminationRetryCount(r int) OptionFn {
+	return func(p *P) {
+		p.retries = r
+	}
 }
 
 func WithIDGenerator(genFn IDGenerator) OptionFn {

@@ -38,11 +38,9 @@ const (
 
 	baseWaitTime = time.Second
 	multiplier   = 1.4
-
-	retries = 5
 )
 
-func retryFn(fn ssm.Fn) ssm.Fn {
+func retryFn(retries int, fn ssm.Fn) ssm.Fn {
 	return ssm.Retry(retries, ssm.BackOff(baseWaitTime, ssm.Jitter(jitterDelay, ssm.Linear(multiplier)), fn))
 }
 
@@ -68,7 +66,7 @@ func (p P) disseminateToRemoteCollections(it vocab.Item, iris ...vocab.IRI) erro
 		currentRetry := 0
 		start := time.Now().UTC().Round(time.Microsecond)
 		delay := time.Duration(0)
-		state := retryFn(func(ctx context.Context) ssm.Fn {
+		state := retryFn(p.retries, func(ctx context.Context) ssm.Fn {
 			// NOTE(marius): we expect that the client has already been set up for being able to POST requests
 			// to remote servers. This means that it has been constructed using a HTTP client that includes
 			// an HTTP-Signature RoundTripper.
