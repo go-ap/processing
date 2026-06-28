@@ -46,14 +46,14 @@ func ReactionsActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.A
 // The side effect of receiving this in an outbox is that the server SHOULD add the object to the actor's liked Collection.
 func AppreciationActivity(p P, act *vocab.Activity) (*vocab.Activity, error) {
 	if vocab.IsNil(act.Object) {
-		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
+		return act, errors.BadRequestf("Missing object for %s Activity", act.Type)
 	}
 	if vocab.IsNil(act.Actor) {
-		return act, errors.NotValidf("Missing actor for %s Activity", act.Type)
+		return act, errors.BadRequestf("Missing actor for %s Activity", act.Type)
 	}
 	good := vocab.ActivityVocabularyTypes{vocab.LikeType, vocab.DislikeType}
 	if !good.Match(act.Type) {
-		return act, errors.NotValidf("Activity has wrong type %s, expected %v", act.Type, good)
+		return act, errors.BadRequestf("Activity has wrong type %s, expected %v", act.Type, good)
 	}
 
 	saveToCollections := func(actors, objects vocab.ItemCollection) error {
@@ -129,10 +129,10 @@ func firstOrItem(it vocab.Item) vocab.Item {
 // SHOULD add the actor to the receiver's Following Collection.
 func AcceptActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activity, error) {
 	if vocab.IsNil(act.Object) {
-		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
+		return act, errors.BadRequestf("Missing object for %s Activity", act.Type)
 	}
 	if vocab.IsNil(act.Actor) {
-		return act, errors.NotValidf("Missing actor for %s Activity", act.Type)
+		return act, errors.BadRequestf("Missing actor for %s Activity", act.Type)
 	}
 
 	if act.Object.IsLink() {
@@ -140,7 +140,7 @@ func AcceptActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Acti
 		if actLoader, ok := p.s.(ReadStore); ok {
 			obj, err := actLoader.Load(act.Object.GetLink())
 			if err != nil {
-				return act, errors.NotValidf("Unable to dereference object: %s", act.Object.GetLink())
+				return act, errors.BadRequestf("Unable to dereference object: %s", act.Object.GetLink())
 			}
 			act.Object = firstOrItem(obj)
 		}
@@ -165,7 +165,7 @@ func AcceptActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Acti
 func dispatchFollowSideEffectToLocalCollections(p P, a *vocab.Activity) error {
 	good := vocab.ActivityVocabularyTypes{vocab.FollowType}
 	if !good.Match(a.Type) {
-		return errors.NotValidf("Object Activity has wrong type %s, expected %v", a.Type, good)
+		return errors.BadRequestf("Object Activity has wrong type %s, expected %v", a.Type, good)
 	}
 
 	errs := make([]error, 0, 2)
@@ -181,10 +181,10 @@ func dispatchFollowSideEffectToLocalCollections(p P, a *vocab.Activity) error {
 
 func RejectActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
 	if vocab.IsNil(act.Object) {
-		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
+		return act, errors.BadRequestf("Missing object for %s Activity", act.Type)
 	}
 	if vocab.IsNil(act.Actor) {
-		return act, errors.NotValidf("Missing actor for %s Activity", act.Type)
+		return act, errors.BadRequestf("Missing actor for %s Activity", act.Type)
 	}
 
 	if colSaver, ok := l.(CollectionStore); ok {
@@ -208,13 +208,13 @@ const BlockedCollection = vocab.CollectionPath("blocked")
 // Servers SHOULD NOT deliver Block Activities to their object.
 func BlockActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activity, error) {
 	if vocab.IsNil(act.Object) {
-		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
+		return act, errors.BadRequestf("Missing object for %s Activity", act.Type)
 	}
 	if vocab.IsNil(act.Actor) {
-		return act, errors.NotValidf("Missing actor for %s Activity", act.Type)
+		return act, errors.BadRequestf("Missing actor for %s Activity", act.Type)
 	}
 	if !vocab.BlockType.Match(act.Type) {
-		return act, errors.NotValidf("Activity has wrong type %s, expected %s", act.Type, vocab.BlockType)
+		return act, errors.BadRequestf("Activity has wrong type %s, expected %s", act.Type, vocab.BlockType)
 	}
 
 	obIRI := act.Object.GetLink()
@@ -233,13 +233,13 @@ func BlockActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activ
 // or its author if it's another type of object.
 func FlagActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
 	if vocab.IsNil(act.Object) {
-		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
+		return act, errors.BadRequestf("Missing object for %s Activity", act.Type)
 	}
 	if vocab.IsNil(act.Actor) {
-		return act, errors.NotValidf("Missing actor for %s Activity", act.Type)
+		return act, errors.BadRequestf("Missing actor for %s Activity", act.Type)
 	}
 	if !vocab.FlagType.Match(act.Type) {
-		return act, errors.NotValidf("Activity has wrong type %s, expected %s", act.Type, vocab.FlagType)
+		return act, errors.BadRequestf("Activity has wrong type %s, expected %s", act.Type, vocab.FlagType)
 	}
 
 	vocab.OnObject(act.Object, func(o *vocab.Object) error {
@@ -272,13 +272,13 @@ const IgnoredCollection = vocab.CollectionPath("ignored")
 // where we save these
 func IgnoreActivity(p P, act *vocab.Activity) (*vocab.Activity, error) {
 	if vocab.IsNil(act.Object) {
-		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
+		return act, errors.BadRequestf("Missing object for %s Activity", act.Type)
 	}
 	if vocab.IsNil(act.Actor) {
-		return act, errors.NotValidf("Missing actor for %s Activity", act.Type)
+		return act, errors.BadRequestf("Missing actor for %s Activity", act.Type)
 	}
 	if !vocab.IgnoreType.Match(act.Type) {
-		return act, errors.NotValidf("Activity has wrong type %s, expected %s", act.Type, vocab.IgnoreType)
+		return act, errors.BadRequestf("Activity has wrong type %s, expected %s", act.Type, vocab.IgnoreType)
 	}
 
 	obIRI := act.Object.GetLink()

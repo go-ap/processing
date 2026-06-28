@@ -281,7 +281,7 @@ func (p *P) CollectionManagementActivity(act *vocab.Activity) (*vocab.Activity, 
 	case vocab.RemoveType.Match(act.Type):
 		return p.RemoveActivity(act)
 	default:
-		return nil, errors.NotValidf("Invalid type %v", act.GetType())
+		return nil, errors.BadRequestf("Invalid type %v", act.GetType())
 	}
 	return act, errors.NotImplementedf("Processing %s activity is not implemented", act.GetType())
 }
@@ -303,7 +303,7 @@ func EventRSVPActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, erro
 	case vocab.TentativeAcceptType.Match(act.Type):
 	case vocab.TentativeRejectType.Match(act.Type):
 	default:
-		return nil, errors.NotValidf("Invalid type %v", act.GetType())
+		return nil, errors.BadRequestf("Invalid type %v", act.GetType())
 	}
 	return act, errors.NotImplementedf("Processing %s activity is not implemented", act.GetType())
 }

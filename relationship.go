@@ -15,10 +15,10 @@ import (
 // https://www.w3.org/TR/activitystreams-vocabulary/#connections
 func RelationshipManagementActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activity, error) {
 	if vocab.IsNil(act.Object) {
-		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
+		return act, errors.BadRequestf("Missing object for %s Activity", act.Type)
 	}
 	if vocab.IsNil(act.Actor) {
-		return act, errors.NotValidf("Missing actor for %s Activity", act.Type)
+		return act, errors.BadRequestf("Missing actor for %s Activity", act.Type)
 	}
 	switch {
 	case vocab.FollowType.Match(act.Type):

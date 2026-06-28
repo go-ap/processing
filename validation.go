@@ -84,7 +84,7 @@ var InvalidTarget = func(s string, p ...interface{}) error {
 
 func (p P) ValidateServerActivity(a vocab.Item, author vocab.Actor, inbox vocab.IRI) error {
 	if !IsInbox(inbox) {
-		return errors.NotValidf("Trying to validate a non inbox IRI %s", inbox)
+		return errors.BadRequestf("Trying to validate a non inbox IRI %s", inbox)
 	}
 	if author.GetLink().Equal(vocab.PublicNS) {
 		// NOTE(marius): Should we use 403 Forbidden here?
@@ -205,7 +205,7 @@ func (p P) ValidateActivity(a vocab.Item, author vocab.Actor, receivedIn vocab.I
 
 func (p P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab.IRI) error {
 	if !IsOutbox(outbox) {
-		return errors.NotValidf("trying to validate a non outbox IRI %s", outbox)
+		return errors.BadRequestf("trying to validate a non outbox IRI %s", outbox)
 	}
 	if author.ID == vocab.PublicNS {
 		// NOTE(marius): Should we use 403 Forbidden here?
@@ -219,7 +219,10 @@ func (p P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab
 		return InvalidActivity("is nil")
 	}
 	if vocab.IsIRI(a) {
-		return p.ValidateIRI(a.GetLink())
+		var err error
+		if a, err = p.DereferenceItem(a.GetLink()); err != nil {
+			return errors.NewBadRequest(err, "unable to dereference activity")
+		}
 	}
 
 	validActivityTypes := append(vocab.ActivityTypes, vocab.IntransitiveActivityTypes...)
@@ -230,7 +233,6 @@ func (p P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab
 	err := vocab.OnIntransitiveActivity(a, func(act *vocab.IntransitiveActivity) error {
 		var err error
 
-		act.Actor, _ = p.DereferenceItem(act.Actor)
 		if act.Actor, err = p.ValidateClientActor(act.Actor, author); err != nil {
 			if errors.IsBadRequest(err) {
 				act.Actor = &author
@@ -267,7 +269,6 @@ func (p P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab
 			// @TODO(marius): this needs to be extended by a ValidateActivityClientObject
 			//   because the first step would be to test the object in the context of the activity
 			//   The ValidateActivityClientObject could then validate just the object itself.
-			act.Object, _ = p.DereferenceItem(act.Object)
 			if act.Object, err = p.ValidateClientObject(act.Object); err != nil {
 				return err
 			}
@@ -304,7 +305,7 @@ func (p P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab
 // ValidateClientContentManagementActivity
 func ValidateClientContentManagementActivity(l ReadStore, act *vocab.Activity) error {
 	if vocab.IsNil(act.Object) {
-		return errors.NotValidf("nil object for %s activity", act.Type)
+		return errors.BadRequestf("nil object for %s activity", act.Type)
 	}
 
 	return vocab.OnItem(act.Object, func(ob vocab.Item) error {
@@ -379,10 +380,10 @@ func (p *P) ValidateClientAcceptActivity(act *vocab.Activity) error {
 	}
 	return vocab.OnActivity(act.Object, func(follow *vocab.Activity) error {
 		if !vocab.FollowType.Match(follow.GetType()) {
-			return errors.NotValidf("object Activity type %s is incorrect, expected %s", follow.Type, vocab.FollowType)
+			return errors.BadRequestf("object Activity type %s is incorrect, expected %s", follow.Type, vocab.FollowType)
 		}
 		if !act.Actor.GetLink().Equals(follow.Object.GetLink(), false) {
-			return errors.NotValidf(
+			return errors.BadRequestf(
 				"The %s activity has a different actor than the received %s's object: %s, expected %s",
 				act.Type, follow.Type,
 				act.Actor.GetLink(),
@@ -397,7 +398,7 @@ func (p *P) ValidateClientAcceptActivity(act *vocab.Activity) error {
 func ValidateAcceptActivity(l ReadStore, act *vocab.Activity) error {
 	good := vocab.ActivityVocabularyTypes{vocab.AcceptType, vocab.TentativeAcceptType}
 	if !good.Match(act.Type) {
-		return errors.NotValidf("Activity has wrong type %s, expected %v", act.Type, good)
+		return errors.BadRequestf("Activity has wrong type %s, expected %v", act.Type, good)
 	}
 	return nil
 }
@@ -410,10 +411,10 @@ func (p *P) ValidateClientRejectActivity(act *vocab.Activity) error {
 
 	return vocab.OnActivity(act.Object, func(follow *vocab.Activity) error {
 		if !vocab.FollowType.Match(follow.GetType()) {
-			return errors.NotValidf("object Activity type %s is incorrect, expected %s", follow.Type, vocab.FollowType)
+			return errors.BadRequestf("object Activity type %s is incorrect, expected %s", follow.Type, vocab.FollowType)
 		}
 		if !act.Actor.GetLink().Equals(follow.Object.GetLink(), false) {
-			return errors.NotValidf(
+			return errors.BadRequestf(
 				"The %s activity has a different actor than the received %s's object: %s, expected %s",
 				act.Type, follow.Type,
 				act.Actor.GetLink(),
@@ -428,7 +429,7 @@ func (p *P) ValidateClientRejectActivity(act *vocab.Activity) error {
 func (p *P) ValidateRejectActivity(act *vocab.Activity) error {
 	good := vocab.ActivityVocabularyTypes{vocab.RejectType, vocab.TentativeRejectType}
 	if !good.Match(act.Type) {
-		return errors.NotValidf("Activity has wrong type %s, expected %v", act.Type, good)
+		return errors.BadRequestf("Activity has wrong type %s, expected %v", act.Type, good)
 	}
 	return nil
 }
@@ -498,6 +499,8 @@ func (p P) ValidateClientActor(a vocab.Item, expected vocab.Actor) (vocab.Item, 
 		return a, InvalidActivityActor("is nil")
 	}
 
+	// NOTE(marius): we use OnItem for the cases where the received
+	// actor is actually a slice of actors
 	err := vocab.OnItem(a, func(item vocab.Item) error {
 		if !p.IsLocal(a.GetLink()) {
 			return errors.Newf("%s is not a local IRI", a.GetLink())
@@ -511,6 +514,9 @@ func (p P) ValidateClientActor(a vocab.Item, expected vocab.Actor) (vocab.Item, 
 }
 
 func (p P) ValidateIRI(i vocab.IRI) error {
+	if i == "" {
+		return InvalidIRI("empty")
+	}
 	if i.Equals(vocab.PublicNS, false) {
 		return InvalidIRI("Public namespace is not a valid IRI")
 	}
@@ -531,7 +537,7 @@ func (p P) ValidateActor(a vocab.Item, expected vocab.Actor) (vocab.Item, error)
 
 	var err error
 	if a, err = p.DereferenceItem(a); err != nil {
-		return a, err
+		return a, errors.NewBadRequest(err, "unable to dereference Activity Actor")
 	}
 	err = vocab.OnActor(a, func(act *vocab.Actor) error {
 		a = act
@@ -549,6 +555,10 @@ func (p P) ValidateActor(a vocab.Item, expected vocab.Actor) (vocab.Item, error)
 func (p P) ValidateClientObject(o vocab.Item) (vocab.Item, error) {
 	if vocab.IsNil(o) {
 		return nil, InvalidActivityObject("is nil")
+	}
+	var err error
+	if o, err = p.DereferenceItem(o); err != nil {
+		return nil, errors.NewBadRequest(err, "unable to dereference Activity Object")
 	}
 	return o, nil
 }

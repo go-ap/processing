@@ -1,12 +1,66 @@
 package processing
 
 import (
+	"fmt"
 	"testing"
 
 	"git.sr.ht/~mariusor/lw"
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/client"
 )
+
+func ExampleP_ValidateActivity_in_inbox() {
+	p := New(
+		WithStorage(new(memStorage)),
+		WithLocalIRIChecker(allIRIsAreLocal),
+		WithIDGenerator(idGenerator()),
+	)
+
+	actor := vocab.Actor{
+		ID:     "http://example.com/~jdoe",
+		Outbox: vocab.IRI("http://example.com/~jdoe/outbox"),
+		Type:   vocab.PersonType,
+	}
+	act := vocab.Activity{
+		Type:  vocab.CreateType,
+		Actor: actor,
+	}
+
+	err := p.ValidateActivity(act, actor, vocab.Inbox.IRI(actor))
+	fmt.Printf("error: %v\n", err)
+
+	// Output:
+	// error: Activity is not valid: invalid activity id
+}
+
+func ExampleP_ValidateActivity_in_outbox() {
+	p := New(
+		WithStorage(new(memStorage)),
+		WithLocalIRIChecker(allIRIsAreLocal),
+		WithIDGenerator(idGenerator()),
+	)
+
+	actor := vocab.Actor{
+		ID:     "http://example.com/~jdoe",
+		Outbox: vocab.IRI("http://example.com/~jdoe/outbox"),
+		Type:   vocab.PersonType,
+	}
+	note := vocab.Object{
+		ID:   "http://example.com/~jdoe/notes/1",
+		Type: vocab.NoteType,
+	}
+	act := vocab.Activity{
+		Type:   vocab.CreateType,
+		Actor:  actor,
+		Object: note,
+	}
+
+	err := p.ValidateActivity(act, actor, vocab.Outbox.IRI(actor))
+	fmt.Printf("error: %v\n", err)
+
+	// Output:
+	// error: <nil>
+}
 
 func TestActivityValidatorCtxt(t *testing.T) {
 	t.Skipf("TODO")

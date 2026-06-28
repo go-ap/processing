@@ -65,7 +65,7 @@ func (p P) DereferenceItem(it vocab.Item) (vocab.Item, error) {
 
 	switch {
 	case vocab.IsNil(it):
-		return it, errors.NotValidf("unable to dereference nil item")
+		return it, errors.BadRequestf("unable to dereference nil item")
 	case vocab.IsObject(it), vocab.IsLink(it):
 		return it, nil
 	case vocab.IsIRI(it):

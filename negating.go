@@ -26,10 +26,10 @@ func (p P) ValidateClientNegatingActivity(act *vocab.Activity) error {
 	}
 	return vocab.OnActivity(act.Object, func(objAct *vocab.Activity) error {
 		if !act.Actor.GetLink().Equals(objAct.Actor.GetLink(), false) {
-			return errors.NotValidf("The %s activity has a different actor than its object: %s, expected %s", act.Type, act.Actor.GetLink(), objAct.Actor.GetLink())
+			return errors.BadRequestf("The %s activity has a different actor than its object: %s, expected %s", act.Type, act.Actor.GetLink(), objAct.Actor.GetLink())
 		}
 		if !validUndoActivityTypes.Match(objAct.Type) {
-			return errors.NotValidf("Object Activity has wrong type %s, expected one of %v", objAct.Type, validUndoActivityTypes)
+			return errors.BadRequestf("Object Activity has wrong type %s, expected one of %v", objAct.Type, validUndoActivityTypes)
 		}
 		return nil
 	})
@@ -44,13 +44,13 @@ func (p P) ValidateClientNegatingActivity(act *vocab.Activity) error {
 // https://www.w3.org/TR/activitystreams-vocabulary/#inverse
 func (p P) NegatingActivity(act *vocab.Activity) (*vocab.Activity, error) {
 	if vocab.IsNil(act.Object) {
-		return act, errors.NotValidf("Missing object for %s Activity", act.Type)
+		return act, errors.BadRequestf("Missing object for %s Activity", act.Type)
 	}
 	if vocab.IsNil(act.Actor) {
-		return act, errors.NotValidf("Missing actor for %s Activity", act.Type)
+		return act, errors.BadRequestf("Missing actor for %s Activity", act.Type)
 	}
 	if !vocab.UndoType.Match(act.Type) {
-		return act, errors.NotValidf("Activity has wrong type %s, expected %s", act.Type, vocab.UndoType)
+		return act, errors.BadRequestf("Activity has wrong type %s, expected %s", act.Type, vocab.UndoType)
 	}
 	return p.UndoActivity(act)
 }

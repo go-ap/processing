@@ -2,6 +2,7 @@ package processing
 
 import (
 	"fmt"
+
 	"github.com/go-ap/errors"
 )
 
@@ -11,8 +12,7 @@ type errDuplicateKey struct {
 
 func isDuplicateKey(e error) bool {
 	_, okp := e.(*errDuplicateKey)
-	_, oks := e.(errDuplicateKey)
-	return okp || oks
+	return okp || errors.Is(e, new(errors.Err))
 }
 
 func (n errDuplicateKey) Is(e error) bool {

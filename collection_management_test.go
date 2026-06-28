@@ -7,7 +7,7 @@ import (
 	"git.sr.ht/~mariusor/lw"
 	vocab "github.com/go-ap/activitypub"
 	c "github.com/go-ap/client"
-	"github.com/go-ap/errors"
+	"github.com/google/go-cmp/cmp"
 )
 
 func emptyCol(id vocab.IRI) *vocab.OrderedCollection {
@@ -127,8 +127,8 @@ func TestP_AddActivity(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			p := mockProcessor(t, tt.base)
 			got, err := p.AddActivity(tt.add)
-			if (err != nil) && !errors.Is(tt.wantErr, err) {
-				t.Errorf("AddActivity() error = %v, wantErr %v", err, tt.wantErr)
+			if !cmp.Equal(tt.wantErr, err, EquateWeakErrors) {
+				t.Errorf("AddActivity() error = %s", cmp.Diff(tt.wantErr, err))
 				return
 			}
 			if !vocab.ItemsEqual(got, tt.want) {
@@ -222,8 +222,8 @@ func TestP_RemoveActivity(t *testing.T) {
 			}
 
 			got, err := p.RemoveActivity(tt.remove)
-			if (err != nil) && !errors.Is(tt.wantErr, err) {
-				t.Errorf("RemoveActivity() error = %v, wantErr %v", err, tt.wantErr)
+			if !cmp.Equal(tt.wantErr, err, EquateWeakErrors) {
+				t.Errorf("RemoveActivity() error = %s", cmp.Diff(tt.wantErr, err))
 				return
 			}
 			if !vocab.ItemsEqual(got, tt.want) {
@@ -325,8 +325,8 @@ func TestP_MoveActivity(t *testing.T) {
 			}
 
 			got, err := p.MoveActivity(tt.remove)
-			if (err != nil) && !errors.Is(tt.wantErr, err) {
-				t.Errorf("MoveActivity() error = %v, wantErr %v", err, tt.wantErr)
+			if !cmp.Equal(tt.wantErr, err, EquateWeakErrors) {
+				t.Errorf("MoveActivity() error = %s", cmp.Diff(tt.wantErr, err, EquateWeakErrors))
 				return
 			}
 			if !vocab.ItemsEqual(got, tt.want) {

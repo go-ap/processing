@@ -145,11 +145,9 @@ func (ms *memStorage) RemoveFrom(colIRI vocab.IRI, items ...vocab.Item) error {
 	return err
 }
 
-func ExampleP_ProcessActivity_in_outbox() {
-	allIRIsAreLocal := func(_ vocab.IRI) bool { return true }
-
+var idGenerator = func() func(it vocab.Item, byActivity vocab.Item) (vocab.ID, error) {
 	cnt := atomic.Int32{}
-	idGenerator := func(it vocab.Item, byActivity vocab.Item) (vocab.ID, error) {
+	return func(it vocab.Item, byActivity vocab.Item) (vocab.ID, error) {
 		defer func() { cnt.Add(1) }()
 		var actorID vocab.ID
 		switch {
@@ -167,10 +165,18 @@ func ExampleP_ProcessActivity_in_outbox() {
 			return actorID.AddPath("objects", strconv.Itoa(int(cnt.Load()))), nil
 		}
 	}
+}
+
+var (
+	allIRIsAreLocal = func(_ vocab.IRI) bool { return true }
+	noIRIsAreLocal  = func(_ vocab.IRI) bool { return false }
+)
+
+func ExampleP_ProcessActivity_in_outbox() {
 	p := New(
 		WithStorage(new(memStorage)),
 		WithLocalIRIChecker(allIRIsAreLocal),
-		WithIDGenerator(idGenerator),
+		WithIDGenerator(idGenerator()),
 	)
 
 	actor := vocab.Actor{
@@ -206,6 +212,45 @@ func ExampleP_ProcessActivity_in_outbox() {
 	//        Type: Create
 	//    Actor ID: http://example.com/~jdoe
 	//   Object ID: http://example.com/~jdoe/objects/1
+}
+
+func ExampleP_ProcessActivity_in_inbox() {
+	p := New(
+		WithStorage(new(memStorage)),
+		WithLocalIRIChecker(noIRIsAreLocal),
+	)
+
+	actor := vocab.Actor{
+		ID:     "http://example.com/~jdoe",
+		Inbox:  vocab.IRI("http://example.com/~jdoe/inbox"),
+		Outbox: vocab.IRI("http://example.com/~jdoe/outbox"),
+		Type:   vocab.PersonType,
+	}
+	object := &vocab.Note{}
+	activity := vocab.Activity{
+		ID:     "http://example.com/~jdoe/outbox/0",
+		Type:   vocab.CreateType,
+		Actor:  actor,
+		Object: object,
+	}
+
+	it, err := p.ProcessActivity(activity, actor, vocab.Inbox.IRI(actor))
+	if err != nil {
+		fmt.Printf("error: %v\n", err)
+		return
+	}
+
+	_ = vocab.OnIntransitiveActivity(it, func(act *vocab.IntransitiveActivity) error {
+		fmt.Printf("Activity ID: %v\n", act.ID)
+		fmt.Printf("       Type: %v\n", act.Type)
+		fmt.Printf("   Actor ID: %v\n", act.Actor.GetID())
+		return vocab.OnActivity(it, func(act *vocab.Activity) error {
+			fmt.Printf("  Object ID: %v\n", act.Object.GetID())
+			return nil
+		})
+	})
+
+	// Output: error: IRI is not valid: empty
 }
 
 func TestUpdateItemProperties(t *testing.T) {
