@@ -10,16 +10,18 @@ import (
 )
 
 func ExampleP_ValidateActivity_in_inbox() {
+	allIRIsAreLocal := func(_ vocab.IRI) bool { return true }
 	p := New(
-		WithStorage(new(memStorage)),
+		WithStorage(new(MockStorage)),
 		WithLocalIRIChecker(allIRIsAreLocal),
 		WithIDGenerator(idGenerator()),
 	)
 
 	actor := vocab.Actor{
 		ID:     "http://example.com/~jdoe",
-		Outbox: vocab.IRI("http://example.com/~jdoe/outbox"),
 		Type:   vocab.PersonType,
+		Inbox:  vocab.IRI("http://example.com/~jdoe/inbox"),
+		Outbox: vocab.IRI("http://example.com/~jdoe/outbox"),
 	}
 	act := vocab.Activity{
 		Type:  vocab.CreateType,
@@ -34,16 +36,17 @@ func ExampleP_ValidateActivity_in_inbox() {
 }
 
 func ExampleP_ValidateActivity_in_outbox() {
+	allIRIsAreLocal := func(_ vocab.IRI) bool { return true }
 	p := New(
-		WithStorage(new(memStorage)),
+		WithStorage(new(MockStorage)),
 		WithLocalIRIChecker(allIRIsAreLocal),
 		WithIDGenerator(idGenerator()),
 	)
 
 	actor := vocab.Actor{
 		ID:     "http://example.com/~jdoe",
-		Outbox: vocab.IRI("http://example.com/~jdoe/outbox"),
 		Type:   vocab.PersonType,
+		Outbox: vocab.IRI("http://example.com/~jdoe/outbox"),
 	}
 	note := vocab.Object{
 		ID:   "http://example.com/~jdoe/notes/1",

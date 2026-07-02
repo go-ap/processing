@@ -13,11 +13,11 @@ import (
 	"github.com/go-ap/filters"
 )
 
-type memStorage struct {
+type MockStorage struct {
 	sync.Map
 }
 
-func (ms *memStorage) Load(i vocab.IRI, f ...filters.Check) (vocab.Item, error) {
+func (ms *MockStorage) Load(i vocab.IRI, f ...filters.Check) (vocab.Item, error) {
 	raw, ok := ms.Map.Load(i)
 	if !ok {
 		return nil, errors.NotFoundf("unable to find %s", i)
@@ -45,7 +45,7 @@ func (ms *memStorage) Load(i vocab.IRI, f ...filters.Check) (vocab.Item, error) 
 	}
 }
 
-func saveCollectionIfExists(r *memStorage, it, owner vocab.Item) vocab.Item {
+func saveCollectionIfExists(r *MockStorage, it, owner vocab.Item) vocab.Item {
 	if vocab.IsNil(it) {
 		return nil
 	}
@@ -67,7 +67,7 @@ func createNewCollection(colIRI vocab.IRI, owner vocab.Item) vocab.CollectionInt
 }
 
 // createItemCollections
-func createItemCollections(ms *memStorage, it vocab.Item) error {
+func createItemCollections(ms *MockStorage, it vocab.Item) error {
 	if vocab.IsNil(it) || !it.IsObject() {
 		return nil
 	}
@@ -92,7 +92,7 @@ func createItemCollections(ms *memStorage, it vocab.Item) error {
 	})
 }
 
-func (ms *memStorage) Save(it vocab.Item) (vocab.Item, error) {
+func (ms *MockStorage) Save(it vocab.Item) (vocab.Item, error) {
 	if _, ok := ms.Map.Load(it.GetLink()); !ok {
 		if err := createItemCollections(ms, it); err != nil {
 			return it, errors.Annotatef(err, "could not create object's collections")
@@ -102,12 +102,12 @@ func (ms *memStorage) Save(it vocab.Item) (vocab.Item, error) {
 	return it, nil
 }
 
-func (ms *memStorage) Delete(it vocab.Item) error {
+func (ms *MockStorage) Delete(it vocab.Item) error {
 	ms.Map.Delete(it.GetLink())
 	return nil
 }
 
-func (ms *memStorage) loadCol(colIRI vocab.IRI) (vocab.CollectionInterface, error) {
+func (ms *MockStorage) loadCol(colIRI vocab.IRI) (vocab.CollectionInterface, error) {
 	it, ok := ms.Map.Load(colIRI)
 	if !ok {
 		return nil, errors.Newf("unable to load collection %s", colIRI)
@@ -119,7 +119,7 @@ func (ms *memStorage) loadCol(colIRI vocab.IRI) (vocab.CollectionInterface, erro
 	return col, nil
 }
 
-func (ms *memStorage) AddTo(colIRI vocab.IRI, items ...vocab.Item) error {
+func (ms *MockStorage) AddTo(colIRI vocab.IRI, items ...vocab.Item) error {
 	col, err := ms.loadCol(colIRI)
 	if err != nil {
 		return err
@@ -133,7 +133,7 @@ func (ms *memStorage) AddTo(colIRI vocab.IRI, items ...vocab.Item) error {
 	return err
 }
 
-func (ms *memStorage) RemoveFrom(colIRI vocab.IRI, items ...vocab.Item) error {
+func (ms *MockStorage) RemoveFrom(colIRI vocab.IRI, items ...vocab.Item) error {
 	col, err := ms.loadCol(colIRI)
 	if err != nil {
 		return err
@@ -167,22 +167,18 @@ var idGenerator = func() func(it vocab.Item, byActivity vocab.Item) (vocab.ID, e
 	}
 }
 
-var (
-	allIRIsAreLocal = func(_ vocab.IRI) bool { return true }
-	noIRIsAreLocal  = func(_ vocab.IRI) bool { return false }
-)
-
 func ExampleP_ProcessActivity_in_outbox() {
+	allIRIsAreLocal := func(_ vocab.IRI) bool { return true }
 	p := New(
-		WithStorage(new(memStorage)),
+		WithStorage(new(MockStorage)),
 		WithLocalIRIChecker(allIRIsAreLocal),
 		WithIDGenerator(idGenerator()),
 	)
 
 	actor := vocab.Actor{
 		ID:     "http://example.com/~jdoe",
-		Outbox: vocab.IRI("http://example.com/~jdoe/outbox"),
 		Type:   vocab.PersonType,
+		Outbox: vocab.IRI("http://example.com/~jdoe/outbox"),
 	}
 	object := &vocab.Note{}
 	activity := vocab.Activity{
@@ -215,16 +211,17 @@ func ExampleP_ProcessActivity_in_outbox() {
 }
 
 func ExampleP_ProcessActivity_in_inbox() {
+	noIRIsAreLocal := func(_ vocab.IRI) bool { return false }
 	p := New(
-		WithStorage(new(memStorage)),
+		WithStorage(new(MockStorage)),
 		WithLocalIRIChecker(noIRIsAreLocal),
 	)
 
 	actor := vocab.Actor{
 		ID:     "http://example.com/~jdoe",
+		Type:   vocab.PersonType,
 		Inbox:  vocab.IRI("http://example.com/~jdoe/inbox"),
 		Outbox: vocab.IRI("http://example.com/~jdoe/outbox"),
-		Type:   vocab.PersonType,
 	}
 	object := &vocab.Note{}
 	activity := vocab.Activity{
