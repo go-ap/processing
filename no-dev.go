@@ -2,6 +2,4 @@
 
 package processing
 
-const IsDev = false
-
 var DefaultRetryCount = 5
