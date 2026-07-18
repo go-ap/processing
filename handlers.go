@@ -138,9 +138,9 @@ func (a ActivityHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Location", it.GetLink().String())
 		}
 	default:
-		w.Header().Set("Content-Type", json.ContentType)
 		dat, _ = vocab.MarshalJSON(it)
 	}
+	w.Header().Set("Content-Type", json.ContentType)
 	w.WriteHeader(status)
 	_, _ = w.Write(dat)
 }
