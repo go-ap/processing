@@ -3,6 +3,7 @@ package processing
 import (
 	"fmt"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -97,52 +98,43 @@ func (a ActivityHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if it, status, err = a(reqIRI(r), r); err != nil {
+	receivedIn := reqIRI(r)
+	if it, status, err = a(receivedIn, r); err != nil {
 		errors.HandleError(err).ServeHTTP(w, r)
 		return
 	}
 
-	typ := it.GetType()
-	if vocab.ActivityTypes.Match(typ) {
+	if IsOutbox(receivedIn) && vocab.CreateType.Match(it.GetType()) && status == http.StatusCreated {
+		// NOTE(marius): For Create activities that contain an object we want to return it in the response
 		err = vocab.OnActivity(it, func(act *vocab.Activity) error {
 			if vocab.IsIRI(act.Object) {
 				return nil
 			}
-			// For activities that contain an object which is not just an IRI we want to return it in the response
 			if dat, err = vocab.MarshalJSON(act.Object); err != nil {
 				return err
 			}
 			return nil
 		})
-	} else if vocab.IntransitiveActivityTypes.Match(typ) {
-		status = http.StatusNoContent
-	} else {
-		err = errors.BadRequestf("Invalid activity type %s received", it.GetType())
-	}
-	if err != nil {
-		errors.HandleError(err).ServeHTTP(w, r)
-		return
+		if err != nil {
+			errors.HandleError(err).ServeHTTP(w, r)
+			return
+		}
 	}
 
-	switch status {
-	case http.StatusCreated:
-		if len(it.GetLink()) > 0 {
-			w.Header().Set("Location", it.GetLink().String())
-		}
-	case http.StatusGone:
-		if len(it.GetLink()) > 0 {
-			w.Header().Set("Location", it.GetLink().String())
-		}
-	case http.StatusNoContent:
-		if len(it.GetLink()) > 0 {
-			w.Header().Set("Location", it.GetLink().String())
-		}
-	default:
+	needsLocation := slices.Contains([]int{http.StatusNoContent, http.StatusGone}, status)
+	location := it.GetLink()
+	if needsLocation && len(location) > 0 {
+		w.Header().Add("Location", location.String())
+	}
+	if dat == nil {
+		w.Header().Add("Content-Type", json.ContentType)
 		dat, _ = vocab.MarshalJSON(it)
 	}
-	w.Header().Set("Content-Type", json.ContentType)
+
 	w.WriteHeader(status)
-	_, _ = w.Write(dat)
+	if dat != nil {
+		_, _ = w.Write(dat)
+	}
 }
 
 // CollectionHandlerFn is the type that we're using to represent handlers that will return ActivityStreams
