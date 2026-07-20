@@ -366,7 +366,7 @@ func compareItems(x, y any) bool {
 	if ic2, ok := y.(vocab.Item); ok {
 		i2 = ic2
 	}
-	return vocab.ItemsEqual(i1, i2) || vocab.ItemsEqual(i2, i1)
+	return vocab.ItemsEqual(i1, i2)
 }
 
 var EquateItems = cmp.FilterValues(areItems, cmp.Comparer(compareItems))
