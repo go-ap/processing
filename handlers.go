@@ -124,8 +124,10 @@ func (a ActivityHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Location", location.String())
 	}
 	if dat == nil {
-		w.Header().Add("Content-Type", json.ContentType)
 		dat, _ = vocab.MarshalJSON(it)
+	}
+	if dat != nil {
+		w.Header().Add("Content-Type", json.ContentType)
 	}
 
 	w.WriteHeader(status)
