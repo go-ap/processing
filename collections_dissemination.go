@@ -75,7 +75,7 @@ func (p P) disseminateToRemoteCollections(it vocab.Item, iris ...vocab.IRI) erro
 				delay = time.Since(start)
 			}()
 			ll := p.l.WithContext(lw.Ctx{"to": col, "retry": currentRetry, "delay": delay.String()})
-			if _, _, err := p.c.ToCollection(it, col); err != nil {
+			if _, _, err := p.c.CtxToCollection(context.TODO(), it, col); err != nil {
 				ll.Warnf("Unable to disseminate activity %s", err)
 				switch {
 				case errors.IsConflict(err):
@@ -171,7 +171,7 @@ func (p P) AddItemToCollection(col vocab.IRI, it vocab.Item) error {
 	}
 	if !p.IsLocal(it) && vocab.IsIRI(it) {
 		// NOTE(marius): the fetching and saving of the remote item is a candidate for switching to async
-		deref, err := p.c.LoadIRI(it.GetLink())
+		deref, err := p.c.CtxLoadIRI(context.TODO(), it.GetLink())
 		if err != nil {
 			p.l.Warnf("unable to load remote object [%s]: %s", it.GetLink(), err.Error())
 		} else {

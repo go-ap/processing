@@ -1,6 +1,8 @@
 package processing
 
 import (
+	"context"
+
 	"git.sr.ht/~mariusor/lw"
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
@@ -16,7 +18,7 @@ func (p P) dereferenceIRI(iri vocab.IRI) (maybeFull vocab.Item, err error) {
 		err = errors.Annotatef(err, "unable to load IRI from local storage")
 	}
 	if !p.IsLocalIRI(iri) && vocab.IsNil(maybeFull) {
-		if maybeFull, err = p.c.LoadIRI(iri); err != nil {
+		if maybeFull, err = p.c.CtxLoadIRI(context.TODO(), iri); err != nil {
 			err = errors.Annotatef(err, "unable to fetch remote IRI")
 		}
 	}

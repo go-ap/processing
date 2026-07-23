@@ -2,6 +2,7 @@ package processing
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"strconv"
 	"time"
@@ -452,12 +453,12 @@ func (p P) CreateCollectionsForObject(it vocab.Item) error {
 	})
 }
 
-func deref(c client.Basic, it vocab.Item) (vocab.Item, error) {
+func deref(ctx context.Context, c client.Basic, it vocab.Item) (vocab.Item, error) {
 	if vocab.IsNil(it) {
 		return nil, nil
 	}
 	if it.IsLink() {
-		der, err := c.LoadIRI(it.GetLink())
+		der, err := c.CtxLoadIRI(ctx, it.GetLink())
 		if err != nil {
 			return it, err
 		}
@@ -468,11 +469,12 @@ func deref(c client.Basic, it vocab.Item) (vocab.Item, error) {
 
 func (p P) dereferenceIntransitiveActivityProperties(receivedIn vocab.IRI) func(act *vocab.IntransitiveActivity) error {
 	return func(act *vocab.IntransitiveActivity) error {
+		ctx := context.TODO()
 		var err error
-		if act.Actor, err = deref(p.c, act.Actor); err != nil {
+		if act.Actor, err = deref(ctx, p.c, act.Actor); err != nil {
 			return err
 		}
-		if act.Target, err = deref(p.c, act.Target); err != nil {
+		if act.Target, err = deref(ctx, p.c, act.Target); err != nil {
 			return err
 		}
 		return nil
@@ -481,8 +483,9 @@ func (p P) dereferenceIntransitiveActivityProperties(receivedIn vocab.IRI) func(
 
 func (p P) dereferenceActivityProperties(receivedIn vocab.IRI) func(act *vocab.Activity) error {
 	return func(act *vocab.Activity) error {
+		ctx := context.TODO()
 		var err error
-		if act.Object, err = deref(p.c, act.Object); err != nil {
+		if act.Object, err = deref(ctx, p.c, act.Object); err != nil {
 			return err
 		}
 		return vocab.OnIntransitiveActivity(act, p.dereferenceIntransitiveActivityProperties(receivedIn))
@@ -490,7 +493,7 @@ func (p P) dereferenceActivityProperties(receivedIn vocab.IRI) func(act *vocab.A
 }
 
 func (p P) dereferenceIRIBasedOnInbox(ob vocab.Item, receivedIn vocab.IRI) (vocab.Item, error) {
-	return p.c.LoadIRI(ob.GetLink())
+	return p.c.CtxLoadIRI(context.TODO(), ob.GetLink())
 }
 
 func CreateActivityFromServer(p P, act *vocab.Activity) (*vocab.Activity, error) {
