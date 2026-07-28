@@ -100,6 +100,7 @@ func (a ActivityHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		errors.HandleError(err).ServeHTTP(w, r)
 		return
 	}
+	needsLocation := slices.Contains([]int{http.StatusNoContent, http.StatusGone}, status)
 
 	if IsOutbox(receivedIn) && vocab.CreateType.Match(it.GetType()) && status == http.StatusCreated {
 		// NOTE(marius): For Create activities that contain an object we want to return it in the response
@@ -110,6 +111,7 @@ func (a ActivityHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if dat, err = vocab.MarshalJSON(act.Object); err != nil {
 				return err
 			}
+			needsLocation = true
 			return nil
 		})
 		if err != nil {
@@ -118,7 +120,6 @@ func (a ActivityHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	needsLocation := slices.Contains([]int{http.StatusNoContent, http.StatusGone}, status)
 	location := it.GetLink()
 	if needsLocation && len(location) > 0 {
 		w.Header().Add("Location", location.String())
