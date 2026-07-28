@@ -41,6 +41,9 @@ const (
 )
 
 func retryFn(retries int, fn ssm.Fn) ssm.Fn {
+	if retries < 0 {
+		return ssm.End
+	}
 	return ssm.Retry(retries, ssm.BackOff(baseWaitTime, ssm.Jitter(jitterDelay, ssm.Linear(multiplier)), fn))
 }
 
