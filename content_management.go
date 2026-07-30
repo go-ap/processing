@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"git.sr.ht/~mariusor/lw"
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/client"
 	"github.com/go-ap/errors"
@@ -275,9 +276,9 @@ func addNewObjectCollections(o *vocab.Object) error {
 
 func addNewItemCollections(it vocab.Item) (vocab.Item, error) {
 	var err error
-	if vocab.ActorTypes.Match(it.GetType()) {
+	if typ := it.GetType(); vocab.ActorTypes.Match(typ) {
 		err = vocab.OnActor(it, addNewActorCollections)
-	} else {
+	} else if !vocab.IsLink(it) {
 		err = vocab.OnObject(it, addNewObjectCollections)
 	}
 	return it, err
@@ -355,12 +356,13 @@ func CreateActivityFromClient(p P, act *vocab.Activity) (*vocab.Activity, error)
 		return act, errors.Annotatef(err, "unable to create activity's object %s", act.Object.GetLink())
 	}
 	// TODO(marius): @PreHook@ we can replace this functionality with a function that creates the collections
-	act.Object, err = addNewItemCollections(act.Object)
-	if err != nil {
-		return act, errors.Annotatef(err, "unable to add object collections to object %s", act.Object.GetLink())
-	}
-	if err = p.CreateCollectionsForObject(act.Object); err != nil {
-		return act, errors.Annotatef(err, "unable to save collections for activity object")
+
+	if act.Object, err = addNewItemCollections(act.Object); err == nil {
+		if err = p.CreateCollectionsForObject(act.Object); err != nil {
+			return act, errors.Annotatef(err, "unable to save collections for activity object")
+		}
+	} else {
+		p.l.WithContext(lw.Ctx{"err": err, "ob": act.Object.GetLink()}).Warnf("unable to add object collections to object")
 	}
 	act.Object, err = p.s.Save(vocab.FlattenProperties(act.Object))
 	if err != nil {
