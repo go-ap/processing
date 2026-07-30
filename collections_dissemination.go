@@ -195,9 +195,9 @@ func (p P) AddItemToCollection(col vocab.IRI, it vocab.Item) error {
 }
 
 func disseminateActivityObjectToLocalReplyToCollections(p P, act *vocab.Activity) error {
-	return vocab.OnObject(act.Object, func(o *vocab.Object) error {
-		replyToCollections := p.BuildReplyToCollections(o)
-		if err := p.AddToLocalCollections(o, replyToCollections...); err != nil {
+	return vocab.OnItem(act.Object, func(it vocab.Item) error {
+		replyToCollections := p.BuildReplyToCollections(it)
+		if err := p.AddToLocalCollections(it, replyToCollections...); err != nil {
 			p.l.Warnf(errors.Annotatef(err, "unable to add object to local replyTo collections").Error())
 		}
 		return nil
