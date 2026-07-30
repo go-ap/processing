@@ -59,10 +59,18 @@ func AppreciationActivity(p P, act *vocab.Activity) (*vocab.Activity, error) {
 	saveToCollections := func(actors, objects vocab.ItemCollection) error {
 		errs := make([]error, 0)
 		colToAdd := make(map[vocab.IRI][]vocab.IRI)
+
+		// NOTE(marius): because we add the Like activity to the likes collection, we need to save it locally first.
+		_, err := p.s.Save(act)
+		likeWasSavedLocally := err == nil
 		for _, object := range objects {
 			for _, actor := range actors {
 				liked := vocab.Liked.IRI(actor)
 				colToAdd[liked] = append(colToAdd[liked], object.GetLink())
+			}
+
+			if !likeWasSavedLocally {
+				break
 			}
 			likes := vocab.Likes.IRI(object)
 			colToAdd[likes] = append(colToAdd[likes], act.GetLink())
