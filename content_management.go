@@ -722,27 +722,15 @@ func (p *P) updateCreateActivityObject(o vocab.Item, act *vocab.Activity) error 
 //
 // ActivityPub protocol that can enforce remote deletion of an object's representation.
 func DeleteActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
+	// NOTE(marius): I think this is only relevant to @c2s processing
 	var err error
 	ob := act.Object
 
 	var toRemove vocab.ItemCollection
 	if loader, ok := l.(ReadStore); ok {
-		if vocab.IsItemCollection(ob) {
-			err = vocab.OnItemCollection(ob, func(col *vocab.ItemCollection) error {
-				for _, it := range col.Collection() {
-					if err := replaceItemWithTombstone(loader, it, &toRemove); err != nil {
-						return errors.Annotatef(err, "unable to replace with tombstone object %s", it.GetLink())
-					}
-				}
-				return nil
-			})
-		} else {
-			// TODO(marius): For S2S replace this with dereferencing the tombstone directly
-			err = replaceItemWithTombstone(loader, ob, &toRemove)
+		if err = replaceItemWithTombstone(loader, ob, &toRemove); err != nil {
+			return act, errors.Annotatef(err, "unable to create tombstone for object %s", ob)
 		}
-	}
-	if err != nil {
-		return act, errors.Annotatef(err, "unable to create tombstone for object %s", ob)
 	}
 
 	if len(toRemove) == 0 {
@@ -761,38 +749,27 @@ func DeleteActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) 
 }
 
 func replaceItemWithTombstone(loader ReadStore, it vocab.Item, toRemove *vocab.ItemCollection) error {
-	toRem, err := loader.Load(it.GetLink())
-	if err != nil {
-		return err
-	}
-	if err := vocab.OnObject(toRem, loadTombstoneForDelete(loader, toRemove)); err != nil {
-		return err
-	}
-	return nil
+	return vocab.OnItem(it, loadTombstoneForDelete(loader, toRemove))
 }
 
-func loadTombstoneForDelete(loader ReadStore, toRemove *vocab.ItemCollection) func(*vocab.Object) error {
-	return func(ob *vocab.Object) error {
-		found, err := loader.Load(ob.GetLink())
+func loadTombstoneForDelete(loader ReadStore, toRemove *vocab.ItemCollection) func(vocab.Item) error {
+	return func(it vocab.Item) error {
+		found, err := loader.Load(it.GetLink())
 		if err != nil {
 			return err
 		}
 		if vocab.IsNil(found) {
-			return errors.NotFoundf("Unable to find %s %s", ob.GetType(), ob.GetLink())
+			return errors.NotFoundf("unable to find %s %s", it.GetType(), it.GetLink())
 		}
-		_ = vocab.OnObject(found, func(fob *vocab.Object) error {
-			t := vocab.Tombstone{
-				ID:      fob.GetLink(),
-				Type:    vocab.TombstoneType,
-				To:      vocab.ItemCollection{vocab.PublicNS},
-				Deleted: time.Now().UTC(),
-			}
-			if !vocab.TombstoneType.Match(fob.GetType()) {
-				t.FormerType = fob.GetType()
-			}
-			*toRemove = append(*toRemove, t)
-			return nil
-		})
+
+		t := vocab.Tombstone{
+			ID:         found.GetLink(),
+			Type:       vocab.TombstoneType,
+			To:         vocab.ItemCollection{vocab.PublicNS},
+			Deleted:    time.Now().UTC(),
+			FormerType: it.GetType(),
+		}
+		*toRemove = append(*toRemove, t)
 		return nil
 	}
 }
