@@ -380,10 +380,7 @@ func (p P) saveCollectionObjectForParent(parent, colIt vocab.Item) error {
 	if !colIt.IsCollection() {
 		// NOTE(marius): if the collection passed from the parent object is a Collection type we respect that,
 		// otherwise we replace it with an OrderedCollection.
-		colIt = &vocab.OrderedCollection{
-			ID:   colIt.GetLink(),
-			Type: vocab.OrderedCollectionType,
-		}
+		colIt = blankOrderedCollection(colIt.GetLink())
 	}
 	if _, err := p.s.Load(colIt.GetLink()); err == nil {
 		return nil
@@ -393,8 +390,8 @@ func (p P) saveCollectionObjectForParent(parent, colIt vocab.Item) error {
 	published := time.Now().Truncate(time.Second).UTC()
 	_ = vocab.OnObject(parent, func(p *vocab.Object) error {
 		to = p.To
-		cc = p.CC
 		bto = p.Bto
+		cc = p.CC
 		bcc = p.BCC
 		audience = p.Audience
 		if !p.Published.IsZero() {
@@ -403,13 +400,13 @@ func (p P) saveCollectionObjectForParent(parent, colIt vocab.Item) error {
 		return nil
 	})
 
-	if _, maybePrivateCol := vocab.Split(colIt.GetLink()); filters.HiddenCollections.Contains(maybePrivateCol) {
+	if _, maybePrivateCol := filters.HiddenCollections.Split(colIt.GetLink()); maybePrivateCol != vocab.Unknown {
 		// NOTE(marius): for blocked and ignored collections we forcibly remove the public collection
-		to.Remove(vocab.PublicNS)
-		cc.Remove(vocab.PublicNS)
-		bto.Remove(vocab.PublicNS)
-		bcc.Remove(vocab.PublicNS)
-		audience.Remove(vocab.PublicNS)
+		to = nil
+		bto = vocab.ItemCollection{parent.GetID()}
+		cc = nil
+		bcc = nil
+		audience = nil
 	}
 
 	_ = vocab.OnObject(colIt, func(c *vocab.Object) error {
@@ -428,6 +425,10 @@ func (p P) saveCollectionObjectForParent(parent, colIt vocab.Item) error {
 	return err
 }
 
+func blankOrderedCollection(iri vocab.IRI) *vocab.OrderedCollection {
+	return &vocab.OrderedCollection{ID: iri, Type: vocab.OrderedCollectionType}
+}
+
 // CreateCollectionsForObject creates the objects corresponding to each collection that an Actor has set.
 func (p P) CreateCollectionsForObject(it vocab.Item) error {
 	if vocab.IsNil(it) || !it.IsObject() {
@@ -442,8 +443,9 @@ func (p P) CreateCollectionsForObject(it vocab.Item) error {
 			_ = p.saveCollectionObjectForParent(a, a.Following)
 			_ = p.saveCollectionObjectForParent(a, a.Liked)
 			// NOTE(marius): shadow creating hidden collections for Blocked and Ignored items
-			_ = p.saveCollectionObjectForParent(a, filters.BlockedType.Of(a))
-			_ = p.saveCollectionObjectForParent(a, filters.IgnoredType.Of(a))
+			// They do not exist on the actor, so we force their creation
+			_ = p.saveCollectionObjectForParent(a, blankOrderedCollection(filters.BlockedType.IRI(a)))
+			_ = p.saveCollectionObjectForParent(a, blankOrderedCollection(filters.IgnoredType.IRI(a)))
 			return nil
 		})
 	}
