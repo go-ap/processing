@@ -68,7 +68,7 @@ func createNewCollection(colIRI vocab.IRI, owner vocab.Item) vocab.CollectionInt
 
 // createItemCollections
 func createItemCollections(ms *MockStorage, it vocab.Item) error {
-	if vocab.IsNil(it) || !it.IsObject() {
+	if vocab.IsNil(it) || !vocab.IsObject(it) {
 		return nil
 	}
 	if vocab.ActorTypes.Match(it.GetType()) {

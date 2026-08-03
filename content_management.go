@@ -144,20 +144,10 @@ func ContentManagementActivityFromClient(p P, act *vocab.Activity) (*vocab.Activ
 		//
 		// TODO(marius): add support for cleaning up the URL with the same rule as Content.
 		//
-		_ = cleanupMediaObjectFromItem(act.Object)
+		_ = vocab.OnItem(act.Object, cleanupMediaObjectFromItem)
 	}
 
 	return act, err
-}
-
-func cleanupMediaObjectsFromCollection(col vocab.CollectionInterface) error {
-	errs := make([]error, 0)
-	for _, it := range col.Collection() {
-		if err := cleanupMediaObjectFromItem(it); err != nil {
-			errs = append(errs, err)
-		}
-	}
-	return errors.Join(errs...)
 }
 
 func contentHasBinaryData(nlv vocab.NaturalLanguageValues) bool {
@@ -193,14 +183,14 @@ func cleanupMediaObject(o *vocab.Object) error {
 			})
 		}
 	}
-	return cleanupMediaObjectFromItem(o.Attachment)
+	return vocab.OnItem(o.Attachment, cleanupMediaObjectFromItem)
 }
 
 func cleanupMediaObjectFromActivity(act *vocab.Activity) error {
-	if err := cleanupMediaObjectFromItem(act.Object); err != nil {
+	if err := vocab.OnItem(act.Object, cleanupMediaObjectFromItem); err != nil {
 		return err
 	}
-	if err := cleanupMediaObjectFromItem(act.Target); err != nil {
+	if err := vocab.OnItem(act.Target, cleanupMediaObjectFromItem); err != nil {
 		return err
 	}
 	return nil
@@ -209,9 +199,6 @@ func cleanupMediaObjectFromActivity(act *vocab.Activity) error {
 func cleanupMediaObjectFromItem(it vocab.Item) error {
 	if vocab.IsNil(it) {
 		return nil
-	}
-	if it.IsCollection() {
-		return vocab.OnCollectionIntf(it, cleanupMediaObjectsFromCollection)
 	}
 	if vocab.ActivityTypes.Match(it.GetType()) {
 		return vocab.OnActivity(it, cleanupMediaObjectFromActivity)
@@ -377,7 +364,7 @@ func (p P) saveCollectionObjectForParent(parent, colIt vocab.Item) error {
 		// create, so it's their responsibility to populate them with IRIs or full Collection Objects.
 		return nil
 	}
-	if !colIt.IsCollection() {
+	if vocab.IsIRI(colIt) {
 		// NOTE(marius): if the collection passed from the parent object is a Collection type we respect that,
 		// otherwise we replace it with an OrderedCollection.
 		colIt = blankOrderedCollection(colIt.GetLink())
@@ -430,8 +417,8 @@ func blankOrderedCollection(iri vocab.IRI) *vocab.OrderedCollection {
 }
 
 // CreateCollectionsForObject creates the objects corresponding to each collection that an Actor has set.
-func (p P) CreateCollectionsForObject(it vocab.Item) error {
-	if vocab.IsNil(it) || !it.IsObject() {
+func (p *P) CreateCollectionsForObject(it vocab.Item) error {
+	if vocab.IsNil(it) || !vocab.IsObject(it) {
 		return nil
 	}
 
@@ -461,7 +448,7 @@ func deref(ctx context.Context, c client.Basic, it vocab.Item) (vocab.Item, erro
 	if vocab.IsNil(it) {
 		return nil, nil
 	}
-	if it.IsLink() {
+	if vocab.IsIRI(it) {
 		der, err := c.CtxLoadIRI(ctx, it.GetLink())
 		if err != nil {
 			return it, err

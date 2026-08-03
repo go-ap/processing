@@ -143,7 +143,7 @@ func AcceptActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Acti
 		return act, errors.BadRequestf("Missing actor for %s Activity", act.Type)
 	}
 
-	if act.Object.IsLink() {
+	if vocab.IsIRI(act.Object) {
 		// dereference object activity
 		if actLoader, ok := p.s.(ReadStore); ok {
 			obj, err := actLoader.Load(act.Object.GetLink())

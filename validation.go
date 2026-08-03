@@ -319,7 +319,7 @@ func ValidateClientContentManagementActivity(l ReadStore, act *vocab.Activity) e
 			if len(ob.GetLink()) == 0 {
 				return errors.BadRequestf("empty object id for %s activity", act.Type)
 			}
-			if ob.IsLink() {
+			if !vocab.IsObject(ob) {
 				return nil
 			}
 			var (
