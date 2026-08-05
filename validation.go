@@ -3,7 +3,6 @@ package processing
 import (
 	"fmt"
 	"path/filepath"
-	"strings"
 	"sync"
 
 	vocab "github.com/go-ap/activitypub"
@@ -370,6 +369,31 @@ func (p *P) ValidateClientReactionsActivity(act *vocab.Activity) error {
 	return nil
 }
 
+func validateFollowup(actor vocab.Item, wantedType vocab.ActivityVocabularyType) func(*vocab.Activity) error {
+	return func(follow *vocab.Activity) error {
+		if !wantedType.Match(follow.GetType()) {
+			return errors.BadRequestf("object Activity type %s is incorrect, expected %s", follow.Type, wantedType)
+		}
+		// NOTE(marius): we could have the original activity actor is actually multiple actors
+		// so we use OnItem to iterate through them
+		return vocab.OnItem(actor, func(actor vocab.Item) error {
+			// NOTE(marius): we could have the original follow activity follow to have multiple objects,
+			// so we use OnItem to iterate through them
+			return vocab.OnItem(follow.Object, func(toFollow vocab.Item) error {
+				if !toFollow.GetLink().Equals(actor.GetLink(), false) {
+					return errors.BadRequestf(
+						"The %s activity has a different actor than the received %s's object: %s, expected %s",
+						wantedType, follow.Type,
+						actor.GetLink(),
+						toFollow.GetLink(),
+					)
+				}
+				return nil
+			})
+		})
+	}
+}
+
 // ValidateClientAcceptActivity
 func (p *P) ValidateClientAcceptActivity(act *vocab.Activity) error {
 	if err := ValidateAcceptActivity(p.s, act); err != nil {
@@ -378,20 +402,7 @@ func (p *P) ValidateClientAcceptActivity(act *vocab.Activity) error {
 	if vocab.IsIRI(act.Object) {
 		return nil
 	}
-	return vocab.OnActivity(act.Object, func(follow *vocab.Activity) error {
-		if !vocab.FollowType.Match(follow.GetType()) {
-			return errors.BadRequestf("object Activity type %s is incorrect, expected %s", follow.Type, vocab.FollowType)
-		}
-		if !act.Actor.GetLink().Equals(follow.Object.GetLink(), false) {
-			return errors.BadRequestf(
-				"The %s activity has a different actor than the received %s's object: %s, expected %s",
-				act.Type, follow.Type,
-				act.Actor.GetLink(),
-				follow.Object.GetLink(),
-			)
-		}
-		return nil
-	})
+	return vocab.OnActivity(act.Object, validateFollowup(act.Actor, vocab.FollowType))
 }
 
 // ValidateAcceptActivity
@@ -409,20 +420,7 @@ func (p *P) ValidateClientRejectActivity(act *vocab.Activity) error {
 		return err
 	}
 
-	return vocab.OnActivity(act.Object, func(follow *vocab.Activity) error {
-		if !vocab.FollowType.Match(follow.GetType()) {
-			return errors.BadRequestf("object Activity type %s is incorrect, expected %s", follow.Type, vocab.FollowType)
-		}
-		if !act.Actor.GetLink().Equals(follow.Object.GetLink(), false) {
-			return errors.BadRequestf(
-				"The %s activity has a different actor than the received %s's object: %s, expected %s",
-				act.Type, follow.Type,
-				act.Actor.GetLink(),
-				follow.Object.GetLink(),
-			)
-		}
-		return nil
-	})
+	return vocab.OnActivity(act.Object, validateFollowup(act.Actor, vocab.FollowType))
 }
 
 // ValidateRejectActivity
@@ -592,17 +590,6 @@ func (p P) ValidateAudienceForRemoteActivity(audience ...vocab.ItemCollection) e
 		}
 	}
 	return errors.Newf("None of the audience elements is local")
-}
-
-func hostSplit(h string) (string, string) {
-	pieces := strings.Split(h, ":")
-	if len(pieces) == 0 {
-		return "", ""
-	}
-	if len(pieces) == 1 {
-		return pieces[0], ""
-	}
-	return pieces[0], pieces[1]
 }
 
 func (p P) validateLocalIRI(i vocab.IRI) error {
