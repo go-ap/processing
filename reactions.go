@@ -114,14 +114,8 @@ func AppreciationActivity(p P, act *vocab.Activity) (*vocab.Activity, error) {
 }
 
 func firstOrItem(it vocab.Item) vocab.Item {
-	if vocab.IsNil(it) {
-		return it
-	}
-	if vocab.IsItemCollection(it) {
-		_ = vocab.OnItemCollection(it, func(col *vocab.ItemCollection) error {
-			it = col.First()
-			return nil
-		})
+	if col, ok := it.(vocab.ItemCollection); ok {
+		return col[0]
 	}
 	return it
 }
@@ -146,16 +140,14 @@ func AcceptActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Acti
 	if vocab.IsIRI(act.Object) {
 		// dereference object activity
 		if actLoader, ok := p.s.(ReadStore); ok {
-			obj, err := actLoader.Load(act.Object.GetLink())
-			if err != nil {
+			var err error
+			if act.Object, err = actLoader.Load(act.Object.GetLink()); err != nil {
 				return act, errors.BadRequestf("Unable to dereference object: %s", act.Object.GetLink())
 			}
-			act.Object = firstOrItem(obj)
 		}
 	}
 	err := vocab.OnActivity(act.Object, func(follow *vocab.Activity) error {
-		err := dispatchFollowSideEffectToLocalCollections(p, follow)
-		if err != nil {
+		if err := dispatchFollowSideEffectToLocalCollections(p, follow); err != nil {
 			return err
 		}
 		// NOTE(marius): Accepts need to be propagated back to the originating actor if missing from recipients list
@@ -177,13 +169,15 @@ func dispatchFollowSideEffectToLocalCollections(p P, a *vocab.Activity) error {
 	}
 
 	errs := make([]error, 0, 2)
-	if err := p.AddToLocalCollections(a.Actor, vocab.Followers.IRI(a.Object)); err != nil {
-		errs = append(errs, err)
-	}
-
-	if err := p.AddToLocalCollections(a.Object, vocab.Following.IRI(a.Actor)); err != nil {
-		errs = append(errs, err)
-	}
+	_ = vocab.OnItem(a.Object, func(ob vocab.Item) error {
+		if err := p.AddToLocalCollections(a.Actor, vocab.Followers.IRI(ob)); err != nil {
+			errs = append(errs, err)
+		}
+		if err := p.AddToLocalCollections(a.Object, vocab.Following.IRI(a.Actor)); err != nil {
+			errs = append(errs, err)
+		}
+		return nil
+	})
 	return errors.Join(errs...)
 }
 

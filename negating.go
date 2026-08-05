@@ -156,12 +156,13 @@ func (p P) UndoCreateActivity(act *vocab.Activity) (*vocab.Activity, error) {
 	if len(errs) > 0 {
 		return act, errors.Annotatef(errors.Join(errs...), "failed to fully process Undo activity")
 	}
-	if p.IsLocal(act.Object) {
-		if err := p.s.Delete(act.Object.GetLink()); err != nil {
-			return act, nil
+	err := vocab.OnItem(act.Object, func(ob vocab.Item) error {
+		if !p.IsLocal(ob) {
+			return nil
 		}
-	}
-	return act, nil
+		return p.s.Delete(ob.GetLink())
+	})
+	return act, err
 }
 
 // UndoAppreciationActivity

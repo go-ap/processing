@@ -484,7 +484,12 @@ func ValidateClientOffersActivity(l ReadStore, act *vocab.Activity) error {
 
 // IsLocal shows if the received IRI belongs to the current instance
 func (p P) IsLocal(i vocab.Item) bool {
-	return p.validateLocalIRI(i.GetLink()) == nil || p.localIRICheckFn(i.GetLink())
+	result := false
+	_ = vocab.OnItem(i, func(i vocab.Item) error {
+		result = p.validateLocalIRI(i.GetLink()) == nil || p.localIRICheckFn(i.GetLink())
+		return nil
+	})
+	return result
 }
 
 // IsLocalIRI shows if the received IRI belongs to the current instance
@@ -558,7 +563,7 @@ func (p P) ValidateClientObject(o vocab.Item) (vocab.Item, error) {
 	if o, err = p.DereferenceItem(o); err != nil {
 		return nil, errors.NewBadRequest(err, "unable to dereference Activity Object")
 	}
-	return o, nil
+	return firstOrItem(o), nil
 }
 
 func (p P) ValidateServerObject(o vocab.Item) (vocab.Item, error) {
@@ -568,7 +573,7 @@ func (p P) ValidateServerObject(o vocab.Item) (vocab.Item, error) {
 	err := vocab.OnItem(o, func(it vocab.Item) error {
 		return p.ValidateIRI(it.GetLink())
 	})
-	return o, err
+	return firstOrItem(o), err
 }
 
 func (p P) ValidateTarget(t vocab.Item) error {

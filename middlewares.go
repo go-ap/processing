@@ -29,12 +29,12 @@ func RequestToDiskMw(outPath string, checkDebugEnabledFn func() bool) func(next 
 				next.ServeHTTP(w, r)
 				return
 			}
-			defer r.Body.Close()
 
 			raw, err := httputil.DumpRequest(r, true)
 			if err == nil {
 				_, _ = ff.Write(raw)
 			}
+			_ = r.Body.Close()
 
 			next.ServeHTTP(w, r)
 		})

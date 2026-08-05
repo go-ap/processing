@@ -184,14 +184,14 @@ func (p P) AddItemToCollection(col vocab.IRI, it vocab.Item) error {
 			p.l.Warnf("unable to save remote object [%s] locally: %s", it.GetLink(), err.Error())
 		}
 	}
-	err := p.s.AddTo(col, it)
-	if err != nil {
+	if err := p.s.AddTo(col, it); err != nil {
 		if errors.IsConflict(err) {
 			return nil
 		}
 		p.l.WithContext(lw.Ctx{"err": err.Error(), "col": col.GetLink(), "it": it.GetLink()}).Warnf("unable to add object to collection")
+		return err
 	}
-	return err
+	return nil
 }
 
 func disseminateActivityObjectToLocalReplyToCollections(p P, act *vocab.Activity) error {

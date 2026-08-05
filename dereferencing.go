@@ -92,11 +92,5 @@ func (p P) DereferenceItem(it vocab.Item) (vocab.Item, error) {
 			}
 		}
 	}
-	if cnt := toKeep.Count(); cnt > 0 {
-		if cnt == 1 {
-			return firstOrItem(toKeep), nil
-		}
-		return toKeep, nil
-	}
-	return it, nil
+	return firstOrItem(toKeep), nil
 }
