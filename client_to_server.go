@@ -189,7 +189,7 @@ func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (voca
 	}
 
 	if act.Published.IsZero() {
-		act.Published = time.Now().UTC()
+		act.Published = time.Now().Round(time.Millisecond).UTC()
 	}
 
 	var it vocab.Item
