@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"time"
 
-	"git.sr.ht/~mariusor/lw"
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/client"
 	"github.com/go-ap/errors"
@@ -206,71 +205,6 @@ func cleanupMediaObjectFromItem(it vocab.Item) error {
 	return vocab.OnObject(it, cleanupMediaObject)
 }
 
-func getCollection(it vocab.Item, c vocab.CollectionPath) vocab.CollectionInterface {
-	return &vocab.OrderedCollection{
-		ID:   c.IRI(it).GetLink(),
-		Type: vocab.OrderedCollectionType,
-	}
-}
-
-// addNewActorCollections appends the "MUST have" collections for an Actor under the ActivityPub specification
-// if they are missing.
-func addNewActorCollections(p *vocab.Actor) error {
-	if p.Inbox == nil {
-		p.Inbox = getCollection(p, vocab.Inbox)
-	}
-	if p.Outbox == nil {
-		p.Outbox = getCollection(p, vocab.Outbox)
-	}
-	if p.Followers == nil {
-		p.Followers = getCollection(p, vocab.Followers)
-	}
-	if p.Following == nil {
-		p.Following = getCollection(p, vocab.Following)
-	}
-	if p.Liked == nil {
-		p.Liked = getCollection(p, vocab.Liked)
-	}
-	if vocab.PersonType.Match(p.Type) {
-		if p.Endpoints == nil {
-			p.Endpoints = &vocab.Endpoints{}
-		}
-		if p.Endpoints.OauthAuthorizationEndpoint == nil {
-			p.Endpoints.OauthAuthorizationEndpoint = p.GetLink().AddPath("oauth", "authorize")
-		}
-		if p.Endpoints.OauthTokenEndpoint == nil {
-			p.Endpoints.OauthTokenEndpoint = p.GetLink().AddPath("oauth", "token")
-		}
-	}
-	return nil
-}
-
-func addNewObjectCollections(o *vocab.Object) error {
-	if o == nil {
-		return nil
-	}
-	if o.Replies == nil {
-		o.Replies = getCollection(o, vocab.Replies)
-	}
-	if o.Likes == nil {
-		o.Likes = getCollection(o, vocab.Likes)
-	}
-	if o.Shares == nil {
-		o.Shares = getCollection(o, vocab.Shares)
-	}
-	return nil
-}
-
-func addNewItemCollections(it vocab.Item) (vocab.Item, error) {
-	var err error
-	if typ := it.GetType(); vocab.ActorTypes.Match(typ) {
-		err = vocab.OnActor(it, addNewActorCollections)
-	} else if !vocab.IsLink(it) {
-		err = vocab.OnObject(it, addNewObjectCollections)
-	}
-	return it, err
-}
-
 // validateCreateObjectIsNew checks if "ob" already exists in storage
 // It is used to verify than when receiving a Create activity, we don't override by mistake existing objects.
 func validateCreateObjectIsNew(p P, ob vocab.Item) error {
@@ -329,32 +263,31 @@ func validateCreateObjectIsNew(p P, ob vocab.Item) error {
 // inbox, and it is likely that the server will want to locally store a representation of this activity and its
 // accompanying object. However, this mostly happens in general with processing activities delivered to an inbox anyway.
 func CreateActivityFromClient(p P, act *vocab.Activity) (*vocab.Activity, error) {
-	if err := validateCreateObjectIsNew(p, act.Object); err != nil {
+	err := validateCreateObjectIsNew(p, act.Object)
+	if err != nil {
 		return act, err
 	}
+
 	if vocab.ActorTypes.Match(act.Object.GetType()) {
 		// TODO(marius): @PreHook@ we can replace this with a pre-hook function on Create activities to create they keys
-		if err := vocab.OnActor(act.Object, p.actorKeyGenFn); err != nil {
+		if err = vocab.OnActor(act.Object, p.actorKeyGenFn); err != nil {
 			return act, errors.Annotatef(err, "unable to generate private/public key pair for object %s", act.Object.GetLink())
 		}
 	}
-	err := p.updateCreateActivityObject(act.Object, act)
-	if err != nil {
+
+	// TODO(marius): @PreHook@ we can replace this functionality with a function that creates the collections
+	if err = p.CreateCollectionsForObject(act.Object); err != nil {
+		return act, errors.Annotatef(err, "unable to save collections for object")
+	}
+
+	if err = p.updateCreateActivityObject(act.Object, act); err != nil {
 		return act, errors.Annotatef(err, "unable to create activity's object %s", act.Object.GetLink())
 	}
-	// TODO(marius): @PreHook@ we can replace this functionality with a function that creates the collections
 
-	if act.Object, err = addNewItemCollections(act.Object); err == nil {
-		if err = p.CreateCollectionsForObject(act.Object); err != nil {
-			return act, errors.Annotatef(err, "unable to save collections for activity object")
-		}
-	} else {
-		p.l.WithContext(lw.Ctx{"err": err, "ob": act.Object.GetLink()}).Warnf("unable to add object collections to object")
-	}
-	act.Object, err = p.s.Save(vocab.FlattenProperties(act.Object))
-	if err != nil {
+	if act.Object, err = p.s.Save(vocab.FlattenProperties(act.Object)); err != nil {
 		return act, errors.Annotatef(err, "unable to save object to storage %s", act.Object.GetLink())
 	}
+
 	return act, disseminateActivityObjectToLocalReplyToCollections(p, act)
 }
 

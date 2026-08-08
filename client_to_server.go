@@ -193,12 +193,6 @@ func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (voca
 	}
 
 	var it vocab.Item
-	if act.Content != nil || act.Summary != nil {
-		// For activities that have a content value, we create the collections that allow actors to interact
-		// with them as they are a regular object.
-		_ = vocab.OnObject(act, addNewObjectCollections)
-	}
-
 	recipients := make(vocab.ItemCollection, 0)
 	_ = recipients.Append(p.BuildOutboxRecipientsList(act, receivedIn)...)
 

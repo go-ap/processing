@@ -95,33 +95,6 @@ func Test_addNewObjectCollections(t *testing.T) {
 	}
 }
 
-func Test_getCollection(t *testing.T) {
-	emptyOrderedCollection := &vocab.OrderedCollection{ID: "", Type: vocab.OrderedCollectionType}
-	type args struct {
-		it vocab.Item
-		c  vocab.CollectionPath
-	}
-	tests := []struct {
-		name string
-		args args
-		want vocab.CollectionInterface
-	}{
-		{
-			name: "empty",
-			args: args{},
-			want: emptyOrderedCollection,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := getCollection(tt.args.it, tt.args.c)
-			if !cmp.Equal(got, tt.want, EquateItems) {
-				t.Errorf("getCollection() = %s", cmp.Diff(tt.want, got, EquateItems))
-			}
-		})
-	}
-}
-
 func Test_updateCreateActivityObject(t *testing.T) {
 	type args struct {
 		o   vocab.Item
