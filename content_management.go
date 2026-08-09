@@ -444,7 +444,7 @@ func (p *P) UpdateActivity(act *vocab.Activity) (*vocab.Activity, error) {
 	ob := act.Object
 
 	if vocab.IsItemCollection(ob) {
-		err := vocab.OnItemCollection(ob, func(col *vocab.ItemCollection) error {
+		err = vocab.OnItemCollection(ob, func(col *vocab.ItemCollection) error {
 			for i, it := range *col {
 				old, err := p.loadAndUpdateSingleItem(it)
 				if err != nil {
@@ -555,6 +555,9 @@ func (p *P) updateSingleItem(found vocab.Item, with vocab.Item) (vocab.Item, err
 func (p *P) updateObjectForUpdate(o *vocab.Object) error {
 	if o == nil {
 		return nil
+	}
+	if o.Updated.IsZero() {
+		o.Updated = time.Now().UTC()
 	}
 	// NOTE(marius): We're trying to automatically save tags as separate objects instead
 	// of storing them inline in the current Object.
