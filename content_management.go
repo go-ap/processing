@@ -288,7 +288,7 @@ func CreateActivityFromClient(p P, act *vocab.Activity) (*vocab.Activity, error)
 		return act, errors.Annotatef(err, "unable to save object to storage %s", act.Object.GetLink())
 	}
 
-	return act, disseminateActivityObjectToLocalReplyToCollections(p, act)
+	return act, disseminateActivityObjectToLocalReplyToCollections(&p, act)
 }
 
 func (p P) saveCollectionObjectForParent(parent, colIt vocab.Item) error {
@@ -421,7 +421,7 @@ func (p P) dereferenceIRIBasedOnInbox(ob vocab.Item, receivedIn vocab.IRI) (voca
 }
 
 func CreateActivityFromServer(p P, act *vocab.Activity) (*vocab.Activity, error) {
-	return act, disseminateActivityObjectToLocalReplyToCollections(p, act)
+	return act, disseminateActivityObjectToLocalReplyToCollections(&p, act)
 }
 
 // UpdateActivity
@@ -465,7 +465,7 @@ func (p *P) UpdateActivity(act *vocab.Activity) (*vocab.Activity, error) {
 		}
 		act.Object = old
 	}
-	return act, err
+	return act, disseminateActivityObjectToLocalReplyToCollections(p, act)
 }
 
 func (p *P) loadAndUpdateSingleItem(it vocab.Item) (vocab.Item, error) {

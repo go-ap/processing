@@ -169,7 +169,7 @@ type KeyLoader interface {
 const OAuthOOBRedirectURN = "urn:ietf:wg:oauth:2.0:oob:auto"
 
 // BuildReplyToCollections builds the list of objects that it is inReplyTo
-func (p P) BuildReplyToCollections(it vocab.Item) vocab.ItemCollection {
+func (p *P) BuildReplyToCollections(it vocab.Item) vocab.ItemCollection {
 	ob, err := vocab.ToObject(it)
 	if err != nil {
 		return nil

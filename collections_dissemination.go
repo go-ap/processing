@@ -194,7 +194,7 @@ func (p P) AddItemToCollection(col vocab.IRI, it vocab.Item) error {
 	return nil
 }
 
-func disseminateActivityObjectToLocalReplyToCollections(p P, act *vocab.Activity) error {
+func disseminateActivityObjectToLocalReplyToCollections(p *P, act *vocab.Activity) error {
 	return vocab.OnItem(act.Object, func(it vocab.Item) error {
 		replyToCollections := p.BuildReplyToCollections(it)
 		if err := p.AddToLocalCollections(it, replyToCollections...); err != nil {
