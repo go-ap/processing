@@ -654,10 +654,8 @@ func DeleteActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) 
 	ob := act.Object
 
 	var toRemove vocab.ItemCollection
-	if loader, ok := l.(ReadStore); ok {
-		if err = replaceItemWithTombstone(loader, ob, &toRemove); err != nil {
-			return act, errors.Annotatef(err, "unable to create tombstone for object %s", ob)
-		}
+	if err = replaceItemWithTombstone(l, ob, &toRemove); err != nil {
+		return act, errors.Annotatef(err, "unable to create tombstone for object %s", ob)
 	}
 
 	if len(toRemove) == 0 {
@@ -675,12 +673,45 @@ func DeleteActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) 
 	return act, nil
 }
 
-func replaceItemWithTombstone(loader ReadStore, it vocab.Item, toRemove *vocab.ItemCollection) error {
-	return vocab.OnItem(it, loadTombstoneForDelete(loader, toRemove))
+func replaceItemWithTombstone(l WriteStore, it vocab.Item, toRemove *vocab.ItemCollection) error {
+	return vocab.OnItem(it, loadTombstoneForDelete(l, toRemove))
 }
 
-func loadTombstoneForDelete(loader ReadStore, toRemove *vocab.ItemCollection) func(vocab.Item) error {
+func removeItemCollections(st WriteStore, it vocab.Item) error {
+	removeCollectionObject := func(colIt vocab.Item) (err error) {
+		if !vocab.IsNil(colIt) {
+			err = st.Delete(colIt.GetLink())
+		}
+		return err
+	}
+
+	if vocab.ActorTypes.Match(it.GetType()) {
+		_ = vocab.OnActor(it, func(a *vocab.Actor) error {
+			_ = removeCollectionObject(a.Inbox)
+			_ = removeCollectionObject(a.Outbox)
+			_ = removeCollectionObject(a.Followers)
+			_ = removeCollectionObject(a.Following)
+			_ = removeCollectionObject(a.Liked)
+			_ = removeCollectionObject(filters.BlockedType.IRI(a))
+			_ = removeCollectionObject(filters.IgnoredType.IRI(a))
+			return nil
+		})
+	}
+	return vocab.OnObject(it, func(o *vocab.Object) error {
+		_ = removeCollectionObject(o.Replies)
+		_ = removeCollectionObject(o.Likes)
+		_ = removeCollectionObject(o.Shares)
+		return nil
+	})
+}
+
+func loadTombstoneForDelete(l WriteStore, toRemove *vocab.ItemCollection) func(vocab.Item) error {
+	loader, ok := l.(ReadStore)
 	return func(it vocab.Item) error {
+		if !ok {
+			return errors.NotFoundf("unable to load %s %s", it.GetType(), it.GetLink())
+		}
+
 		found, err := loader.Load(it.GetLink())
 		if err != nil {
 			return err
@@ -688,6 +719,9 @@ func loadTombstoneForDelete(loader ReadStore, toRemove *vocab.ItemCollection) fu
 		if vocab.IsNil(found) {
 			return errors.NotFoundf("unable to find %s %s", it.GetType(), it.GetLink())
 		}
+
+		// NOTE(marius): we don't want the object's collections to still be accessible
+		_ = removeItemCollections(l, it)
 
 		t := vocab.Tombstone{
 			ID:         found.GetLink(),
