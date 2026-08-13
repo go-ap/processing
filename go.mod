@@ -6,9 +6,9 @@ require (
 	git.sr.ht/~mariusor/lw v0.0.0-20250325163623-1639f3fb0e0d
 	git.sr.ht/~mariusor/ssm v0.0.0-20260505081700-875e54c38633
 	github.com/go-ap/activitypub v0.0.0-20260811143456-e874d5d2264f
-	github.com/go-ap/client v0.0.0-20260811144037-7278d72a74a5
+	github.com/go-ap/client v0.0.0-20260813125257-d05a09c56b39
 	github.com/go-ap/errors v0.0.0-20260701132509-92e5e4fd6394
-	github.com/go-ap/filters v0.0.0-20260811143713-b24d703996ba
+	github.com/go-ap/filters v0.0.0-20260813125113-ee4142210c99
 	github.com/go-ap/jsonld v0.0.0-20260607140920-737b40e0ca38
 	github.com/google/go-cmp v0.7.0
 )
@@ -47,13 +47,13 @@ require (
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fastjson v1.6.10 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
-	golang.org/x/mod v0.37.0 // indirect
-	golang.org/x/net v0.57.0 // indirect
+	golang.org/x/mod v0.38.0 // indirect
+	golang.org/x/net v0.58.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/term v0.45.0 // indirect
-	golang.org/x/text v0.40.0 // indirect
-	golang.org/x/tools v0.47.0 // indirect
+	golang.org/x/text v0.41.0 // indirect
+	golang.org/x/tools v0.48.0 // indirect
 	gopkg.in/neurosnap/sentences.v1 v1.0.7 // indirect
 	quamina.net/go/quamina/v2 v2.0.2 // indirect
 )
