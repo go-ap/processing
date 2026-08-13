@@ -170,13 +170,15 @@ func dispatchFollowSideEffectToLocalCollections(p P, a *vocab.Activity) error {
 
 	errs := make([]error, 0, 2)
 	_ = vocab.OnItem(a.Object, func(ob vocab.Item) error {
-		if err := p.AddToLocalCollections(a.Actor, vocab.Followers.IRI(ob)); err != nil {
-			errs = append(errs, err)
-		}
-		if err := p.AddToLocalCollections(a.Object, vocab.Following.IRI(a.Actor)); err != nil {
-			errs = append(errs, err)
-		}
-		return nil
+		return vocab.OnItem(a.Actor, func(act vocab.Item) error {
+			if err := p.AddToLocalCollections(act, vocab.Followers.IRI(ob)); err != nil {
+				errs = append(errs, err)
+			}
+			if err := p.AddToLocalCollections(ob, vocab.Following.IRI(act)); err != nil {
+				errs = append(errs, err)
+			}
+			return nil
+		})
 	})
 	return errors.Join(errs...)
 }
