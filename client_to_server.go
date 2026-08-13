@@ -252,6 +252,7 @@ func (p P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab.
 		return nil
 	})
 
+	actorHasBlocked := isBlocked(loader, act.Actor)
 	for _, rec := range act.Recipients() {
 		recIRI := rec.GetLink()
 		if vocab.PublicNS.Equal(recIRI) {
@@ -268,41 +269,35 @@ func (p P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab.
 			continue
 		}
 
+		if actorHasBlocked(recIRI) {
+			// NOTE(marius): if the activity actor has blocked the recipient, we skip
+			continue
+		}
+
 		if !p.IsLocalIRI(recIRI) {
 			_ = allRecipients.Append(vocab.Inbox.IRI(recIRI))
 			continue
 		}
 
-		lr, err := loader.Load(recIRI)
-		if err != nil || vocab.IsNil(lr) {
+		recipient, err := loader.Load(recIRI)
+		if err != nil || vocab.IsNil(recipient) {
 			continue
 		}
 
-		typ := lr.GetType()
-		switch {
-		case vocab.CollectionTypes.Match(typ):
-			_ = vocab.OnCollectionIntf(lr, func(col vocab.CollectionInterface) error {
-				for _, m := range col.Collection() {
-					if !vocab.ActorTypes.Match(m.GetType()) || isBlocked(loader, m, act.Actor) {
-						continue
-					}
-					_ = vocab.OnActor(m, func(act *vocab.Actor) error {
-						if act.Endpoints != nil && !vocab.IsNil(act.Endpoints.SharedInbox) {
-							_ = allRecipients.Append(act.Endpoints.SharedInbox.GetLink())
-						} else {
-							_ = allRecipients.Append(vocab.Inbox.Of(m))
-						}
-						return nil
-					})
+		_ = vocab.OnItem(recipient, func(rec vocab.Item) error {
+			recipientHasBlocked := isBlocked(loader, rec)
+			if !vocab.ActorTypes.Match(rec.GetType()) || recipientHasBlocked(act.Actor) {
+				return nil
+			}
+			return vocab.OnActor(rec, func(act *vocab.Actor) error {
+				if act.Endpoints != nil && !vocab.IsNil(act.Endpoints.SharedInbox) {
+					_ = allRecipients.Append(act.Endpoints.SharedInbox.GetLink())
+				} else {
+					_ = allRecipients.Append(vocab.Inbox.Of(rec))
 				}
 				return nil
 			})
-		case vocab.ActorTypes.Match(typ):
-			if isBlocked(loader, recIRI, act.Actor) {
-				continue
-			}
-			_ = allRecipients.Append(vocab.Inbox.IRI(recIRI))
-		}
+		})
 	}
 
 	// NOTE(marius): append the "receivedIn" collection to the list of recipients

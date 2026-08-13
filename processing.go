@@ -147,19 +147,37 @@ func (p *P) createNewTags(tags vocab.ItemCollection, parent vocab.Item) error {
 	return nil
 }
 
-func isBlocked(loader ReadStore, rec, act vocab.Item) bool {
-	// Check if any of the local recipients are blocking the actor, we assume rec is local
-	blockedIRI := BlockedCollection.IRI(rec)
-	blockedAct, err := loader.Load(blockedIRI)
-	if err != nil || vocab.IsNil(blockedAct) {
-		return false
+func loadBlockedForActor(loader ReadStore, rec vocab.Item) vocab.ItemCollection {
+	blockedCol, err := loader.Load(BlockedCollection.IRI(rec))
+	if err != nil {
+		return nil
 	}
-	blocked := false
-	_ = vocab.OnCollectionIntf(blockedAct, func(c vocab.CollectionInterface) error {
-		blocked = c.Contains(act)
+
+	var blocked vocab.ItemCollection
+	_ = vocab.OnCollectionIntf(blockedCol, func(c vocab.CollectionInterface) error {
+		blocked = c.Collection()
 		return nil
 	})
 	return blocked
+}
+
+func isBlocked(loader ReadStore, rec vocab.Item) func(act vocab.Item) bool {
+	blocked := loadBlockedForActor(loader, rec)
+	if blocked == nil {
+		return func(_ vocab.Item) bool {
+			return false
+		}
+	}
+	return func(act vocab.Item) bool {
+		result := false
+		_ = vocab.OnItem(act, func(item vocab.Item) error {
+			if result = blocked.Contains(act); result {
+				return errors.Newf("skip")
+			}
+			return nil
+		})
+		return result
+	}
 }
 
 type KeyLoader interface {

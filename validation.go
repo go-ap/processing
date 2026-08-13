@@ -99,15 +99,21 @@ func (p P) ValidateServerActivity(a vocab.Item, author vocab.Actor, inbox vocab.
 		return InvalidActivity("invalid type %v", a.GetType())
 	}
 
+	maybeOwner, _ := vocab.Split(inbox)
+	inboxOwnerHasBlocked := isBlocked(p.s, maybeOwner)
+	if inboxOwnerHasBlocked(author) {
+		return errors.NotFoundf("")
+	}
+
 	return vocab.OnActivity(a, func(act *vocab.Activity) error {
 		if len(act.ID) == 0 {
 			return InvalidActivity("invalid activity id %s", act.ID)
 		}
-
-		var err error
-		if isBlocked(p.s, inbox, act.Actor) {
+		if inboxOwnerHasBlocked(act.Actor) {
 			return errors.NotFoundf("")
 		}
+
+		var err error
 		if act.Actor, err = p.ValidateServerActor(act.Actor, author); err != nil {
 			if errors.IsBadRequest(err) {
 				act.Actor = &author

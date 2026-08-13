@@ -338,8 +338,8 @@ func (p P) BuildInboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab.I
 	allRecipients := make(vocab.ItemCollection, 0)
 	for _, rec := range act.Recipients() {
 		recIRI := rec.GetLink()
-
-		if !p.IsLocalIRI(recIRI) || isBlocked(loader, recIRI, act.Actor) {
+		recipientHasBlocked := isBlocked(loader, recIRI)
+		if !p.IsLocalIRI(recIRI) || recipientHasBlocked(act.Actor) {
 			continue
 		}
 
@@ -389,37 +389,48 @@ func (p P) BuildLocalCollectionsRecipients(it vocab.Item, receivedIn vocab.IRI) 
 
 	loader := p.s
 
+	maybeActor, _ := vocab.Split(receivedIn)
+	actorHasBlocked := isBlocked(loader, maybeActor)
+
 	allRecipients := make(vocab.ItemCollection, 0)
 	for _, rec := range act.Recipients() {
 		recIRI := rec.GetLink()
-		if !p.IsLocalIRI(recIRI) || isBlocked(loader, recIRI, act.Actor) {
+
+		if !p.IsLocalIRI(recIRI) {
 			continue
 		}
 
-		lr, err := loader.Load(recIRI)
+		recipient, err := loader.Load(recIRI)
 		if err != nil {
 			continue
 		}
 
-		if !vocab.CollectionTypes.Match(lr.GetType()) {
-			continue
-		}
-		_ = vocab.OnCollectionIntf(lr, func(col vocab.CollectionInterface) error {
-			for _, m := range col.Collection() {
-				// NOTE(marius): we append all valid recipients, local or remote.
-				if !vocab.ActorTypes.Match(m.GetType()) || isBlocked(loader, recIRI, act.Actor) {
-					continue
-				}
-				_ = vocab.OnActor(m, func(act *vocab.Actor) error {
-					if act.Endpoints != nil && !vocab.IsNil(act.Endpoints.SharedInbox) {
-						_ = allRecipients.Append(act.Endpoints.SharedInbox.GetLink())
-					} else {
-						_ = allRecipients.Append(vocab.Inbox.Of(m))
-					}
-					return nil
-				})
+		_ = vocab.OnItem(recipient, func(rec vocab.Item) error {
+			// NOTE(marius): we don't try to add non actors to the recipients list
+			if !vocab.ActorTypes.Match(rec.GetType()) {
+				return nil
 			}
-			return nil
+
+			// NOTE(marius): if the activity actor has the recipient blocked, we don't add them
+			if actorHasBlocked(rec.GetLink()) {
+				return nil
+			}
+
+			// NOTE(marius): if the recipient is local and has the actor blocked, we also don't add them
+			recipientHasBlocked := isBlocked(loader, rec.GetLink())
+			if p.IsLocalIRI(rec.GetLink()) && recipientHasBlocked(act.Actor) {
+				return nil
+			}
+
+			// NOTE(marius): we append all valid recipients, local or remote.
+			return vocab.OnActor(rec, func(act *vocab.Actor) error {
+				if act.Endpoints != nil && !vocab.IsNil(act.Endpoints.SharedInbox) {
+					_ = allRecipients.Append(act.Endpoints.SharedInbox.GetLink())
+				} else {
+					_ = allRecipients.Append(vocab.Inbox.Of(rec))
+				}
+				return nil
+			})
 		})
 	}
 
