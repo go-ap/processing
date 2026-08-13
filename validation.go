@@ -78,6 +78,7 @@ var InvalidActivityObject = func(s string, p ...interface{}) error {
 var InvalidIRI = func(s string, p ...interface{}) error {
 	return ValidationError(fmt.Sprintf("IRI is not valid: %s", s), p...)
 }
+
 var InvalidTarget = func(s string, p ...interface{}) error {
 	return ValidationError(fmt.Sprintf("Target is not valid: %s", s), p...)
 }
@@ -100,10 +101,12 @@ func (p P) ValidateServerActivity(a vocab.Item, author vocab.Actor, inbox vocab.
 		return InvalidActivity("invalid type %v", a.GetType())
 	}
 
-	// NOTE(marius): check if the inbox collection actually exists
-	_, err := p.s.Load(inbox, filters.WithMaxCount(1))
-	if err != nil {
-		return errors.NewMethodNotAllowed(err, "invalid collection %s", inbox)
+	var err error
+	if !p.skipValidationOnInboundCollections {
+		// NOTE(marius): check if the inbox collection actually exists
+		if _, err = p.s.Load(inbox, filters.WithMaxCount(1)); err != nil {
+			return errors.NewMethodNotAllowed(err, "invalid collection %s", inbox)
+		}
 	}
 
 	maybeOwner, _ := vocab.Split(inbox)
@@ -231,10 +234,12 @@ func (p P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab
 		return InvalidActivity("is nil")
 	}
 
-	// NOTE(marius): check if the outbox collection actually exists
-	_, err := p.s.Load(outbox, filters.WithMaxCount(1))
-	if err != nil {
-		return errors.NewMethodNotAllowed(err, "invalid collection %s", outbox)
+	var err error
+	if !p.skipValidationOnInboundCollections {
+		// NOTE(marius): check if the outbox collection actually exists
+		if _, err = p.s.Load(outbox, filters.WithMaxCount(1)); err != nil {
+			return errors.NewMethodNotAllowed(err, "invalid collection %s", outbox)
+		}
 	}
 
 	if vocab.IsIRI(a) {

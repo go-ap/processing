@@ -12,11 +12,16 @@ import (
 
 type P struct {
 	baseIRI vocab.IRIs
-	async   bool
 	c       c.Basic
 	s       Store
 	l       lw.Logger
+
 	retries int
+	async   bool
+
+	// skipValidationOnInboundCollections determines if the validation functionality checks that the collection
+	// which received the activity actually exists.
+	skipValidationOnInboundCollections bool
 
 	// localIRICheckFn is a function that can be passed from outside the module to determine if a [vocab.IRI] "is local".
 	// This usually means that the storage layer can dereference the IRI to an object that is stored locally.
@@ -51,6 +56,10 @@ type OptionFn func(s *P)
 
 func Async(p *P) {
 	p.async = true
+}
+
+func SkipInboundCollectionValidation(p *P) {
+	p.skipValidationOnInboundCollections = true
 }
 
 // WithDisseminationRetryCount specifies the number of retries for failed remote activity dissemination.
