@@ -7,6 +7,7 @@ import (
 
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
+	"github.com/go-ap/filters"
 )
 
 type Validator interface {
@@ -97,6 +98,12 @@ func (p P) ValidateServerActivity(a vocab.Item, author vocab.Actor, inbox vocab.
 	}
 	if !vocab.ActivityTypes.Match(a.GetType()) {
 		return InvalidActivity("invalid type %v", a.GetType())
+	}
+
+	// NOTE(marius): check if the inbox collection actually exists
+	_, err := p.s.Load(inbox, filters.WithMaxCount(1))
+	if err != nil {
+		return errors.NewMethodNotAllowed(err, "invalid collection %s", inbox)
 	}
 
 	maybeOwner, _ := vocab.Split(inbox)
@@ -223,8 +230,14 @@ func (p P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab
 	if vocab.IsNil(a) {
 		return InvalidActivity("is nil")
 	}
+
+	// NOTE(marius): check if the outbox collection actually exists
+	_, err := p.s.Load(outbox, filters.WithMaxCount(1))
+	if err != nil {
+		return errors.NewMethodNotAllowed(err, "invalid collection %s", outbox)
+	}
+
 	if vocab.IsIRI(a) {
-		var err error
 		if a, err = p.DereferenceItem(a.GetLink()); err != nil {
 			return errors.NewBadRequest(err, "unable to dereference activity")
 		}
@@ -235,9 +248,7 @@ func (p P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab
 		return InvalidActivity("invalid type %v", a.GetType())
 	}
 
-	err := vocab.OnIntransitiveActivity(a, func(act *vocab.IntransitiveActivity) error {
-		var err error
-
+	err = vocab.OnIntransitiveActivity(a, func(act *vocab.IntransitiveActivity) error {
 		if act.Actor, err = p.ValidateClientActor(act.Actor, author); err != nil {
 			if errors.IsBadRequest(err) {
 				act.Actor = &author
