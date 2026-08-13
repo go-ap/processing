@@ -37,7 +37,7 @@ const (
 	jitterDelay = 200 * time.Millisecond
 
 	baseWaitTime = time.Second
-	multiplier   = 1.4
+	multiplier   = 1.8
 )
 
 func retryFn(retries int, fn ssm.Fn) ssm.Fn {
@@ -67,7 +67,7 @@ func (p P) disseminateToRemoteCollections(it vocab.Item, iris ...vocab.IRI) erro
 		}
 
 		currentRetry := 0
-		start := time.Now().UTC().Round(time.Microsecond)
+		start := time.Now().UTC()
 		delay := time.Duration(0)
 		state := retryFn(p.retries, func(ctx context.Context) ssm.Fn {
 			// NOTE(marius): we expect that the client has already been set up for being able to POST requests
