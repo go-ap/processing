@@ -188,7 +188,7 @@ func (p P) AddItemToCollection(col vocab.IRI, it vocab.Item) error {
 		if errors.IsConflict(err) {
 			return nil
 		}
-		p.l.WithContext(lw.Ctx{"err": err.Error(), "col": col.GetLink(), "it": it.GetLink()}).Warnf("unable to add object to collection")
+		p.l.WithContext(lw.Ctx{"err": err, "col": col.GetLink(), "it": it.GetLink()}).Warnf("unable to add object to collection")
 		return err
 	}
 	return nil

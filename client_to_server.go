@@ -3,6 +3,7 @@ package processing
 import (
 	"time"
 
+	"git.sr.ht/~mariusor/lw"
 	vocab "github.com/go-ap/activitypub"
 )
 
@@ -85,10 +86,10 @@ func (p P) ProcessOutboxDelivery(it vocab.Item, receivedIn vocab.IRI) error {
 		return nil
 	}
 	if err := p.AddToLocalCollections(it, recipients...); err != nil {
-		p.l.Errorf("%+s", err)
+		p.l.WithContext(lw.Ctx{"err": err}).Errorf("unable to add to local collections")
 	}
 	if err := p.AddToRemoteCollections(it, recipients...); err != nil {
-		p.l.Errorf("%+s", err)
+		p.l.WithContext(lw.Ctx{"err": err}).Errorf("unable to add to remote collections")
 	}
 
 	return nil
