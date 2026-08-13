@@ -1,6 +1,7 @@
 package processing
 
 import (
+	"git.sr.ht/~mariusor/lw"
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
 )
@@ -58,13 +59,32 @@ func (p P) NotificationActivity(act *vocab.Activity) (*vocab.Activity, error) {
 		// NOTE(marius): we ignore not local objects
 		return act, nil
 	}
+	good := vocab.ActivityVocabularyTypes{vocab.AnnounceType}
+	if !good.Match(act.Type) {
+		return act, errors.BadRequestf("Activity has wrong type %s, expected %v", act.Type, good)
+	}
 
-	saveToCollections := func(objects ...vocab.Item) error {
-		errs := make([]error, 0, len(objects))
+	// NOTE(marius): because we add the Announce activity to the shares collection, we need to save it locally first.
+	it, err := p.s.Save(act)
+	likeWasSavedLocally := err == nil
+
+	objects := make(vocab.ItemCollection, 0)
+	_ = vocab.OnItem(act.Object, func(item vocab.Item) error {
+		objects = append(objects, item)
+		return nil
+	})
+
+	saveToCollections := func(objects vocab.ItemCollection) error {
+		errs := make([]error, 0)
 		colToAdd := make(map[vocab.IRI][]vocab.IRI)
+
 		for _, object := range objects {
+			if !likeWasSavedLocally {
+				p.l.WithContext(lw.Ctx{"iri": act.ID, "typ": act.Type}).Warnf("Activity was not saved locally, unable to add it to collections.")
+				break
+			}
 			likes := vocab.Shares.IRI(object)
-			colToAdd[likes] = append(colToAdd[likes], act.GetLink())
+			colToAdd[likes] = append(colToAdd[likes], it.GetLink())
 		}
 		for col, iris := range colToAdd {
 			for _, iri := range iris {
@@ -76,8 +96,9 @@ func (p P) NotificationActivity(act *vocab.Activity) (*vocab.Activity, error) {
 		return errors.Join(errs...)
 	}
 
-	// NOTE(marius): we add the activity to the object's shares collection
-	return act, saveToCollections(collectionFromItem(act.Object)...)
+	// NOTE(marius): we're only saving to the Liked and Likes collections for Likes in order to conform to the spec.
+	_ = saveToCollections(objects)
+	return act, nil
 }
 
 func (p P) UndoAnnounceActivity(act *vocab.Activity) (*vocab.Activity, error) {

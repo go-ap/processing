@@ -1,6 +1,7 @@
 package processing
 
 import (
+	"git.sr.ht/~mariusor/lw"
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
 )
@@ -56,56 +57,47 @@ func AppreciationActivity(p P, act *vocab.Activity) (*vocab.Activity, error) {
 		return act, errors.BadRequestf("Activity has wrong type %s, expected %v", act.Type, good)
 	}
 
-	saveToCollections := func(actors, objects vocab.ItemCollection) error {
-		errs := make([]error, 0)
-		colToAdd := make(map[vocab.IRI][]vocab.IRI)
+	// NOTE(marius): because we add the Like activity to the likes collection, we need to save it locally first.
+	_, err := p.s.Save(act)
+	likeWasSavedLocally := err == nil
 
-		// NOTE(marius): because we add the Like activity to the likes collection, we need to save it locally first.
-		_, err := p.s.Save(act)
-		likeWasSavedLocally := err == nil
-		for _, object := range objects {
-			for _, actor := range actors {
-				liked := vocab.Liked.IRI(actor)
-				colToAdd[liked] = append(colToAdd[liked], object.GetLink())
-			}
-
-			if !likeWasSavedLocally {
-				break
-			}
-			likes := vocab.Likes.IRI(object)
-			colToAdd[likes] = append(colToAdd[likes], act.GetLink())
-		}
-		for col, iris := range colToAdd {
-			for _, iri := range iris {
-				if err := p.AddItemToCollection(col, iri); err != nil {
-					errs = append(errs, errors.Annotatef(err, "Unable to save %s to collection %s", iris, col))
-				}
-			}
-		}
-		return errors.Join(errs...)
-	}
-	var actors, objects vocab.ItemCollection
-	if vocab.IsItemCollection(act.Actor) {
-		_ = vocab.OnItemCollection(act.Actor, func(c *vocab.ItemCollection) error {
-			actors = *c
-			return nil
-		})
-	} else {
-		actors = make(vocab.ItemCollection, 1)
-		actors[0] = act.Actor
-	}
-	if vocab.IsItemCollection(act.Object) {
-		_ = vocab.OnItemCollection(act.Object, func(c *vocab.ItemCollection) error {
-			objects = *c
-			return nil
-		})
-	} else {
-		objects = make(vocab.ItemCollection, 1)
-		objects[0] = act.Object
-	}
+	actors := make(vocab.ItemCollection, 0)
+	_ = vocab.OnItem(act.Actor, func(item vocab.Item) error {
+		return actors.Append(item)
+	})
+	objects := make(vocab.ItemCollection, 0)
+	_ = vocab.OnItem(act.Object, func(item vocab.Item) error {
+		return objects.Append(item)
+	})
 
 	// NOTE(marius): we're only saving to the Liked and Likes collections for Likes in order to conform to the spec.
 	if vocab.LikeType.Match(act.GetType()) {
+		saveToCollections := func(actors, objects vocab.ItemCollection) error {
+			errs := make([]error, 0)
+			colToAdd := make(map[vocab.IRI][]vocab.IRI)
+
+			for _, object := range objects {
+				for _, actor := range actors {
+					liked := vocab.Liked.IRI(actor)
+					colToAdd[liked] = append(colToAdd[liked], object.GetLink())
+				}
+
+				if !likeWasSavedLocally {
+					p.l.WithContext(lw.Ctx{"iri": act.ID, "typ": act.Type}).Warnf("Activity was not saved locally, unable to add it to collections.")
+					break
+				}
+				likes := vocab.Likes.IRI(object)
+				colToAdd[likes] = append(colToAdd[likes], act.GetLink())
+			}
+			for col, iris := range colToAdd {
+				for _, iri := range iris {
+					if err := p.AddItemToCollection(col, iri); err != nil {
+						errs = append(errs, errors.Annotatef(err, "Unable to save %s to collection %s", iris, col))
+					}
+				}
+			}
+			return errors.Join(errs...)
+		}
 		// TODO(marius): do something sensible with these errors, they shouldn't stop execution,
 		//               but they are still good to know
 		_ = saveToCollections(actors, objects)
