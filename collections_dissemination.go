@@ -19,7 +19,7 @@ func (p P) AddToRemoteCollections(it vocab.Item, recipients ...vocab.Item) error
 		return errors.Newf("trying to disseminate remote activity %s to remote collection:", it.GetLink())
 	}
 
-	remoteFiltered := filters.Checks{filters.Not(filterFn(p.IsLocal))}.Filter(vocab.ItemCollection(recipients))
+	remoteFiltered := filters.Checks{filters.Not(filterFn(p.IsLocal))}.Run(vocab.ItemCollection(recipients))
 	if remoteFiltered == nil {
 		return nil
 	}
@@ -112,7 +112,7 @@ func (p P) disseminateToRemoteCollections(it vocab.Item, iris ...vocab.IRI) erro
 type filterFn func(vocab.Item) bool
 
 func (ff filterFn) Match(it vocab.Item) bool {
-	return ff(it.GetLink())
+	return ff(it)
 }
 
 // AddToLocalCollections handles the dissemination of the received it Activity to the local collections,
@@ -120,7 +120,7 @@ func (ff filterFn) Match(it vocab.Item) bool {
 //   - the author's Outbox
 //   - the recipients' Inboxes
 func (p P) AddToLocalCollections(it vocab.Item, recipients ...vocab.Item) error {
-	localFiltered := filters.Checks{filterFn(p.IsLocal)}.Filter(vocab.ItemCollection(recipients))
+	localFiltered := filters.Checks{filterFn(p.IsLocal)}.Run(vocab.ItemCollection(recipients))
 	if localFiltered == nil {
 		return nil
 	}
