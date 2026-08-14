@@ -78,9 +78,10 @@ func RelationshipManagementActivity(p P, act *vocab.Activity, receivedIn vocab.I
 func FollowActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activity, error) {
 	if !vocab.IsNil(act.Object) {
 		validForRecipient := func(i vocab.IRI) bool {
-			return len(i) > 0 && !i.Equal(vocab.PublicNS) && !act.To.Contains(i)
+			return len(i) > 0 && !i.Equal(vocab.PublicNS)
 		}
-		// TODO(marius): add check if IRI represents an actor (or rely on the collection saver to break if not)
+
+		// TODO(marius): add check if IRI represents an actor (or rely on the collection saver to break if not).
 		//   This should be moved to the validation logic
 		_ = vocab.OnItem(act.Object, func(object vocab.Item) error {
 			if obIRI := object.GetLink(); validForRecipient(obIRI) {

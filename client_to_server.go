@@ -44,7 +44,7 @@ type C2SProcessor interface {
 // 405 Method Not Allowed response.
 //
 // HTTP caching mechanisms [RFC7234] SHOULD be respected when appropriate, both in clients receiving responses from
-// servers as well as servers sending responses to clients.
+// servers and servers sending responses to clients.
 func (p P) ProcessClientActivity(it vocab.Item, author vocab.Actor, receivedIn vocab.IRI) (vocab.Item, error) {
 	if vocab.IsNil(it) {
 		return nil, InvalidActivity("is nil")
@@ -213,10 +213,10 @@ func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (voca
 		// Activities addressed to `Public` usually appear only in the inboxes of actors that follow the activity's `actor`
 		// property.
 		if err = p.AddToLocalCollections(it, append(recipients, activityReplyToCollections...)...); err != nil {
-			p.l.Errorf("%+s", err)
+			p.l.WithContext(lw.Ctx{"err": err}).Errorf("unable to add recipients to local collection")
 		}
 		if err = p.AddToRemoteCollections(it, recipients...); err != nil {
-			p.l.Errorf("%+s", err)
+			p.l.WithContext(lw.Ctx{"err": err}).Errorf("unable to add recipients to remote collection")
 		}
 	}
 	if p.async {
@@ -243,10 +243,10 @@ func (p P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab.
 
 	allRecipients := make(vocab.ItemCollection, 0)
 	_ = vocab.OnItem(act.Actor, func(actor vocab.Item) error {
+		// NOTE(marius): this is needed only for client to server interactions
 		if vocab.IsNil(actor) || p.IsLocal(actor) {
 			return nil
 		}
-		// NOTE(marius): this is needed only for client to server interactions
 		if actIRI := actor.GetLink(); !vocab.PublicNS.Equal(actIRI) {
 			_ = allRecipients.Append(vocab.Outbox.IRI(actIRI))
 		}
@@ -291,7 +291,7 @@ func (p P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab.
 				return nil
 			}
 			return vocab.OnActor(rec, func(act *vocab.Actor) error {
-				if act.Endpoints != nil && !vocab.IsNil(act.Endpoints.SharedInbox) {
+				if (act.Endpoints != nil && !vocab.IsNil(act.Endpoints.SharedInbox)) && !p.IsLocalIRI(act.ID) {
 					_ = allRecipients.Append(act.Endpoints.SharedInbox.GetLink())
 				} else {
 					_ = allRecipients.Append(vocab.Inbox.Of(rec))
