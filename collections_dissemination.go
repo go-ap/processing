@@ -152,7 +152,7 @@ func (p P) disseminateToLocalCollections(it vocab.Item, iris ...vocab.IRI) error
 			}
 		}
 		state := func(ctx context.Context) ssm.Fn {
-			ll.Debugf("Saving to local actor's collection")
+			ll.Debugf("Saving to local collection")
 			if err := p.AddItemToCollection(col, it); err != nil {
 				ll.Warnf("Unable to disseminate activity %s", err)
 			}

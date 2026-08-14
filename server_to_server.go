@@ -338,8 +338,13 @@ func (p P) BuildInboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab.I
 	allRecipients := make(vocab.ItemCollection, 0)
 	for _, rec := range act.Recipients() {
 		recIRI := rec.GetLink()
-		recipientHasBlocked := isBlocked(loader, recIRI)
-		if !p.IsLocalIRI(recIRI) || recipientHasBlocked(act.Actor) {
+		if !p.IsLocalIRI(recIRI) {
+			continue
+		}
+
+		if recipientHasBlocked := isBlocked(loader, recIRI); recipientHasBlocked(act.Actor) {
+			// NOTE(marius): if the recipient has blocked the actor, we skip
+			p.l.WithContext(lw.Ctx{"actor": act.Actor.GetID(), "rec": recIRI}).Debugf("Skipping recipient that blocked actor")
 			continue
 		}
 
@@ -400,6 +405,12 @@ func (p P) BuildLocalCollectionsRecipients(it vocab.Item, receivedIn vocab.IRI) 
 			continue
 		}
 
+		if actorHasBlocked(recIRI) {
+			// NOTE(marius): if the actor has blocked the recipient, we skip
+			p.l.WithContext(lw.Ctx{"actor": act.Actor.GetID(), "rec": recIRI}).Debugf("Skipping blocked recipient")
+			return nil
+		}
+
 		recipient, err := loader.Load(recIRI)
 		if err != nil {
 			continue
@@ -410,15 +421,14 @@ func (p P) BuildLocalCollectionsRecipients(it vocab.Item, receivedIn vocab.IRI) 
 			if !vocab.ActorTypes.Match(rec.GetType()) {
 				return nil
 			}
-
-			// NOTE(marius): if the activity actor has the recipient blocked, we don't add them
-			if actorHasBlocked(rec.GetLink()) {
+			if p.IsLocalIRI(rec.GetLink()) {
 				return nil
 			}
 
-			// NOTE(marius): if the recipient is local and has the actor blocked, we also don't add them
 			recipientHasBlocked := isBlocked(loader, rec.GetLink())
-			if p.IsLocalIRI(rec.GetLink()) && recipientHasBlocked(act.Actor) {
+			if recipientHasBlocked(act.Actor) {
+				// NOTE(marius): if the actor has blocked the recipient, we skip
+				p.l.WithContext(lw.Ctx{"actor": act.Actor.GetID(), "rec": rec.GetLink()}).Debugf("Skipping blocked recipient")
 				return nil
 			}
 

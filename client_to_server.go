@@ -262,9 +262,6 @@ func (p P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab.
 			// TODO(marius): We need an async mechanism to synchronize shared inboxes with the actors that use it.
 			//  See TODO in the BuildInboxRecipientsList related to shared Inbox
 			for _, us := range p.baseIRI {
-				if !receivedIn.Contains(us, true) {
-					continue
-				}
 				_ = allRecipients.Append(vocab.Inbox.IRI(us))
 			}
 			continue
@@ -272,6 +269,7 @@ func (p P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab.
 
 		if actorHasBlocked(recIRI) {
 			// NOTE(marius): if the activity actor has blocked the recipient, we skip
+			p.l.WithContext(lw.Ctx{"actor": act.Actor.GetID(), "rec": recIRI}).Debugf("Skipping blocked recipient")
 			continue
 		}
 
@@ -287,7 +285,11 @@ func (p P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab.
 
 		_ = vocab.OnItem(recipient, func(rec vocab.Item) error {
 			recipientHasBlocked := isBlocked(loader, rec)
-			if !vocab.ActorTypes.Match(rec.GetType()) || recipientHasBlocked(act.Actor) {
+			if recipientHasBlocked(act.Actor) {
+				p.l.WithContext(lw.Ctx{"actor": act.Actor.GetID(), "rec": recIRI}).Debugf("Skipping blocked actor blocked by recipient")
+				return nil
+			}
+			if !vocab.ActorTypes.Match(rec.GetType()) {
 				return nil
 			}
 			return vocab.OnActor(rec, func(act *vocab.Actor) error {
