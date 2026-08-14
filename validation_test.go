@@ -11,8 +11,9 @@ import (
 
 func ExampleP_ValidateActivity_in_inbox() {
 	allIRIsAreLocal := func(_ vocab.IRI) bool { return true }
+	storage := new(MockStorage)
 	p := New(
-		WithStorage(new(MockStorage)),
+		WithStorage(storage),
 		WithLocalIRIChecker(allIRIsAreLocal),
 		WithIDGenerator(idGenerator()),
 	)
@@ -23,6 +24,10 @@ func ExampleP_ValidateActivity_in_inbox() {
 		Inbox:  vocab.IRI("http://example.com/~jdoe/inbox"),
 		Outbox: vocab.IRI("http://example.com/~jdoe/outbox"),
 	}
+	_, _ = storage.Save(actor)
+	_, _ = storage.Save(&vocab.OrderedCollection{ID: vocab.Outbox.IRI(actor), Type: vocab.OrderedCollectionType})
+	_, _ = storage.Save(&vocab.OrderedCollection{ID: vocab.Inbox.IRI(actor), Type: vocab.OrderedCollectionType})
+
 	act := vocab.Activity{
 		Type:  vocab.CreateType,
 		Actor: actor,
@@ -37,8 +42,9 @@ func ExampleP_ValidateActivity_in_inbox() {
 
 func ExampleP_ValidateActivity_in_outbox() {
 	allIRIsAreLocal := func(_ vocab.IRI) bool { return true }
+	storage := new(MockStorage)
 	p := New(
-		WithStorage(new(MockStorage)),
+		WithStorage(storage),
 		WithLocalIRIChecker(allIRIsAreLocal),
 		WithIDGenerator(idGenerator()),
 	)
@@ -48,6 +54,10 @@ func ExampleP_ValidateActivity_in_outbox() {
 		Type:   vocab.PersonType,
 		Outbox: vocab.IRI("http://example.com/~jdoe/outbox"),
 	}
+	_, _ = storage.Save(actor)
+	_, _ = storage.Save(&vocab.OrderedCollection{ID: vocab.Outbox.IRI(actor), Type: vocab.OrderedCollectionType})
+	_, _ = storage.Save(&vocab.OrderedCollection{ID: vocab.Inbox.IRI(actor), Type: vocab.OrderedCollectionType})
+
 	note := vocab.Object{
 		ID:   "http://example.com/~jdoe/notes/1",
 		Type: vocab.NoteType,

@@ -169,8 +169,9 @@ var idGenerator = func() func(it vocab.Item, byActivity vocab.Item) (vocab.ID, e
 
 func ExampleP_ProcessActivity_in_outbox() {
 	allIRIsAreLocal := func(_ vocab.IRI) bool { return true }
+	storage := new(MockStorage)
 	p := New(
-		WithStorage(new(MockStorage)),
+		WithStorage(storage),
 		WithLocalIRIChecker(allIRIsAreLocal),
 		WithIDGenerator(idGenerator()),
 	)
@@ -186,6 +187,8 @@ func ExampleP_ProcessActivity_in_outbox() {
 		Actor:  actor,
 		Object: object,
 	}
+	_, _ = storage.Save(actor)
+	_, _ = storage.Save(&vocab.OrderedCollection{ID: vocab.Outbox.IRI(actor), Type: vocab.OrderedCollectionType})
 
 	it, err := p.ProcessActivity(activity, actor, vocab.Outbox.IRI(actor))
 	if err != nil {
@@ -212,8 +215,9 @@ func ExampleP_ProcessActivity_in_outbox() {
 
 func ExampleP_ProcessActivity_in_inbox() {
 	noIRIsAreLocal := func(_ vocab.IRI) bool { return false }
+	storage := new(MockStorage)
 	p := New(
-		WithStorage(new(MockStorage)),
+		WithStorage(storage),
 		WithLocalIRIChecker(noIRIsAreLocal),
 	)
 
@@ -223,6 +227,10 @@ func ExampleP_ProcessActivity_in_inbox() {
 		Inbox:  vocab.IRI("http://example.com/~jdoe/inbox"),
 		Outbox: vocab.IRI("http://example.com/~jdoe/outbox"),
 	}
+	_, _ = storage.Save(actor)
+	_, _ = storage.Save(&vocab.OrderedCollection{ID: vocab.Outbox.IRI(actor), Type: vocab.OrderedCollectionType})
+	_, _ = storage.Save(&vocab.OrderedCollection{ID: vocab.Inbox.IRI(actor), Type: vocab.OrderedCollectionType})
+
 	object := &vocab.Note{}
 	activity := vocab.Activity{
 		ID:     "http://example.com/~jdoe/outbox/0",
