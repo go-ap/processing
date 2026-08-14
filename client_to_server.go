@@ -269,7 +269,7 @@ func (p P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab.
 
 		if actorHasBlocked(recIRI) {
 			// NOTE(marius): if the activity actor has blocked the recipient, we skip
-			p.l.WithContext(lw.Ctx{"actor": act.Actor.GetID(), "rec": recIRI}).Debugf("Skipping blocked recipient")
+			p.l.WithContext(lw.Ctx{"actor": act.Actor.GetID(), "rec": recIRI}).Tracef("Skipping blocked recipient")
 			continue
 		}
 
@@ -286,7 +286,7 @@ func (p P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab.
 		_ = vocab.OnItem(recipient, func(rec vocab.Item) error {
 			recipientHasBlocked := isBlocked(loader, rec)
 			if recipientHasBlocked(act.Actor) {
-				p.l.WithContext(lw.Ctx{"actor": act.Actor.GetID(), "rec": recIRI}).Debugf("Skipping blocked actor blocked by recipient")
+				p.l.WithContext(lw.Ctx{"actor": act.Actor.GetID(), "rec": recIRI}).Tracef("Skipping blocked actor blocked by recipient")
 				return nil
 			}
 			if !vocab.ActorTypes.Match(rec.GetType()) {

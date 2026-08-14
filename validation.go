@@ -114,7 +114,7 @@ func (p P) ValidateServerActivity(a vocab.Item, author vocab.Actor, inbox vocab.
 	inboxOwnerHasBlocked := isBlocked(p.s, maybeOwner)
 	if inboxOwnerHasBlocked(author) {
 		// NOTE(marius): if the inbox owner has blocked the authorized actor, we error
-		p.l.WithContext(lw.Ctx{"actor": maybeOwner.GetID(), "rec": author.ID}).Debugf("Skipping blocked authorized actor")
+		p.l.WithContext(lw.Ctx{"actor": maybeOwner.GetID(), "rec": author.ID}).Tracef("Skipping blocked authorized actor")
 		return errors.NotFoundf("")
 	}
 

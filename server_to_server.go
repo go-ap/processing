@@ -407,7 +407,7 @@ func (p P) BuildLocalCollectionsRecipients(it vocab.Item, receivedIn vocab.IRI) 
 
 		if actorHasBlocked(recIRI) {
 			// NOTE(marius): if the actor has blocked the recipient, we skip
-			p.l.WithContext(lw.Ctx{"actor": act.Actor.GetID(), "rec": recIRI}).Debugf("Skipping blocked recipient")
+			p.l.WithContext(lw.Ctx{"actor": act.Actor.GetID(), "rec": recIRI}).Tracef("Skipping blocked recipient")
 			return nil
 		}
 
@@ -428,7 +428,7 @@ func (p P) BuildLocalCollectionsRecipients(it vocab.Item, receivedIn vocab.IRI) 
 			recipientHasBlocked := isBlocked(loader, rec.GetLink())
 			if recipientHasBlocked(act.Actor) {
 				// NOTE(marius): if the actor has blocked the recipient, we skip
-				p.l.WithContext(lw.Ctx{"actor": act.Actor.GetID(), "rec": rec.GetLink()}).Debugf("Skipping blocked recipient")
+				p.l.WithContext(lw.Ctx{"actor": act.Actor.GetID(), "rec": rec.GetLink()}).Tracef("Skipping blocked recipient")
 				return nil
 			}
 
