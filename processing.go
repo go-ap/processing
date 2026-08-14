@@ -218,28 +218,17 @@ func (p *P) BuildReplyToCollections(it vocab.Item) vocab.ItemCollection {
 	if err != nil {
 		return nil
 	}
-	collections := make(vocab.ItemCollection, 0)
-
-	if ob.InReplyTo == nil {
+	if vocab.IsNil(ob.InReplyTo) {
 		return nil
 	}
-	if vocab.IsIRI(ob.InReplyTo) {
-		collections = append(collections, vocab.Replies.IRI(ob.InReplyTo.GetLink()))
-	}
-	if vocab.IsObject(ob.InReplyTo) {
-		err = vocab.OnObject(ob.InReplyTo, func(replyTo *vocab.Object) error {
-			collections = append(collections, vocab.Replies.IRI(replyTo.GetLink()))
+
+	collections := make(vocab.ItemCollection, 0)
+	_ = vocab.OnItem(ob.InReplyTo, func(replyTo vocab.Item) error {
+		if !p.IsLocal(replyTo) {
 			return nil
-		})
-	}
-	if vocab.IsItemCollection(ob.InReplyTo) {
-		_ = vocab.OnItemCollection(ob.InReplyTo, func(replyTos *vocab.ItemCollection) error {
-			for _, replyTo := range replyTos.Collection() {
-				collections = append(collections, vocab.Replies.IRI(replyTo.GetLink()))
-			}
-			return nil
-		})
-	}
+		}
+		return collections.Append(vocab.Replies.IRI(replyTo.GetLink()))
+	})
 	return collections
 }
 
