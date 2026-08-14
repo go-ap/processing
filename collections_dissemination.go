@@ -8,29 +8,29 @@ import (
 	"git.sr.ht/~mariusor/ssm"
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
+	"github.com/go-ap/filters"
 )
 
 // AddToRemoteCollections handles the dissemination of the received it Activity to the local collections,
 // it is addressed to:
 //   - the recipients' Inboxes
 func (p P) AddToRemoteCollections(it vocab.Item, recipients ...vocab.Item) error {
-	remoteRecipients := make(vocab.IRIs, 0)
-	for _, rec := range recipients {
-		recIRI := rec.GetLink()
-		if p.IsLocal(recIRI) || remoteRecipients.Contains(recIRI) {
-			continue
-		}
-		_ = remoteRecipients.Append(recIRI)
+	if !p.IsLocalIRI(it.GetLink()) {
+		return errors.Newf("trying to disseminate remote activity %s to remote collection:", it.GetLink())
 	}
+
+	remoteFiltered := filters.Checks{filters.Not(filterFn(p.IsLocal))}.Filter(vocab.ItemCollection(recipients))
+	if remoteFiltered == nil {
+		return nil
+	}
+
+	remoteRecipients, _ := remoteFiltered.(vocab.ItemCollection)
 	if len(remoteRecipients) > 0 {
 		p.l.Debugf("Starting dissemination to remote collections.")
 		defer p.l.Debugf("Finished dissemination to remote collections.")
 	}
 
-	if !p.IsLocalIRI(it.GetLink()) {
-		return errors.Newf("trying to disseminate remote activity %s to remote collections:", it.GetLink())
-	}
-	return p.disseminateToRemoteCollections(it, remoteRecipients...)
+	return p.disseminateToRemoteCollections(it, remoteRecipients.IRIs()...)
 }
 
 const (
@@ -109,24 +109,27 @@ func (p P) disseminateToRemoteCollections(it vocab.Item, iris ...vocab.IRI) erro
 	return ssm.RunParallel(context.Background(), states...)
 }
 
+type filterFn func(vocab.Item) bool
+
+func (ff filterFn) Match(it vocab.Item) bool {
+	return ff(it.GetLink())
+}
+
 // AddToLocalCollections handles the dissemination of the received it Activity to the local collections,
 // it is addressed to:
 //   - the author's Outbox
 //   - the recipients' Inboxes
 func (p P) AddToLocalCollections(it vocab.Item, recipients ...vocab.Item) error {
-	localRecipients := make(vocab.IRIs, 0)
-	for _, rec := range recipients {
-		recIRI := rec.GetLink()
-		if !p.IsLocal(recIRI) {
-			continue
-		}
-		_ = localRecipients.Append(recIRI)
+	localFiltered := filters.Checks{filterFn(p.IsLocal)}.Filter(vocab.ItemCollection(recipients))
+	if localFiltered == nil {
+		return nil
 	}
+	localRecipients, _ := localFiltered.(vocab.ItemCollection)
 	if len(localRecipients) > 0 {
 		p.l.Debugf("Starting dissemination to local collections.")
 		defer p.l.Debugf("Finished dissemination to local collections.")
 	}
-	return p.disseminateToLocalCollections(it, localRecipients...)
+	return p.disseminateToLocalCollections(it, localRecipients.IRIs()...)
 }
 
 func (p P) disseminateToLocalCollections(it vocab.Item, iris ...vocab.IRI) error {
@@ -135,7 +138,6 @@ func (p P) disseminateToLocalCollections(it vocab.Item, iris ...vocab.IRI) error
 	}
 
 	states := make([]ssm.Fn, 0, len(iris))
-	// NOTE(marius): We rely on Go1.22 for range improvements where col is a copy, not a reference
 	for _, col := range iris {
 		ll := p.l.WithContext(lw.Ctx{"to": col})
 		if !p.IsLocalIRI(col) {
