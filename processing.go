@@ -49,6 +49,9 @@ func New(o ...OptionFn) P {
 	for _, fn := range o {
 		fn(&p)
 	}
+	if !p.skipValidationOnInboundCollections {
+		p.baseIRI = validateLocalIRI(p.s, p.baseIRI...)
+	}
 	return p
 }
 
@@ -111,6 +114,20 @@ func WithLocalIRIChecker(isLocalFn IRIValidator) OptionFn {
 	return func(p *P) {
 		p.localIRICheckFn = isLocalFn
 	}
+}
+
+func validateLocalIRI(s Store, iris ...vocab.IRI) vocab.IRIs {
+	if s == nil {
+		return iris
+	}
+	validIRIs := make(vocab.IRIs, 0, len(iris))
+	for _, iri := range iris {
+		it, err := s.Load(iri)
+		if err == nil && !vocab.IsNil(it) {
+			_ = validIRIs.Append(iri)
+		}
+	}
+	return validIRIs
 }
 
 // ProcessActivity processes an Activity received
