@@ -342,7 +342,7 @@ func (p P) BuildInboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab.I
 			continue
 		}
 
-		if recipientHasBlocked := isBlocked(loader, recIRI); recipientHasBlocked(act.Actor) {
+		if recipientHasBlocked := p.actorHasBlockedFn(recIRI); recipientHasBlocked(act.Actor) {
 			// NOTE(marius): if the recipient has blocked the actor, we skip
 			p.l.WithContext(lw.Ctx{"actor": act.Actor.GetID(), "rec": recIRI}).Debugf("Skipping recipient that blocked actor")
 			continue
@@ -395,7 +395,7 @@ func (p P) BuildLocalCollectionsRecipients(it vocab.Item, receivedIn vocab.IRI) 
 	loader := p.s
 
 	maybeActor, _ := vocab.Split(receivedIn)
-	actorHasBlocked := isBlocked(loader, maybeActor)
+	actorHasBlocked := p.actorHasBlockedFn(maybeActor)
 
 	allRecipients := make(vocab.ItemCollection, 0)
 	for _, rec := range act.Recipients() {
@@ -425,7 +425,7 @@ func (p P) BuildLocalCollectionsRecipients(it vocab.Item, receivedIn vocab.IRI) 
 				return nil
 			}
 
-			recipientHasBlocked := isBlocked(loader, rec.GetLink())
+			recipientHasBlocked := p.actorHasBlockedFn(rec.GetLink())
 			if recipientHasBlocked(act.Actor) {
 				// NOTE(marius): if the actor has blocked the recipient, we skip
 				p.l.WithContext(lw.Ctx{"actor": act.Actor.GetID(), "rec": rec.GetLink()}).Tracef("Skipping blocked recipient")

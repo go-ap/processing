@@ -261,7 +261,7 @@ func (p P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab.
 		return nil
 	})
 
-	actorHasBlocked := isBlocked(loader, act.Actor)
+	actorHasBlocked := p.actorHasBlockedFn(act.Actor)
 	for _, rec := range act.Recipients() {
 		recIRI := rec.GetLink()
 		if vocab.PublicNS.Equal(recIRI) {
@@ -290,7 +290,7 @@ func (p P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab.
 		}
 
 		_ = vocab.OnItem(recipient, func(rec vocab.Item) error {
-			recipientHasBlocked := isBlocked(loader, rec)
+			recipientHasBlocked := p.actorHasBlockedFn(rec)
 			if recipientHasBlocked(act.Actor) {
 				p.l.WithContext(lw.Ctx{"actor": act.Actor.GetID(), "rec": recIRI}).Tracef("Skipping blocked actor blocked by recipient")
 				return nil
