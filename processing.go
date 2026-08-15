@@ -49,9 +49,6 @@ func New(o ...OptionFn) P {
 	for _, fn := range o {
 		fn(&p)
 	}
-	if !p.skipValidationOnInboundCollections {
-		p.baseIRI = validateLocalIRI(p.s, p.baseIRI...)
-	}
 	return p
 }
 
@@ -260,7 +257,7 @@ func loadSharedInboxRecipients(p P, sharedInbox vocab.IRI) vocab.ItemCollection 
 	}
 
 	actors := make(vocab.ItemCollection, 0)
-	for _, us := range p.baseIRI {
+	for _, us := range validateLocalIRI(p.s, p.baseIRI...) {
 		if !sharedInbox.Contains(us, true) {
 			continue
 		}

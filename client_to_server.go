@@ -228,6 +228,14 @@ func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (voca
 	return act, nil
 }
 
+func (p P) validBaseInboxes() vocab.ItemCollection {
+	result := make(vocab.ItemCollection, 0, len(p.baseIRI))
+	for _, iri := range validateLocalIRI(p.s, p.baseIRI...) {
+		_ = result.Append(vocab.Inbox.IRI(iri))
+	}
+	return result
+}
+
 // BuildOutboxRecipientsList builds the recipients list of the received 'it' Activity is addressed to:
 //   - the author's Outbox
 //   - the recipients' Inboxes
@@ -261,9 +269,7 @@ func (p P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab.
 			//  because we consider that to be the "sharedInbox" for the server.
 			// TODO(marius): We need an async mechanism to synchronize shared inboxes with the actors that use it.
 			//  See TODO in the BuildInboxRecipientsList related to shared Inbox
-			for _, us := range p.baseIRI {
-				_ = allRecipients.Append(vocab.Inbox.IRI(us))
-			}
+			_ = allRecipients.Append(p.validBaseInboxes()...)
 			continue
 		}
 

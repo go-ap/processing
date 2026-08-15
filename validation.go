@@ -84,11 +84,14 @@ var InvalidTarget = func(s string, p ...interface{}) error {
 	return ValidationError(fmt.Sprintf("Target is not valid: %s", s), p...)
 }
 
+var validActivityTypes = append(vocab.ActivityTypes, vocab.IntransitiveActivityTypes...)
+
 func (p P) ValidateServerActivity(a vocab.Item, author vocab.Actor, inbox vocab.IRI) error {
 	if !IsInbox(inbox) {
 		return errors.BadRequestf("Trying to validate a non inbox IRI %s", inbox)
 	}
-	if author.GetLink().Equal(vocab.PublicNS) {
+
+	if vocab.PublicNS.Equal(author.ID) {
 		// NOTE(marius): Should we use 403 Forbidden here?
 		return errors.Unauthorizedf("%s actor is not allowed posting to current inbox: %s", name(&author), inbox)
 	}
@@ -98,7 +101,7 @@ func (p P) ValidateServerActivity(a vocab.Item, author vocab.Actor, inbox vocab.
 	if vocab.IsIRI(a) {
 		return p.ValidateIRI(a.GetLink())
 	}
-	if !vocab.ActivityTypes.Match(a.GetType()) {
+	if !validActivityTypes.Match(a.GetType()) {
 		return InvalidActivity("invalid type %v", a.GetType())
 	}
 
@@ -225,7 +228,7 @@ func (p P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab
 	if !IsOutbox(outbox) {
 		return errors.BadRequestf("trying to validate a non outbox IRI %s", outbox)
 	}
-	if author.ID == vocab.PublicNS {
+	if vocab.PublicNS.Equal(author.ID) {
 		// NOTE(marius): Should we use 403 Forbidden here?
 		return errors.Unauthorizedf("missing actor: not allowed to post to outbox %s", outbox)
 	}
@@ -251,7 +254,6 @@ func (p P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab
 		}
 	}
 
-	validActivityTypes := append(vocab.ActivityTypes, vocab.IntransitiveActivityTypes...)
 	if !validActivityTypes.Match(a.GetType()) {
 		return InvalidActivity("invalid type %v", a.GetType())
 	}
@@ -622,7 +624,7 @@ func (p P) ValidateAudienceForRemoteActivity(audience ...vocab.ItemCollection) e
 	return errors.Newf("None of the audience elements is local")
 }
 
-func (p P) validateLocalIRI(i vocab.IRI) error {
+func (p *P) validateLocalIRI(i vocab.IRI) error {
 	if len(p.baseIRI) > 0 {
 		for _, base := range p.baseIRI {
 			if i.Contains(base, false) {
