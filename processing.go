@@ -191,11 +191,11 @@ func (p *P) actorHasBlockedFn(rec vocab.Item) func(act vocab.Item) bool {
 			return false
 		}
 	}
-	p.l.WithContext(lw.Ctx{"blocked": blocked}).Debugf("loaded blocked for %s", rec.GetID())
+
 	return func(act vocab.Item) bool {
 		result := false
 		_ = vocab.OnItem(act, func(item vocab.Item) error {
-			if result = blocked.Contains(act); result {
+			if result = blocked.IRIs().Contains(item.GetID()); result {
 				return errors.Newf("skip")
 			}
 			return nil
