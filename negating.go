@@ -238,7 +238,17 @@ func (p *P) UndoRelationshipManagementActivity(toUndo *vocab.Activity) (*vocab.A
 	removeFromCols := make(vocab.IRIs, 0)
 	typ := toUndo.GetType()
 	switch {
+	case vocab.RejectType.Match(typ):
+		// TODO(marius): I don't think there's any side-effect for Reject activities.
+	case vocab.AcceptType.Match(typ):
+		// TODO(marius): when receiving an Undo:
+		//  * for Accept(Follow) - we need to remove the Follow's actor from the Undo's actor Followers collection
+		if colIRI := vocab.Followers.Of(toUndo.Actor).GetLink(); p.IsLocalIRI(colIRI) {
+			removeFromCols = append(removeFromCols, colIRI)
+		}
 	case vocab.FollowType.Match(typ):
+		// NOTE(marius): when receiving Undo:
+		//  * for Follow - we need to remove the Follow from its Actor Outbox, and also from its Object Inbox
 		if colIRI := vocab.Following.Of(toUndo.Actor).GetLink(); p.IsLocalIRI(colIRI) {
 			removeFromCols = append(removeFromCols, colIRI)
 		}
@@ -246,10 +256,14 @@ func (p *P) UndoRelationshipManagementActivity(toUndo *vocab.Activity) (*vocab.A
 			removeFromCols = append(removeFromCols, colIRI)
 		}
 	case vocab.BlockType.Match(typ):
+		// NOTE(marius): when receiving Undo:
+		//  * for Block - we need to remove the Block's Object from the blocked collection of the Undo's Actor.
 		if colIRI := BlockedCollection.Of(toUndo.Actor).GetLink(); p.IsLocalIRI(colIRI) {
 			removeFromCols = append(removeFromCols, colIRI)
 		}
 	case vocab.IgnoreType.Match(typ):
+		// NOTE(marius): when receiving Undo:
+		// * for Ignore - we need to remove the Ignore's Object from the ignored collection of the Undo's Actor.
 		if colIRI := IgnoredCollection.Of(toUndo.Actor).GetLink(); p.IsLocalIRI(colIRI) {
 			removeFromCols = append(removeFromCols, colIRI)
 		}
