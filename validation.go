@@ -123,7 +123,7 @@ func (p P) ValidateServerActivity(a vocab.Item, author vocab.Actor, inbox vocab.
 
 	return vocab.OnActivity(a, func(act *vocab.Activity) error {
 		if len(act.ID) == 0 {
-			return InvalidActivity("invalid activity id %s", act.ID)
+			return InvalidActivity("empty activity id")
 		}
 		if inboxOwnerHasBlocked(act.Actor) {
 			return errors.NotFoundf("")
