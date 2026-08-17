@@ -37,7 +37,7 @@ func ExampleP_ValidateActivity_in_inbox() {
 	fmt.Printf("error: %v\n", err)
 
 	// Output:
-	// error: Activity is not valid: invalid activity id
+	// error: Activity is not valid: empty activity id
 }
 
 func ExampleP_ValidateActivity_in_outbox() {
