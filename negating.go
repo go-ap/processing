@@ -242,6 +242,9 @@ func (p *P) UndoRelationshipManagementActivity(toUndo *vocab.Activity) (*vocab.A
 		if colIRI := vocab.Following.Of(toUndo.Actor).GetLink(); p.IsLocalIRI(colIRI) {
 			removeFromCols = append(removeFromCols, colIRI)
 		}
+		if colIRI := vocab.Followers.Of(toUndo.Object).GetLink(); p.IsLocalIRI(colIRI) {
+			removeFromCols = append(removeFromCols, colIRI)
+		}
 	case vocab.BlockType.Match(typ):
 		if colIRI := BlockedCollection.Of(toUndo.Actor).GetLink(); p.IsLocalIRI(colIRI) {
 			removeFromCols = append(removeFromCols, colIRI)
