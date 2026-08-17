@@ -101,20 +101,20 @@ func (p P) NotificationActivity(act *vocab.Activity) (*vocab.Activity, error) {
 	return act, nil
 }
 
-func (p P) UndoAnnounceActivity(act *vocab.Activity) (*vocab.Activity, error) {
-	if vocab.IsNil(act.Object) {
-		return act, InvalidActivityObject("is nil for %T[%s]", act, act.GetType())
+func (p P) UndoAnnounceActivity(announce *vocab.Activity) (*vocab.Activity, error) {
+	if vocab.IsNil(announce.Object) {
+		return announce, InvalidActivityObject("is nil for %T[%s]", announce, announce.GetType())
 	}
 
-	maybeAnnounce, err := vocab.ToActivity(act.Object)
+	maybeAnnounce, err := vocab.ToActivity(announce.Object)
 	if err != nil {
-		return act, InvalidActivityObject("expecting %q activity, received %q", vocab.AnnounceType, act.Object.GetType())
+		return announce, InvalidActivityObject("expecting %q activity, received %q", vocab.AnnounceType, announce.Object.GetType())
 	}
 	if !p.IsLocal(maybeAnnounce.Object) {
 		// NOTE(marius): we ignore not local objects
-		return act, nil
+		return announce, nil
 	}
 	// NOTE(marius): we remove the original Announce activity from its object's shares collection
 	err = p.s.RemoveFrom(vocab.Shares.Of(maybeAnnounce.Object).GetLink(), maybeAnnounce)
-	return act, err
+	return announce, err
 }

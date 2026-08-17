@@ -42,17 +42,17 @@ func (p P) ValidateClientNegatingActivity(act *vocab.Activity) error {
 // The Negating Activity use case primarily deals with the ability to redact previously completed activities.
 // See 5.5 Inverse Activities and "Undo" for more information:
 // https://www.w3.org/TR/activitystreams-vocabulary/#inverse
-func (p P) NegatingActivity(act *vocab.Activity) (*vocab.Activity, error) {
-	if vocab.IsNil(act.Object) {
-		return act, errors.BadRequestf("Missing object for %s Activity", act.Type)
+func (p P) NegatingActivity(undo *vocab.Activity) (*vocab.Activity, error) {
+	if vocab.IsNil(undo.Object) {
+		return undo, errors.BadRequestf("Missing object for %s Activity", undo.Type)
 	}
-	if vocab.IsNil(act.Actor) {
-		return act, errors.BadRequestf("Missing actor for %s Activity", act.Type)
+	if vocab.IsNil(undo.Actor) {
+		return undo, errors.BadRequestf("Missing actor for %s Activity", undo.Type)
 	}
-	if !vocab.UndoType.Match(act.Type) {
-		return act, errors.BadRequestf("Activity has wrong type %s, expected %s", act.Type, vocab.UndoType)
+	if !vocab.UndoType.Match(undo.Type) {
+		return undo, errors.BadRequestf("Activity has wrong type %s, expected %s", undo.Type, vocab.UndoType)
 	}
-	return p.UndoActivity(act)
+	return p.UndoActivity(undo)
 }
 
 // UndoActivity
@@ -72,20 +72,20 @@ func (p P) NegatingActivity(act *vocab.Activity) (*vocab.Activity, error) {
 // The Undo activity is used to undo the side effects of previous activities. See the ActivityStreams documentation
 // on Inverse Activities and "Undo". The scope and restrictions of the Undo activity are the same as for the Undo
 // activity in the context of client to server interactions, but applied to a federated context.
-func (p P) UndoActivity(act *vocab.Activity) (*vocab.Activity, error) {
+func (p P) UndoActivity(undo *vocab.Activity) (*vocab.Activity, error) {
 	var err error
 
-	iri := act.GetLink()
+	iri := undo.GetLink()
 	if len(iri) == 0 {
-		iri, _ = p.createIDFn(act.Object, nil)
+		iri, _ = p.createIDFn(undo, nil)
 	}
-	err = vocab.OnActivity(act.Object, func(toUndo *vocab.Activity) error {
-		for _, to := range act.Bto {
+	err = vocab.OnActivity(undo.Object, func(toUndo *vocab.Activity) error {
+		for _, to := range undo.Bto {
 			if !toUndo.Bto.Contains(to.GetLink()) {
 				toUndo.Bto = append(toUndo.Bto, to)
 			}
 		}
-		for _, to := range act.BCC {
+		for _, to := range undo.BCC {
 			if !toUndo.BCC.Contains(to.GetLink()) {
 				toUndo.BCC = append(toUndo.BCC, to)
 			}
@@ -99,13 +99,7 @@ func (p P) UndoActivity(act *vocab.Activity) (*vocab.Activity, error) {
 			fallthrough
 		case vocab.LikeType.Match(typ):
 			_, err = p.UndoAppreciationActivity(toUndo)
-		case vocab.FollowType.Match(typ):
-			fallthrough
-		case vocab.BlockType.Match(typ):
-			fallthrough
-		case vocab.IgnoreType.Match(typ):
-			fallthrough
-		case vocab.FlagType.Match(typ):
+		case UndoableRelationshipActivityTypes.Match(typ):
 			_, err = p.UndoRelationshipManagementActivity(toUndo)
 		case vocab.AnnounceType.Match(typ):
 			_, err = p.UndoAnnounceActivity(toUndo)
@@ -113,30 +107,35 @@ func (p P) UndoActivity(act *vocab.Activity) (*vocab.Activity, error) {
 		return err
 	})
 	if err != nil {
-		return act, err
+		return undo, err
 	}
 
-	if p.IsLocal(act.Object) {
+	if p.IsLocal(undo.Object) {
 		// NOTE(marius): remove the activity that we operated Undo on
-		if err = p.s.Delete(act.Object.GetLink()); err != nil && !errors.IsNotFound(err) {
-			return act, err
+		if err = p.s.Delete(undo.Object.GetLink()); err != nil && !errors.IsNotFound(err) {
+			return undo, err
 		}
 	}
-	return act, nil
+	return undo, nil
+}
+
+var UndoableRelationshipActivityTypes = vocab.ActivityVocabularyTypes{
+	vocab.FollowType, vocab.FlagType,
+	vocab.IgnoreType, vocab.BlockType,
 }
 
 // UndoCreateActivity
 //
 // Removes the side effects of an existing Create activity
 // Currently this means only removal of the Create object
-func (p P) UndoCreateActivity(act *vocab.Activity) (*vocab.Activity, error) {
+func (p P) UndoCreateActivity(create *vocab.Activity) (*vocab.Activity, error) {
 	errs := make([]error, 0)
-	rem := act.GetLink()
+	rem := create.GetLink()
 
-	allRec := act.Recipients()
+	allRec := create.Recipients()
 	removeFromCols := make(vocab.IRIs, 0)
-	if p.IsLocal(act.Actor) {
-		removeFromCols = append(removeFromCols, vocab.Outbox.IRI(act.Actor))
+	if p.IsLocal(create.Actor) {
+		removeFromCols = append(removeFromCols, vocab.Outbox.IRI(create.Actor))
 	}
 	for _, rec := range allRec {
 		recIRI := rec.GetLink()
@@ -154,15 +153,15 @@ func (p P) UndoCreateActivity(act *vocab.Activity) (*vocab.Activity, error) {
 		}
 	}
 	if len(errs) > 0 {
-		return act, errors.Annotatef(errors.Join(errs...), "failed to fully process Undo activity")
+		return create, errors.Annotatef(errors.Join(errs...), "failed to fully process Undo activity")
 	}
-	err := vocab.OnItem(act.Object, func(ob vocab.Item) error {
+	err := vocab.OnItem(create.Object, func(ob vocab.Item) error {
 		if !p.IsLocal(ob) {
 			return nil
 		}
 		return p.s.Delete(ob.GetLink())
 	})
-	return act, err
+	return create, err
 }
 
 // UndoAppreciationActivity
@@ -170,18 +169,18 @@ func (p P) UndoCreateActivity(act *vocab.Activity) (*vocab.Activity, error) {
 // Removes the side effects of an existing Appreciation activity (Like or Dislike)
 // Currently this means only removal of the Liked/Disliked object from the actor's `liked` collection and
 // removal of the Like/Dislike Activity from the object's `likes` collection
-func (p P) UndoAppreciationActivity(act *vocab.Activity) (*vocab.Activity, error) {
+func (p P) UndoAppreciationActivity(like *vocab.Activity) (*vocab.Activity, error) {
 	errs := make([]error, 0)
-	rem := act.GetLink()
+	rem := like.GetLink()
 
-	allRec := act.Recipients()
+	allRec := like.Recipients()
 	removeFromCols := make(vocab.IRIs, 0)
-	if p.IsLocal(act.Actor) {
-		removeFromCols = append(removeFromCols, vocab.Outbox.IRI(act.Actor))
-		removeFromCols = append(removeFromCols, vocab.Liked.IRI(act.Actor))
+	if p.IsLocal(like.Actor) {
+		removeFromCols = append(removeFromCols, vocab.Outbox.IRI(like.Actor))
+		removeFromCols = append(removeFromCols, vocab.Liked.IRI(like.Actor))
 	}
-	if p.IsLocal(act.Object) {
-		removeFromCols = append(removeFromCols, vocab.Likes.IRI(act.Object))
+	if p.IsLocal(like.Object) {
+		removeFromCols = append(removeFromCols, vocab.Likes.IRI(like.Object))
 	}
 	for _, rec := range allRec {
 		recIRI := rec.GetLink()
@@ -199,9 +198,9 @@ func (p P) UndoAppreciationActivity(act *vocab.Activity) (*vocab.Activity, error
 		}
 	}
 	if len(errs) > 0 {
-		return act, errors.Annotatef(errors.Join(errs...), "failed to fully process Undo activity")
+		return like, errors.Annotatef(errors.Join(errs...), "failed to fully process Undo activity")
 	}
-	return act, nil
+	return like, nil
 }
 
 // UndoRelationshipManagementActivity
