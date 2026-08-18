@@ -108,8 +108,7 @@ func (p *P) undoThisActivity(toUndo vocab.Item) error {
 
 	if p.IsLocal(toUndo) {
 		// NOTE(marius): remove the activity that we operated Undo on
-		err = p.s.Delete(toUndo.GetLink())
-		if err != nil && errors.IsNotFound(err) {
+		if err = p.s.Delete(toUndo.GetLink()); err != nil && errors.IsNotFound(err) {
 			err = nil
 		}
 	}

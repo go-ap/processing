@@ -106,7 +106,7 @@ func AppreciationActivity(p *P, act *vocab.Activity) (*vocab.Activity, error) {
 }
 
 func firstOrItem(it vocab.Item) vocab.Item {
-	if col, ok := it.(vocab.ItemCollection); ok {
+	if col, ok := it.(vocab.ItemCollection); ok && len(col) == 1 {
 		return col[0]
 	}
 	return it

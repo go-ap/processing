@@ -583,14 +583,18 @@ func (p P) ValidateActor(a vocab.Item, expected vocab.Actor) (vocab.Item, error)
 }
 
 func (p P) ValidateClientObject(o vocab.Item) (vocab.Item, error) {
-	if vocab.IsNil(o) {
-		return nil, InvalidActivityObject("is nil")
-	}
-	var err error
-	if o, err = p.DereferenceItem(o); err != nil {
-		return nil, errors.NewBadRequest(err, "unable to dereference Activity Object")
-	}
-	return firstOrItem(o), nil
+	err := vocab.OnItem(o, func(it vocab.Item) error {
+		if vocab.IsNil(it) {
+			return InvalidActivityObject("is nil")
+		}
+		var err error
+		if it, err = p.DereferenceItem(it); err != nil {
+			return errors.NewBadRequest(err, "unable to dereference Activity Object")
+		}
+		o = firstOrItem(it)
+		return nil
+	})
+	return o, err
 }
 
 func (p P) ValidateServerObject(o vocab.Item) (vocab.Item, error) {
