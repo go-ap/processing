@@ -81,6 +81,9 @@ func (p *P) UndoActivity(undo *vocab.Activity) (*vocab.Activity, error) {
 }
 
 func (p *P) undoThisActivity(toUndo vocab.Item) error {
+	if toUndo.GetID() == "" {
+		return InvalidActivity("empty IRI")
+	}
 	err := vocab.OnActivity(toUndo, func(toUndo *vocab.Activity) error {
 		var err error
 		typ := toUndo.GetType()

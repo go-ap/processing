@@ -292,7 +292,7 @@ func (p P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab
 
 	if vocab.ActivityTypes.Match(typ) {
 		err = vocab.OnActivity(a, func(act *vocab.Activity) error {
-			// @TODO(marius): this needs to be extended by a ValidateActivityClientObject
+			// TODO(marius): this needs to be extended by a ValidateActivityClientObject
 			//   because the first step would be to test the object in the context of the activity
 			//   The ValidateActivityClientObject could then validate just the object itself.
 			if act.Object, err = p.ValidateClientObject(act.Object); err != nil {
