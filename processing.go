@@ -38,7 +38,7 @@ type P struct {
 
 var nilLogger = lw.Nil()
 
-func New(o ...OptionFn) P {
+func New(o ...OptionFn) *P {
 	p := P{
 		l:               nilLogger,
 		retries:         DefaultRetryCount,
@@ -49,7 +49,7 @@ func New(o ...OptionFn) P {
 	for _, fn := range o {
 		fn(&p)
 	}
-	return p
+	return &p
 }
 
 type OptionFn func(s *P)

@@ -13,7 +13,7 @@ import (
 // The Reactions use case primarily deals with reactions to content.
 // This can include activities such as liking or disliking content, ignoring updates,
 // flagging content as being inappropriate, accepting or rejecting objects, etc.
-func ReactionsActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activity, error) {
+func ReactionsActivity(p *P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activity, error) {
 	var err error
 	if act.Object != nil {
 		switch {
@@ -45,7 +45,7 @@ func ReactionsActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.A
 // AppreciationActivity
 // The Like(and Dislike) activity indicates the actor likes the object.
 // The side effect of receiving this in an outbox is that the server SHOULD add the object to the actor's liked Collection.
-func AppreciationActivity(p P, act *vocab.Activity) (*vocab.Activity, error) {
+func AppreciationActivity(p *P, act *vocab.Activity) (*vocab.Activity, error) {
 	if vocab.IsNil(act.Object) {
 		return act, errors.BadRequestf("Missing object for %s Activity", act.Type)
 	}
@@ -121,7 +121,7 @@ func firstOrItem(it vocab.Item) vocab.Item {
 //
 // If the object of an Accept received to an inbox is a Follow activity previously sent by the receiver, the server
 // SHOULD add the actor to the receiver's Following Collection.
-func AcceptActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activity, error) {
+func AcceptActivity(p *P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activity, error) {
 	if vocab.IsNil(act.Object) {
 		return act, errors.BadRequestf("Missing object for %s Activity", act.Type)
 	}
@@ -154,7 +154,7 @@ func AcceptActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Acti
 	return act, err
 }
 
-func dispatchFollowSideEffectToLocalCollections(p P, a *vocab.Activity) error {
+func dispatchFollowSideEffectToLocalCollections(p *P, a *vocab.Activity) error {
 	good := vocab.ActivityVocabularyTypes{vocab.FollowType}
 	if !good.Match(a.Type) {
 		return errors.BadRequestf("Object Activity has wrong type %s, expected %v", a.Type, good)
@@ -202,7 +202,7 @@ const BlockedCollection = vocab.CollectionPath("blocked")
 // The server SHOULD prevent the blocked user from interacting with any object posted by the actor.
 //
 // Servers SHOULD NOT deliver Block Activities to their object.
-func BlockActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activity, error) {
+func BlockActivity(p *P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activity, error) {
 	if vocab.IsNil(act.Object) {
 		return act, errors.BadRequestf("Missing object for %s Activity", act.Type)
 	}
@@ -266,7 +266,7 @@ const IgnoredCollection = vocab.CollectionPath("ignored")
 // IgnoreActivity
 // This relies on custom behavior for the repository, which would allow for an ignored collection,
 // where we save these
-func IgnoreActivity(p P, act *vocab.Activity) (*vocab.Activity, error) {
+func IgnoreActivity(p *P, act *vocab.Activity) (*vocab.Activity, error) {
 	if vocab.IsNil(act.Object) {
 		return act, errors.BadRequestf("Missing object for %s Activity", act.Type)
 	}

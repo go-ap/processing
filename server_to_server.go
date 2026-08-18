@@ -82,7 +82,7 @@ func (p P) ProcessServerActivity(it vocab.Item, author vocab.Actor, receivedIn v
 			if err := p.saveRemoteActivity(act); err != nil {
 				p.l.WithContext(lw.Ctx{"err": err.Error()}).Warnf("unable to save remote activity and objects locally")
 			}
-			it, err = processServerActivity(p, act, receivedIn)
+			it, err = p.processServerActivity(act, receivedIn)
 			return err
 		})
 	}
@@ -308,7 +308,7 @@ func processServerIntransitiveActivity(p P, it vocab.Item, receivedIn vocab.IRI)
 	return it, errors.NotImplementedf("processing intransitive activities is not yet finished")
 }
 
-func processServerActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (vocab.Item, error) {
+func (p *P) processServerActivity(act *vocab.Activity, receivedIn vocab.IRI) (vocab.Item, error) {
 	var err error
 	typ := act.GetType()
 	switch {

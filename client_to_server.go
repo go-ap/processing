@@ -45,7 +45,7 @@ type C2SProcessor interface {
 //
 // HTTP caching mechanisms [RFC7234] SHOULD be respected when appropriate, both in clients receiving responses from
 // servers and servers sending responses to clients.
-func (p P) ProcessClientActivity(it vocab.Item, author vocab.Actor, receivedIn vocab.IRI) (vocab.Item, error) {
+func (p *P) ProcessClientActivity(it vocab.Item, author vocab.Actor, receivedIn vocab.IRI) (vocab.Item, error) {
 	if vocab.IsNil(it) {
 		return nil, InvalidActivity("is nil")
 	}
@@ -57,11 +57,11 @@ func (p P) ProcessClientActivity(it vocab.Item, author vocab.Actor, receivedIn v
 	// using in the processingClientActivity function between the ActivityStreams motivations separation.
 	// This means that 'it' should probably be treated as a vocab.Item until the last possible moment.
 	if vocab.IntransitiveActivityTypes.Match(it.GetType()) {
-		return processClientIntransitiveActivity(p, it, receivedIn)
+		return p.processClientIntransitiveActivity(it, receivedIn)
 	}
 	return it, vocab.OnActivity(it, func(act *vocab.Activity) error {
 		var err error
-		it, err = processClientActivity(p, act, receivedIn)
+		it, err = p.processClientActivity(act, receivedIn)
 		return err
 	})
 }
@@ -95,7 +95,7 @@ func (p P) ProcessOutboxDelivery(it vocab.Item, receivedIn vocab.IRI) error {
 	return nil
 }
 
-func processClientIntransitiveActivity(p P, act vocab.Item, receivedIn vocab.IRI) (vocab.Item, error) {
+func (p *P) processClientIntransitiveActivity(act vocab.Item, receivedIn vocab.IRI) (vocab.Item, error) {
 	if len(act.GetLink()) == 0 {
 		if err := SetIDIfMissing(act, nil, p.createIDFn); err != nil {
 			return act, err
@@ -147,7 +147,7 @@ func processClientIntransitiveActivity(p P, act vocab.Item, receivedIn vocab.IRI
 	return act, nil
 }
 
-func processClientActivity(p P, act *vocab.Activity, receivedIn vocab.IRI) (vocab.Item, error) {
+func (p *P) processClientActivity(act *vocab.Activity, receivedIn vocab.IRI) (vocab.Item, error) {
 	if len(act.GetLink()) == 0 {
 		if err := SetIDIfMissing(act, nil, p.createIDFn); err != nil {
 			return act, err

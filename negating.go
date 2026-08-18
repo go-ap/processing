@@ -42,7 +42,7 @@ func (p P) ValidateClientNegatingActivity(act *vocab.Activity) error {
 // The Negating Activity use case primarily deals with the ability to redact previously completed activities.
 // See 5.5 Inverse Activities and "Undo" for more information:
 // https://www.w3.org/TR/activitystreams-vocabulary/#inverse
-func (p P) NegatingActivity(undo *vocab.Activity) (*vocab.Activity, error) {
+func (p *P) NegatingActivity(undo *vocab.Activity) (*vocab.Activity, error) {
 	if vocab.IsNil(undo.Object) {
 		return undo, errors.BadRequestf("Missing object for %s Activity", undo.Type)
 	}
@@ -72,9 +72,7 @@ func (p P) NegatingActivity(undo *vocab.Activity) (*vocab.Activity, error) {
 // The Undo activity is used to undo the side effects of previous activities. See the ActivityStreams documentation
 // on Inverse Activities and "Undo". The scope and restrictions of the Undo activity are the same as for the Undo
 // activity in the context of client to server interactions, but applied to a federated context.
-func (p P) UndoActivity(undo *vocab.Activity) (*vocab.Activity, error) {
-	var err error
-
+func (p *P) UndoActivity(undo *vocab.Activity) (*vocab.Activity, error) {
 	iri := undo.GetLink()
 	if len(iri) == 0 {
 		iri, _ = p.createIDFn(undo, nil)
@@ -169,7 +167,7 @@ func (p P) UndoCreateActivity(create *vocab.Activity) (*vocab.Activity, error) {
 // Removes the side effects of an existing Appreciation activity (Like or Dislike)
 // Currently this means only removal of the Liked/Disliked object from the actor's `liked` collection and
 // removal of the Like/Dislike Activity from the object's `likes` collection
-func (p P) UndoAppreciationActivity(like *vocab.Activity) (*vocab.Activity, error) {
+func (p *P) UndoAppreciationActivity(like *vocab.Activity) (*vocab.Activity, error) {
 	errs := make([]error, 0)
 	rem := like.GetLink()
 

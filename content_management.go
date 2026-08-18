@@ -116,7 +116,7 @@ func SetIDIfMissing(it vocab.Item, parentActivity vocab.Item, createIDFn IDGener
 // modification or deletion of content.
 // This includes, for instance, activities such as "John created a new note",
 // "Sally updated an article", and "Joe deleted the photo".
-func ContentManagementActivityFromClient(p P, act *vocab.Activity) (*vocab.Activity, error) {
+func ContentManagementActivityFromClient(p *P, act *vocab.Activity) (*vocab.Activity, error) {
 	var err error
 	switch {
 	case vocab.CreateType.Match(act.Type):
@@ -207,7 +207,7 @@ func cleanupMediaObjectFromItem(it vocab.Item) error {
 
 // validateCreateObjectIsNew checks if "ob" already exists in storage
 // It is used to verify than when receiving a Create activity, we don't override by mistake existing objects.
-func validateCreateObjectIsNew(p P, ob vocab.Item) error {
+func validateCreateObjectIsNew(p *P, ob vocab.Item) error {
 	if vocab.IsNil(ob) {
 		return errors.BadRequestf("the passed object is nil")
 	}
@@ -262,7 +262,7 @@ func validateCreateObjectIsNew(p P, ob vocab.Item) error {
 // Receiving a Create activity in an inbox has surprisingly few side effects; the activity should appear in the actor's
 // inbox, and it is likely that the server will want to locally store a representation of this activity and its
 // accompanying object. However, this mostly happens in general with processing activities delivered to an inbox anyway.
-func CreateActivityFromClient(p P, act *vocab.Activity) (*vocab.Activity, error) {
+func CreateActivityFromClient(p *P, act *vocab.Activity) (*vocab.Activity, error) {
 	err := validateCreateObjectIsNew(p, act.Object)
 	if err != nil {
 		return act, err
@@ -288,7 +288,7 @@ func CreateActivityFromClient(p P, act *vocab.Activity) (*vocab.Activity, error)
 		return act, errors.Annotatef(err, "unable to save object to storage %s", act.Object.GetLink())
 	}
 
-	return act, disseminateActivityObjectToLocalReplyToCollections(&p, act)
+	return act, disseminateActivityObjectToLocalReplyToCollections(p, act)
 }
 
 func (p P) saveCollectionObjectForParent(parent, colIt vocab.Item) error {
@@ -420,8 +420,8 @@ func (p P) dereferenceIRIBasedOnInbox(ob vocab.Item, receivedIn vocab.IRI) (voca
 	return p.c.CtxLoadIRI(context.TODO(), ob.GetLink())
 }
 
-func CreateActivityFromServer(p P, act *vocab.Activity) (*vocab.Activity, error) {
-	return act, disseminateActivityObjectToLocalReplyToCollections(&p, act)
+func CreateActivityFromServer(p *P, act *vocab.Activity) (*vocab.Activity, error) {
+	return act, disseminateActivityObjectToLocalReplyToCollections(p, act)
 }
 
 // UpdateActivity
