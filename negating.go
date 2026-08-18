@@ -251,6 +251,14 @@ func (p *P) UndoRelationshipManagementActivity(toUndo *vocab.Activity) (*vocab.A
 		}
 	}
 
+	// NOTE(marius): when this is just an IRI, we try to dereference it.
+	//  This should probably be done at validation time.
+	if vocab.IsIRI(toUndo.Object) {
+		if ob, err := p.dereferenceIRI(toUndo.Object.GetID()); err == nil {
+			toUndo.Object = ob
+		}
+	}
+
 	// NOTE(marius): here we undo the side-effects of each Activity type.
 	//  Check their individual ProcessXXX methods to see what.
 	removeCollectionOperations := make(map[vocab.IRI]vocab.ItemCollection)
