@@ -102,6 +102,9 @@ func (p P) NotificationActivity(act *vocab.Activity) (*vocab.Activity, error) {
 }
 
 func (p *P) UndoAnnounceActivity(announce *vocab.Activity) (*vocab.Activity, error) {
+	if announce == nil {
+		return announce, InvalidActivity("nil Announce activity")
+	}
 	if vocab.IsNil(announce.Object) {
 		return announce, InvalidActivityObject("is nil for %T[%s]", announce, announce.GetType())
 	}
