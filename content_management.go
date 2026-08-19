@@ -439,9 +439,9 @@ func CreateActivityFromServer(p *P, act *vocab.Activity) (*vocab.Activity, error
 // activity, this is not a partial update but a complete replacement of the object.
 // The receiving server MUST take care to be sure that the Update is authorized to modify its object. At minimum,
 // this may be done by ensuring that the Update and its object are of same origin.
-func (p *P) UpdateActivity(act *vocab.Activity) (*vocab.Activity, error) {
+func (p *P) UpdateActivity(upd *vocab.Activity) (*vocab.Activity, error) {
 	var err error
-	ob := act.Object
+	ob := upd.Object
 
 	if vocab.IsItemCollection(ob) {
 		err = vocab.OnItemCollection(ob, func(col *vocab.ItemCollection) error {
@@ -452,20 +452,20 @@ func (p *P) UpdateActivity(act *vocab.Activity) (*vocab.Activity, error) {
 				}
 				(*col)[i] = old
 			}
-			act.Object = *col
+			upd.Object = *col
 			return nil
 		})
 		if err != nil {
-			return act, err
+			return upd, err
 		}
 	} else {
 		old, err := p.loadAndUpdateSingleItem(ob)
 		if err != nil {
-			return act, err
+			return upd, err
 		}
-		act.Object = old
+		upd.Object = old
 	}
-	return act, disseminateActivityObjectToLocalReplyToCollections(p, act)
+	return upd, disseminateActivityObjectToLocalReplyToCollections(p, upd)
 }
 
 func (p *P) loadAndUpdateSingleItem(it vocab.Item) (vocab.Item, error) {
@@ -544,6 +544,10 @@ func (p *P) updateSingleItem(found vocab.Item, with vocab.Item) (vocab.Item, err
 	found, err = vocab.CopyItemProperties(found, with)
 	if err != nil {
 		return found, errors.NewConflict(err, "unable to copy item")
+	}
+	// TODO(marius): @PreHook@ we can replace this functionality with a function that creates the collections
+	if err = p.CreateCollectionsForObject(found); err != nil {
+		return found, errors.Annotatef(err, "unable to save collections for object")
 	}
 
 	if err = p.updateUpdateActivityObject(found); err != nil {
