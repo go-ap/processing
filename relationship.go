@@ -92,3 +92,110 @@ func FollowActivity(_ *P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Act
 	}
 	return act, nil
 }
+
+var UndoableRelationshipActivityTypes = vocab.ActivityVocabularyTypes{
+	vocab.FollowType, vocab.FlagType,
+	vocab.IgnoreType, vocab.BlockType,
+	vocab.AcceptType, vocab.TentativeAcceptType,
+}
+
+// UndoRelationshipManagementActivity
+//
+// Removes the side effects of an existing RelationshipActivity activity (Follow, Block, Ignore, Flag)
+// Currently this means the removal of the object from the collection corresponding to the original Activity type.
+// Block - removes the original object from the actor's blocked collection.
+// Ignore - removes the original object from the actor's ignored collection.
+// Flag - is a special case where there isn't a specific collection that needs to be operated on.
+// Accept, TentativeAccept - undos the activity it has as an object
+// Follow - removes the Follow's Object from its Actor following collection
+//   - removes the Follow's Actor from its Object followers collection
+func (p *P) UndoRelationshipManagementActivity(toUndo *vocab.Activity) (*vocab.Activity, error) {
+	if toUndo == nil {
+		return toUndo, InvalidActivity("nil relationship activity")
+	}
+	errs := make([]error, 0)
+
+	toRemove := toUndo.GetLink()
+	if p.IsLocal(toUndo.Actor) {
+		outbox := vocab.Outbox.IRI(toUndo.Actor)
+		// NOTE(marius): we need to remove the toUndo activity from the Outbox of its actor.
+		if err := p.s.RemoveFrom(outbox, toRemove); err != nil && !errors.IsNotFound(err) {
+			errs = append(errs, errors.Annotatef(err, "unable to remove from collection %s", outbox))
+		}
+	}
+
+	// NOTE(marius): for all recipients we need to remove the activity from their Inbox'es.
+	for _, rec := range toUndo.Recipients() {
+		removeFrom := rec.GetLink()
+		if removeFrom == "" || vocab.PublicNS.Equal(removeFrom) || !p.IsLocalIRI(removeFrom) {
+			continue
+		}
+		if !vocab.ValidCollectionIRI(removeFrom) {
+			// NOTE(marius): if recipient is not a  valid collection,
+			//  we assume it represents an actor, and we try to get their Inbox
+			if removeFrom = vocab.Inbox.IRI(rec); !p.IsLocalIRI(removeFrom) {
+				continue
+			}
+		}
+		if err := p.s.RemoveFrom(removeFrom, toRemove); err != nil && !errors.IsNotFound(err) {
+			errs = append(errs, errors.Annotatef(err, "unable to remove from collection %s", removeFrom))
+		}
+	}
+
+	// NOTE(marius): when this is just an IRI, we try to dereference it.
+	//  This should probably be done at validation time.
+	if vocab.IsIRI(toUndo.Object) {
+		ob, err := p.dereferenceIRI(toUndo.Object.GetID())
+		if err != nil {
+			return toUndo, errors.Annotatef(err, "unable to dereference activity for Undo: %s", toUndo.Object.GetID())
+		}
+		toUndo.Object = ob
+	}
+
+	// NOTE(marius): here we undo the side-effects of each Activity type.
+	//  Check their individual ProcessXXX methods to see what.
+	removeCollectionOperations := make(map[vocab.IRI]vocab.ItemCollection)
+	typ := toUndo.GetType()
+	switch {
+	case vocab.AcceptType.Match(typ), vocab.TentativeAcceptType.Match(typ):
+		// NOTE(marius): when receiving Undo for Accept:
+		//  * we need to Undo the Accept's Object
+		_ = vocab.OnActivity(toUndo.Object, func(follow *vocab.Activity) error {
+			return p.undoThisActivity(follow)
+		})
+	case vocab.FollowType.Match(typ):
+		// NOTE(marius): when receiving Undo for Follow:
+		//  * we need to remove the Follow's Object from it's Actor following collection
+		//  * we need to remove the Follow's Actor from it's Object followers collection
+		//  This assumes that there was a corresponding Accept sent to finalize the Follow operation.
+		//  For the cases where that didn't happen, the following collection removals are noops.
+		if colIRI := vocab.Following.IRI(toUndo.Actor); p.IsLocalIRI(colIRI) && !vocab.IsNil(toUndo.Object) {
+			removeCollectionOperations[colIRI] = vocab.ItemCollection{toUndo.Object}
+		}
+		if colIRI := vocab.Followers.IRI(toUndo.Object); p.IsLocalIRI(colIRI) && !vocab.IsNil(toUndo.Actor) {
+			removeCollectionOperations[colIRI] = vocab.ItemCollection{toUndo.Actor}
+		}
+	case vocab.BlockType.Match(typ):
+		// NOTE(marius): when receiving Undo for Block:
+		//  * we need to remove the Block's Object from the blocked collection of the Undo's Actor.
+		if colIRI := BlockedCollection.Of(toUndo.Actor).GetLink(); p.IsLocalIRI(colIRI) && !vocab.IsNil(toUndo.Object) {
+			removeCollectionOperations[colIRI] = vocab.ItemCollection{toUndo.Object}
+		}
+	case vocab.IgnoreType.Match(typ):
+		// NOTE(marius): when receiving Undo for Ignore:
+		//  * we need to remove the Ignore's Object from the ignored collection of the Undo's Actor.
+		if colIRI := IgnoredCollection.Of(toUndo.Actor).GetLink(); p.IsLocalIRI(colIRI) && !vocab.IsNil(toUndo.Object) {
+			removeCollectionOperations[colIRI] = vocab.ItemCollection{toUndo.Object}
+		}
+	}
+
+	for colIRI, iris := range removeCollectionOperations {
+		if err := p.s.RemoveFrom(colIRI, iris...); err != nil && !errors.IsNotFound(err) {
+			errs = append(errs, errors.Annotatef(err, "unable to remove from collection %s", colIRI))
+		}
+	}
+	if len(errs) > 0 {
+		return toUndo, errors.Annotatef(errors.Join(errs...), "failed to Undo %s activity", toUndo.GetType())
+	}
+	return toUndo, nil
+}

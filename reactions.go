@@ -105,6 +105,50 @@ func AppreciationActivity(p *P, act *vocab.Activity) (*vocab.Activity, error) {
 	return act, nil
 }
 
+// UndoAppreciationActivity
+//
+// Removes the side effects of an existing Appreciation activity (Like or Dislike)
+// Currently this means only removal of the Liked/Disliked object from the actor's `liked` collection and
+// removal of the Like/Dislike Activity from the object's `likes` collection
+func (p *P) UndoAppreciationActivity(like *vocab.Activity) (*vocab.Activity, error) {
+	if like == nil {
+		return like, InvalidActivity("nil Like activity")
+	}
+	errs := make([]error, 0)
+	toRemove := like.GetLink()
+
+	allRec := like.Recipients()
+	removeFromCols := make(vocab.IRIs, 0)
+	if p.IsLocal(like.Actor) {
+		_ = removeFromCols.Append(vocab.Outbox.IRI(like.Actor), vocab.Liked.IRI(like.Actor))
+	}
+	if p.IsLocal(like.Object) {
+		_ = removeFromCols.Append(vocab.Likes.IRI(like.Object))
+	}
+	for _, rec := range allRec {
+		recIRI := rec.GetLink()
+		if recIRI == "" || recIRI == vocab.PublicNS {
+			continue
+		}
+		if !vocab.ValidCollectionIRI(recIRI) {
+			// if not a valid collection, then the current recIRI represents an actor, and we need their inbox
+			if recIRI = vocab.Inbox.IRI(recIRI); !p.IsLocalIRI(recIRI) {
+				continue
+			}
+		}
+		_ = removeFromCols.Append(recIRI)
+	}
+	for _, removeFrom := range removeFromCols {
+		if err := p.s.RemoveFrom(removeFrom, toRemove); err != nil && !errors.IsNotFound(err) {
+			errs = append(errs, errors.Annotatef(err, "unable to remove from collection %s", removeFrom))
+		}
+	}
+	if len(errs) > 0 {
+		return like, errors.Annotatef(errors.Join(errs...), "failed Undo Like activity")
+	}
+	return like, nil
+}
+
 func firstOrItem(it vocab.Item) vocab.Item {
 	if col, ok := it.(vocab.ItemCollection); ok && len(col) == 1 {
 		return col[0]

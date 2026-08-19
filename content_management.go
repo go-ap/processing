@@ -291,6 +291,67 @@ func CreateActivityFromClient(p *P, act *vocab.Activity) (*vocab.Activity, error
 	return act, disseminateActivityObjectToLocalReplyToCollections(p, act)
 }
 
+// UndoCreateActivity
+//
+// Removes the side effects of an existing Create activity
+// Currently this means only removal of the Create object
+func (p P) UndoCreateActivity(create *vocab.Activity) (*vocab.Activity, error) {
+	if create == nil {
+		return create, InvalidActivity("nil Create activity")
+	}
+	errs := make([]error, 0)
+	toRemove := create.GetLink()
+
+	allRec := create.Recipients()
+	removeCollectionOperations := make(map[vocab.IRI]vocab.ItemCollection)
+	if p.IsLocal(create.Actor) {
+		removeCollectionOperations[vocab.Outbox.IRI(create.Actor)] = vocab.ItemCollection{toRemove}
+	}
+	for _, rec := range allRec {
+		recIRI := rec.GetLink()
+		if recIRI == vocab.PublicNS || !p.IsLocalIRI(recIRI) {
+			continue
+		}
+		if !vocab.ValidCollectionIRI(recIRI) {
+			// if not a valid collection, then the current recIRI represents an actor, and we need their inbox
+			if recIRI = vocab.Inbox.IRI(recIRI); !p.IsLocalIRI(recIRI) {
+				continue
+			}
+		}
+		removeCollectionOperations[recIRI] = vocab.ItemCollection{toRemove}
+	}
+	created := create.Object
+	_ = vocab.OnObject(created, func(ob *vocab.Object) error {
+		if ob.InReplyTo != nil {
+			return vocab.OnItem(ob.InReplyTo, func(replyTo vocab.Item) error {
+				if !p.IsLocal(replyTo) {
+					return nil
+				}
+				removeCollectionOperations[vocab.Replies.IRI(replyTo)] = vocab.ItemCollection{created}
+				return nil
+			})
+		}
+		return nil
+	})
+
+	for colIRI, iris := range removeCollectionOperations {
+		if err := p.s.RemoveFrom(colIRI, iris...); err != nil && !errors.IsNotFound(err) {
+			errs = append(errs, errors.Annotatef(err, "unable to remove from collection %s", colIRI))
+		}
+	}
+	if len(errs) > 0 {
+		return create, errors.Annotatef(errors.Join(errs...), "failed to Undo Create activity")
+	}
+
+	err := vocab.OnItem(created, func(ob vocab.Item) error {
+		if !p.IsLocal(ob) {
+			return nil
+		}
+		return p.s.Delete(ob.GetLink())
+	})
+	return create, err
+}
+
 func (p P) saveCollectionObjectForParent(parent, colIt vocab.Item) error {
 	if vocab.IsNil(colIt) {
 		// NOTE(marius): We respect the originating's object creator intention regarding which collections of an object to
