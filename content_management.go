@@ -327,7 +327,7 @@ func (p P) UndoCreateActivity(create *vocab.Activity) (*vocab.Activity, error) {
 				if !p.IsLocal(replyTo) {
 					return nil
 				}
-				removeCollectionOperations[vocab.Replies.IRI(replyTo)] = vocab.ItemCollection{created}
+				removeCollectionOperations[vocab.Replies.IRI(replyTo)] = vocab.ItemCollection{ob}
 				return nil
 			})
 		}
