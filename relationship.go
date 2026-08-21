@@ -170,22 +170,22 @@ func (p *P) UndoRelationshipManagementActivity(toUndo *vocab.Activity) (*vocab.A
 		//  This assumes that there was a corresponding Accept sent to finalize the Follow operation.
 		//  For the cases where that didn't happen, the following collection removals are noops.
 		if colIRI := vocab.Following.IRI(toUndo.Actor); p.IsLocalIRI(colIRI) && !vocab.IsNil(toUndo.Object) {
-			removeCollectionOperations[colIRI] = vocab.ItemCollection{toUndo.Object}
+			removeCollectionOperations[colIRI] = vocab.ItemCollection{toUndo.Object.GetID()}
 		}
 		if colIRI := vocab.Followers.IRI(toUndo.Object); p.IsLocalIRI(colIRI) && !vocab.IsNil(toUndo.Actor) {
-			removeCollectionOperations[colIRI] = vocab.ItemCollection{toUndo.Actor}
+			removeCollectionOperations[colIRI] = vocab.ItemCollection{toUndo.Actor.GetID()}
 		}
 	case vocab.BlockType.Match(typ):
 		// NOTE(marius): when receiving Undo for Block:
 		//  * we need to remove the Block's Object from the blocked collection of the Undo's Actor.
-		if colIRI := BlockedCollection.Of(toUndo.Actor).GetLink(); p.IsLocalIRI(colIRI) && !vocab.IsNil(toUndo.Object) {
-			removeCollectionOperations[colIRI] = vocab.ItemCollection{toUndo.Object}
+		if colIRI := BlockedCollection.IRI(toUndo.Actor); p.IsLocalIRI(colIRI) && !vocab.IsNil(toUndo.Object) {
+			removeCollectionOperations[colIRI] = vocab.ItemCollection{toUndo.Object.GetID()}
 		}
 	case vocab.IgnoreType.Match(typ):
 		// NOTE(marius): when receiving Undo for Ignore:
 		//  * we need to remove the Ignore's Object from the ignored collection of the Undo's Actor.
-		if colIRI := IgnoredCollection.Of(toUndo.Actor).GetLink(); p.IsLocalIRI(colIRI) && !vocab.IsNil(toUndo.Object) {
-			removeCollectionOperations[colIRI] = vocab.ItemCollection{toUndo.Object}
+		if colIRI := IgnoredCollection.IRI(toUndo.Actor); p.IsLocalIRI(colIRI) && !vocab.IsNil(toUndo.Object) {
+			removeCollectionOperations[colIRI] = vocab.ItemCollection{toUndo.Object.GetID()}
 		}
 	}
 
