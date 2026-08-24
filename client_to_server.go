@@ -243,8 +243,9 @@ func (p P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab.
 	}
 	loader := p.s
 
+	actor := act.Actor
 	allRecipients := make(vocab.ItemCollection, 0)
-	_ = vocab.OnItem(act.Actor, func(actor vocab.Item) error {
+	_ = vocab.OnItem(actor, func(actor vocab.Item) error {
 		// NOTE(marius): this is needed only for client to server interactions
 		if vocab.IsNil(actor) || p.IsLocal(actor) {
 			return nil
@@ -255,52 +256,54 @@ func (p P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab.
 		return nil
 	})
 
-	actorHasBlocked := p.actorHasBlockedFn(act.Actor)
-	for _, rec := range act.Recipients() {
-		recIRI := rec.GetLink()
-		if vocab.PublicNS.Equal(recIRI) {
-			// NOTE(marius): if the activity is addressed to the Public NS, we store it in the local service's inbox,
-			//  because we consider that to be the "sharedInbox" for the server.
-			// TODO(marius): We need an async mechanism to synchronize shared inboxes with the actors that use it.
-			//  See TODO in the BuildInboxRecipientsList related to shared Inbox
-			_ = allRecipients.Append(p.validBaseInboxes()...)
-			continue
-		}
-
-		if actorHasBlocked(recIRI) {
-			// NOTE(marius): if the activity actor has blocked the recipient, we skip
-			p.l.WithContext(lw.Ctx{"actor": act.Actor.GetID(), "rec": recIRI}).Tracef("Skipping blocked recipient")
-			continue
-		}
-
-		if !p.IsLocalIRI(recIRI) {
-			_ = allRecipients.Append(vocab.Inbox.IRI(recIRI))
-			continue
-		}
-
-		recipient, err := loader.Load(recIRI)
-		if err != nil || vocab.IsNil(recipient) {
-			continue
-		}
-
-		_ = vocab.OnItem(recipient, func(rec vocab.Item) error {
-			recipientHasBlocked := p.actorHasBlockedFn(rec)
-			if recipientHasBlocked(act.Actor) {
-				p.l.WithContext(lw.Ctx{"actor": act.Actor.GetID(), "rec": recIRI}).Tracef("Skipping blocked actor blocked by recipient")
-				return nil
+	actorHasBlocked := p.actorHasBlockedFn(actor)
+	if hasRecipients, ok := it.(vocab.HasRecipients); ok {
+		for _, rec := range hasRecipients.Recipients() {
+			recIRI := rec.GetLink()
+			if vocab.PublicNS.Equal(recIRI) {
+				// NOTE(marius): if the activity is addressed to the Public NS, we store it in the local service's inbox,
+				//  because we consider that to be the "sharedInbox" for the server.
+				// TODO(marius): We need an async mechanism to synchronize shared inboxes with the actors that use it.
+				//  See TODO in the BuildInboxRecipientsList related to shared Inbox
+				_ = allRecipients.Append(p.validBaseInboxes()...)
+				continue
 			}
-			if !vocab.ActorTypes.Match(rec.GetType()) {
-				return nil
+
+			if actorHasBlocked(recIRI) {
+				// NOTE(marius): if the activity actor has blocked the recipient, we skip
+				p.l.WithContext(lw.Ctx{"actor": actor.GetID(), "rec": recIRI}).Tracef("Skipping blocked recipient")
+				continue
 			}
-			return vocab.OnActor(rec, func(act *vocab.Actor) error {
-				if (act.Endpoints != nil && !vocab.IsNil(act.Endpoints.SharedInbox)) && !p.IsLocalIRI(act.ID) {
-					_ = allRecipients.Append(act.Endpoints.SharedInbox.GetLink())
-				} else {
-					_ = allRecipients.Append(vocab.Inbox.Of(rec))
+
+			if !p.IsLocalIRI(recIRI) {
+				_ = allRecipients.Append(vocab.Inbox.IRI(recIRI))
+				continue
+			}
+
+			recipient, err := loader.Load(recIRI)
+			if err != nil || vocab.IsNil(recipient) {
+				continue
+			}
+
+			_ = vocab.OnItem(recipient, func(rec vocab.Item) error {
+				recipientHasBlocked := p.actorHasBlockedFn(rec)
+				if recipientHasBlocked(act.Actor) {
+					p.l.WithContext(lw.Ctx{"actor": act.Actor.GetID(), "rec": recIRI}).Tracef("Skipping blocked actor blocked by recipient")
+					return nil
 				}
-				return nil
+				if !vocab.ActorTypes.Match(rec.GetType()) {
+					return nil
+				}
+				return vocab.OnActor(rec, func(act *vocab.Actor) error {
+					if (act.Endpoints != nil && !vocab.IsNil(act.Endpoints.SharedInbox)) && !p.IsLocalIRI(act.ID) {
+						_ = allRecipients.Append(act.Endpoints.SharedInbox.GetLink())
+					} else {
+						_ = allRecipients.Append(vocab.Inbox.Of(rec))
+					}
+					return nil
+				})
 			})
-		})
+		}
 	}
 
 	// NOTE(marius): append the "receivedIn" collection to the list of recipients
