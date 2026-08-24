@@ -54,16 +54,19 @@ func (p *P) ProcessClientActivity(it vocab.Item, author vocab.Actor, receivedIn 
 		return it, err
 	}
 	// NOTE(marius): the separation between transitive and intransitive activities overlaps the separation we're
-	// using in the processingClientActivity function between the ActivityStreams motivations separation.
-	// This means that 'it' should probably be treated as a vocab.Item until the last possible moment.
-	if vocab.IntransitiveActivityTypes.Match(it.GetType()) {
+	//  using in the processingClientActivity function between the ActivityStreams use case motivation separation.
+	//  https://www.w3.org/TR/activitystreams-vocabulary/
+	//  This means that 'it' should probably be treated as a vocab.Item until the last possible moment.
+	switch {
+	case vocab.IntransitiveActivityTypes.Match(it.GetType()):
 		return p.processClientIntransitiveActivity(it, receivedIn)
+	default:
+		return it, vocab.OnActivity(it, func(act *vocab.Activity) error {
+			var err error
+			it, err = p.processClientActivity(act, receivedIn)
+			return err
+		})
 	}
-	return it, vocab.OnActivity(it, func(act *vocab.Activity) error {
-		var err error
-		it, err = p.processClientActivity(act, receivedIn)
-		return err
-	})
 }
 
 // ProcessOutboxDelivery
@@ -85,6 +88,12 @@ func (p P) ProcessOutboxDelivery(it vocab.Item, receivedIn vocab.IRI) error {
 	if len(recipients) == 0 {
 		return nil
 	}
+	// NOTE(marius): this seems to duplicate work done for Create already in disseminateActivityObjectToLocalReplyToCollections()
+	recipients.Append(p.BuildReplyToCollections(it)...)
+
+	// NOTE(marius): Additional recommendation from the ActivityPub mailing list:
+	//  Activities addressed to `Public` usually appear only in the inboxes of actors that follow the activity's `actor`
+	//  property.
 	if err := p.AddToLocalCollections(it, recipients...); err != nil {
 		p.l.WithContext(lw.Ctx{"err": err}).Errorf("unable to add to local collections")
 	}
@@ -129,15 +138,16 @@ func (p *P) processClientIntransitiveActivity(act vocab.Item, receivedIn vocab.I
 		return act, err
 	}
 
-	if act, err = p.s.Save(vocab.FlattenProperties(act)); err != nil {
+	sync := func() {
+		if err = p.ProcessOutboxDelivery(act, receivedIn); err != nil {
+			p.l.WithContext(lw.Ctx{"err": err}).Errorf("unable to add recipients to remote collection")
+		}
+	}
+
+	if _, err = p.s.Save(vocab.FlattenProperties(act)); err != nil {
 		return act, err
 	}
 
-	sync := func() {
-		if err := p.ProcessOutboxDelivery(act, receivedIn); err != nil {
-			p.l.Errorf("%+s", err)
-		}
-	}
 	if p.async {
 		go sync()
 	} else {
@@ -175,6 +185,7 @@ func (p *P) processClientActivity(act *vocab.Activity, receivedIn vocab.IRI) (vo
 	case vocab.ContentExperienceActivityTypes.Match(typ):
 		act, err = ContentExperienceActivity(p.s, act)
 	case vocab.GeoSocialEventsActivityTypes.Match(typ):
+		// NOTE(marius): this is most likely wrong, as Arrive and Travel are Intransitive Activities
 		act, err = GeoSocialEventsActivity(p.s, act)
 	case vocab.NotificationActivityTypes.Match(typ):
 		act, err = p.NotificationActivity(act)
@@ -193,32 +204,18 @@ func (p *P) processClientActivity(act *vocab.Activity, receivedIn vocab.IRI) (vo
 		act.Published = time.Now().Round(time.Millisecond).UTC()
 	}
 
-	var it vocab.Item
-	recipients := make(vocab.ItemCollection, 0)
-	_ = recipients.Append(p.BuildOutboxRecipientsList(act, receivedIn)...)
-
-	// NOTE(marius): this seems to duplicate work done for Create already in disseminateActivityObjectToLocalReplyToCollections()
-	activityReplyToCollections := p.BuildReplyToCollections(act)
-
-	// Making a local copy of the activity in order to not lose information that could be required
-	// later in the call system.
-	toSave := *act
-	it, err = p.s.Save(vocab.FlattenProperties(&toSave))
-	if err != nil {
-		return act, err
-	}
-
 	sync := func() {
-		// Additional recommendation from the ActivityPub mailing list:
-		// Activities addressed to `Public` usually appear only in the inboxes of actors that follow the activity's `actor`
-		// property.
-		if err = p.AddToLocalCollections(it, append(recipients, activityReplyToCollections...)...); err != nil {
-			p.l.WithContext(lw.Ctx{"err": err}).Errorf("unable to add recipients to local collection")
-		}
-		if err = p.AddToRemoteCollections(it, recipients...); err != nil {
+		if err = p.ProcessOutboxDelivery(act, receivedIn); err != nil {
 			p.l.WithContext(lw.Ctx{"err": err}).Errorf("unable to add recipients to remote collection")
 		}
 	}
+	// Making a local copy of the activity in order to not lose information that could be required
+	// later in the call system.
+	toSave := *act
+	if _, err := p.s.Save(vocab.FlattenProperties(&toSave)); err != nil {
+		return act, err
+	}
+
 	if p.async {
 		// TODO(marius): Find another mechanism for running this asynchronously.
 		go sync()

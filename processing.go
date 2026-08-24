@@ -133,19 +133,19 @@ func (p P) ProcessActivity(it vocab.Item, author vocab.Actor, receivedIn vocab.I
 		return nil, InvalidActivity("received nil")
 	}
 	p.l = p.l.WithContext(lw.Ctx{"in": receivedIn, "type": it.GetType(), "author": author.ID})
-	p.l.Debugf("Processing started")
+	p.l.Debugf("Started")
 	defer func(start time.Time) {
-		p.l.WithContext(lw.Ctx{"duration": time.Since(start)}).Debugf("Processing ended")
-	}(time.Now())
+		p.l.WithContext(lw.Ctx{"duration": time.Since(start)}).Debugf("Ended")
+	}(time.Now().Round(0))
 
-	if IsOutbox(receivedIn) {
+	switch {
+	case IsOutbox(receivedIn):
 		return p.ProcessClientActivity(it, author, receivedIn)
-	}
-	if IsInbox(receivedIn) {
+	case IsInbox(receivedIn):
 		return p.ProcessServerActivity(it, author, receivedIn)
+	default:
+		return nil, errors.MethodNotAllowedf("unable to process activities at current IRI: %s", receivedIn)
 	}
-
-	return nil, errors.MethodNotAllowedf("unable to process activities at current IRI: %s", receivedIn)
 }
 
 func (p *P) createNewTags(tags vocab.ItemCollection, parent vocab.Item) error {
