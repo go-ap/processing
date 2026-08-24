@@ -234,7 +234,7 @@ func (p P) validBaseInboxes() vocab.ItemCollection {
 //   - the author's Outbox
 //   - the recipients' Inboxes
 func (p P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab.ItemCollection {
-	act, err := vocab.ToActivity(it)
+	act, err := vocab.ToIntransitiveActivity(it)
 	if err != nil {
 		return nil
 	}
@@ -304,7 +304,7 @@ func (p P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab.
 	}
 
 	// NOTE(marius): append the "receivedIn" collection to the list of recipients
-	// We do this, because it could be missing from the Activity's recipients fields (to, bto, cc, bcc)
+	//  We do this, because it could be missing from the Activity's recipients fields (to, bto, cc, bcc)
 	_ = allRecipients.Append(receivedIn)
 
 	return vocab.ItemCollectionDeduplication(&allRecipients)
