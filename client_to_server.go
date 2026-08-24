@@ -83,18 +83,15 @@ func (p *P) ProcessClientActivity(it vocab.Item, author vocab.Actor, receivedIn 
 //
 // Additional recommendation from the ActivityPub mailing list: Activities addressed to `Public` usually appear
 // only in the inboxes of actors that follow the activity's `actor` property.
-func (p P) ProcessOutboxDelivery(it vocab.Item, receivedIn vocab.IRI) error {
+func (p *P) ProcessOutboxDelivery(it vocab.Item, receivedIn vocab.IRI) error {
 	recipients := p.BuildOutboxRecipientsList(it, receivedIn)
 	if len(recipients) == 0 {
 		return nil
 	}
-	// NOTE(marius): this seems to duplicate work done for Create already in disseminateActivityObjectToLocalReplyToCollections()
-	recipients.Append(p.BuildReplyToCollections(it)...)
 
-	// NOTE(marius): Additional recommendation from the ActivityPub mailing list:
-	//  Activities addressed to `Public` usually appear only in the inboxes of actors that follow the activity's `actor`
-	//  property.
-	if err := p.AddToLocalCollections(it, recipients...); err != nil {
+	// NOTE(marius): this accumulates the InReplyTo targets for the current activity
+	replyToCollections := p.BuildReplyToCollections(it)
+	if err := p.AddToLocalCollections(it, append(recipients, replyToCollections...)...); err != nil {
 		p.l.WithContext(lw.Ctx{"err": err}).Errorf("unable to add to local collections")
 	}
 	if err := p.AddToRemoteCollections(it, recipients...); err != nil {

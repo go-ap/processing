@@ -284,11 +284,15 @@ func CreateActivityFromClient(p *P, act *vocab.Activity) (*vocab.Activity, error
 		return act, errors.Annotatef(err, "unable to create activity's object %s", act.Object.GetLink())
 	}
 
+	if err = disseminateItemToLocalInReplyToCollections(p, act.Object); err != nil {
+		return act, err
+	}
+
 	if act.Object, err = p.s.Save(vocab.FlattenProperties(act.Object)); err != nil {
 		return act, errors.Annotatef(err, "unable to save object to storage %s", act.Object.GetLink())
 	}
 
-	return act, disseminateActivityObjectToLocalReplyToCollections(p, act)
+	return act, nil
 }
 
 // UndoCreateActivity
@@ -482,7 +486,7 @@ func (p P) dereferenceIRIBasedOnInbox(ob vocab.Item, receivedIn vocab.IRI) (voca
 }
 
 func CreateActivityFromServer(p *P, act *vocab.Activity) (*vocab.Activity, error) {
-	return act, disseminateActivityObjectToLocalReplyToCollections(p, act)
+	return act, disseminateItemToLocalInReplyToCollections(p, act.Object)
 }
 
 // UpdateActivity
@@ -526,7 +530,7 @@ func (p *P) UpdateActivity(upd *vocab.Activity) (*vocab.Activity, error) {
 		}
 		upd.Object = old
 	}
-	return upd, disseminateActivityObjectToLocalReplyToCollections(p, upd)
+	return upd, disseminateItemToLocalInReplyToCollections(p, upd.Object)
 }
 
 func (p *P) loadAndUpdateSingleItem(it vocab.Item) (vocab.Item, error) {
