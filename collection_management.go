@@ -11,7 +11,7 @@ import (
 // AddActivity Indicates that the actor has added the object to the target.
 // If the target property is not explicitly specified, the target would need to be determined implicitly by context.
 // The origin can be used to identify the context from which the object originated.
-func (p *P) AddActivity(add *vocab.Activity) (*vocab.Activity, error) {
+func (p *P) AddActivity(add *vocab.Add) (*vocab.Activity, error) {
 	if vocab.IsNil(add) {
 		return nil, InvalidActivity("nil Add activity")
 	}
@@ -40,7 +40,7 @@ func (p *P) AddActivity(add *vocab.Activity) (*vocab.Activity, error) {
 
 // RemoveActivity Indicates that the actor is removing the object from the origin.
 // If specified, the origin indicates the context from which the object is being removed.
-func (p *P) RemoveActivity(remove *vocab.Activity) (*vocab.Activity, error) {
+func (p *P) RemoveActivity(remove *vocab.Remove) (*vocab.Activity, error) {
 	if vocab.IsNil(remove) {
 		return nil, InvalidActivity("nil Remove activity")
 	}
@@ -49,19 +49,21 @@ func (p *P) RemoveActivity(remove *vocab.Activity) (*vocab.Activity, error) {
 		return nil, InvalidActivityObject("unable to Remove nil object")
 	}
 
-	removeCtx := lw.Ctx{"to": remove.Origin.GetLink(), "object": remove.Object.GetLink()}
-	// NOTE(marius): we use [vocab.OnItem] here to handle both the cases when the target or the object
-	// are composed of multiple items.
-	err := vocab.OnItem(remove.Origin, func(origin vocab.Item) error {
+	removeCtx := lw.Ctx{}
+	// NOTE(marius): we use OnItem here to handle both the cases when the target or the object
+	//  are composed of multiple items.
+	err := vocab.OnItem(remove.Target, func(target vocab.Item) error {
 		// NOTE(marius): this behaviour has no atomicity, as we exit at first failure
-		// and we don't undo any of the previous removals if origin was composed of multiple collections.
+		//  and we don't undo any of the previous removals if origin was composed of multiple collections.
+		removeCtx["from"] = target.GetLink()
 		return vocab.OnItem(remove.Object, func(object vocab.Item) error {
-			return p.s.RemoveFrom(origin.GetLink(), object)
+			removeCtx["item"] = object.GetLink()
+			return p.s.RemoveFrom(target.GetLink(), object)
 		})
 	})
 	if err != nil {
 		p.l.WithContext(removeCtx, lw.Ctx{"err": err.Error()}).Warnf("unable to remove object")
-		return nil, errors.Annotatef(err, "unable to remove %s from origin collection %s", remove.Object, remove.Target)
+		return nil, errors.Annotatef(err, "unable to remove %s from target collection %s", remove.Object, remove.Target)
 	}
 	return remove, nil
 }
