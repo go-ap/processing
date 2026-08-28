@@ -5,10 +5,10 @@ go 1.25.0
 require (
 	git.sr.ht/~mariusor/lw v0.0.0-20260818081520-a466820a662e
 	git.sr.ht/~mariusor/ssm v0.0.0-20260505081700-875e54c38633
-	github.com/go-ap/activitypub v0.0.0-20260828090159-3a7d0b7e9631
-	github.com/go-ap/client v0.0.0-20260828091034-a76787a641ca
+	github.com/go-ap/activitypub v0.0.0-20260828142325-6c1da3fca413
+	github.com/go-ap/client v0.0.0-20260828143816-464f5fa8d4c6
 	github.com/go-ap/errors v0.0.0-20260701132509-92e5e4fd6394
-	github.com/go-ap/filters v0.0.0-20260828090627-8fe34a6bb3e6
+	github.com/go-ap/filters v0.0.0-20260828143704-b6f12edfe3ec
 	github.com/go-ap/jsonld v0.0.0-20260607140920-737b40e0ca38
 	github.com/google/go-cmp v0.7.0
 )
@@ -43,7 +43,6 @@ require (
 	github.com/rs/xid v1.6.0 // indirect
 	github.com/rs/zerolog v1.35.1 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
-	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fastjson v1.6.10 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
