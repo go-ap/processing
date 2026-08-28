@@ -174,7 +174,7 @@ func (p *P) processClientActivity(act *vocab.Activity, receivedIn vocab.IRI) (vo
 	case vocab.CollectionManagementActivityTypes.Match(typ):
 		act, err = p.CollectionManagementActivity(act)
 	case vocab.ReactionsActivityTypes.Match(typ):
-		act, err = ReactionsActivity(p, act, receivedIn)
+		act, err = p.ReactionsActivity(act, receivedIn)
 	case vocab.EventRSVPActivityTypes.Match(typ):
 		act, err = EventRSVPActivity(p.s, act)
 	case vocab.GroupManagementActivityTypes.Match(typ):
@@ -187,7 +187,7 @@ func (p *P) processClientActivity(act *vocab.Activity, receivedIn vocab.IRI) (vo
 	case vocab.NotificationActivityTypes.Match(typ):
 		act, err = p.NotificationActivity(act)
 	case vocab.RelationshipManagementActivityTypes.Match(typ):
-		act, err = RelationshipManagementActivity(p, act, receivedIn)
+		act, err = p.RelationshipManagementActivity(act, receivedIn)
 	case vocab.NegatingActivityTypes.Match(typ):
 		act, err = p.NegatingActivity(act)
 	case vocab.OffersActivityTypes.Match(typ):

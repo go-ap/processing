@@ -13,7 +13,7 @@ import (
 // of interpersonal and social relationships (e.g. friend requests, management of social network, etc).
 // See 5.2 Representing Relationships Between Entities for more information:
 // https://www.w3.org/TR/activitystreams-vocabulary/#connections
-func RelationshipManagementActivity(p *P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activity, error) {
+func (p *P) RelationshipManagementActivity(act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activity, error) {
 	if vocab.IsNil(act.Object) {
 		return act, errors.BadRequestf("Missing object for %s Activity", act.Type)
 	}
@@ -32,14 +32,16 @@ func RelationshipManagementActivity(p *P, act *vocab.Activity, receivedIn vocab.
 	case vocab.AcceptType.Match(act.Type):
 		return AcceptActivity(p, act, receivedIn)
 	case vocab.BlockType.Match(act.Type):
-		return BlockActivity(p, act, receivedIn)
+		//return p.BlockActivity(act, receivedIn)
+		fallthrough
+	case vocab.IgnoreType.Match(act.Type):
+		//return p.IgnoreActivity(act, receivedIn)
+		fallthrough
 	case vocab.AddType.Match(act.Type):
 		fallthrough
 	case vocab.CreateType.Match(act.Type):
 		fallthrough
 	case vocab.DeleteType.Match(act.Type):
-		fallthrough
-	case vocab.IgnoreType.Match(act.Type):
 		fallthrough
 	case vocab.InviteType.Match(act.Type):
 		fallthrough

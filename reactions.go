@@ -13,7 +13,7 @@ import (
 // The Reactions use case primarily deals with reactions to content.
 // This can include activities such as liking or disliking content, ignoring updates,
 // flagging content as being inappropriate, accepting or rejecting objects, etc.
-func ReactionsActivity(p *P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activity, error) {
+func (p *P) ReactionsActivity(act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activity, error) {
 	var err error
 	if act.Object != nil {
 		switch {
@@ -30,12 +30,12 @@ func ReactionsActivity(p *P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.
 			fallthrough
 		case vocab.AcceptType.Match(act.Type):
 			act, err = AcceptActivity(p, act, receivedIn)
-		case vocab.BlockType.Match(act.Type):
-			act, err = BlockActivity(p, act, receivedIn)
 		case vocab.FlagType.Match(act.Type):
 			act, err = FlagActivity(p.s, act)
+		case vocab.BlockType.Match(act.Type):
+			act, err = p.BlockActivity(act, receivedIn)
 		case vocab.IgnoreType.Match(act.Type):
-			act, err = IgnoreActivity(p, act)
+			act, err = p.IgnoreActivity(act, receivedIn)
 		}
 	}
 
@@ -246,7 +246,7 @@ const BlockedCollection = vocab.CollectionPath("blocked")
 // The server SHOULD prevent the blocked user from interacting with any object posted by the actor.
 //
 // Servers SHOULD NOT deliver Block Activities to their object.
-func BlockActivity(p *P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activity, error) {
+func (p *P) BlockActivity(act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activity, error) {
 	if vocab.IsNil(act.Object) {
 		return act, errors.BadRequestf("Missing object for %s Activity", act.Type)
 	}
@@ -264,7 +264,7 @@ func BlockActivity(p *P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Acti
 	act.Bto.Remove(obIRI)
 	act.BCC.Remove(obIRI)
 
-	return act, p.AddItemToCollection(BlockedCollection.IRI(act.Actor), obIRI)
+	return act, p.AddItemToCollection(BlockedCollection.IRI(act.Actor), act.Object)
 }
 
 // FlagActivity
@@ -310,7 +310,7 @@ const IgnoredCollection = vocab.CollectionPath("ignored")
 // IgnoreActivity
 // This relies on custom behavior for the repository, which would allow for an ignored collection,
 // where we save these
-func IgnoreActivity(p *P, act *vocab.Activity) (*vocab.Activity, error) {
+func (p *P) IgnoreActivity(act *vocab.Activity, _ vocab.IRI) (*vocab.Activity, error) {
 	if vocab.IsNil(act.Object) {
 		return act, errors.BadRequestf("Missing object for %s Activity", act.Type)
 	}
@@ -328,5 +328,5 @@ func IgnoreActivity(p *P, act *vocab.Activity) (*vocab.Activity, error) {
 	act.Bto.Remove(obIRI)
 	act.BCC.Remove(obIRI)
 
-	return act, p.AddItemToCollection(IgnoredCollection.IRI(act.Actor), obIRI)
+	return act, p.AddItemToCollection(IgnoredCollection.IRI(act.Actor), act.Object)
 }
