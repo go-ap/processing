@@ -378,16 +378,6 @@ func (p *P) BuildInboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab.
 	//  We do this, because it could be missing from the Activity's recipients fields (to, bto, cc, bcc)
 	_ = allRecipients.Append(receivedIn)
 
-	// NOTE(marius): for local dissemination, we need to check if "receivedIn" corresponds to a sharedInbox
-	//  that is used by actors on the current server.
-	//  So we load all actors that use 'receivedIn' as a sharedInbox, and append them to the recipients list.
-	//
-	// TODO(marius): maybe a better solution would be to have the processor map the shared inboxes and watch for
-	//  new activity in them and dispatch those asynchronously.
-	for _, rec := range loadSharedInboxRecipients(p, receivedIn) {
-		_ = allRecipients.Append(vocab.Inbox.Of(rec))
-	}
-
 	return vocab.ItemCollectionDeduplication(&allRecipients)
 }
 

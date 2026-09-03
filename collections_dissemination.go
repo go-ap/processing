@@ -132,9 +132,16 @@ func (p P) AddToLocalCollections(it vocab.Item, recipients ...vocab.Item) error 
 	return p.disseminateToLocalCollections(it, localRecipients.IRIs()...)
 }
 
-func (p P) disseminateToLocalCollections(it vocab.Item, iris ...vocab.IRI) error {
+func (p *P) disseminateToLocalCollections(it vocab.Item, iris ...vocab.IRI) error {
 	if len(iris) == 0 {
 		return nil
+	}
+
+	hasRecipients, ok := it.(vocab.HasRecipients)
+	isPublic := ok && hasRecipients.Recipients().Contains(vocab.PublicNS)
+	var sharedInboxes vocab.ItemCollection
+	if isPublic {
+		sharedInboxes = p.SharedInboxes()
 	}
 
 	states := make([]ssm.Fn, 0, len(iris))
@@ -147,6 +154,7 @@ func (p P) disseminateToLocalCollections(it vocab.Item, iris ...vocab.IRI) error
 		if vocab.IsIRI(it) {
 			var err error
 			ll.Tracef("Object requires de-referencing from remote IRI %s", it.GetLink())
+
 			// NOTE(marius): check comment inside dereferenceIRIBasedOnInbox() method
 			if it, err = p.dereferenceIRIBasedOnInbox(it, col); err != nil {
 				ll.Warnf("Unable to load remote object %s: %s", it, err)
@@ -161,6 +169,20 @@ func (p P) disseminateToLocalCollections(it vocab.Item, iris ...vocab.IRI) error
 			return ssm.End
 		}
 		states = append(states, state)
+
+		if isPublic && sharedInboxes.Contains(col.GetLink()) {
+			for _, localRec := range loadSharedInboxRecipients(p, col.GetLink()) {
+				toSharedInboxState := func(ctx context.Context) ssm.Fn {
+					newCol := vocab.Inbox.IRI(localRec)
+					ll.WithContext(lw.Ctx{"to": newCol}).Debugf("Disseminate to sharedInbox collection")
+					if err := p.AddItemToCollection(newCol, it); err != nil {
+						ll.Warnf("Unable to disseminate activity %s", err)
+					}
+					return ssm.End
+				}
+				states = append(states, toSharedInboxState)
+			}
+		}
 	}
 
 	return ssm.Run(context.Background(), states...)

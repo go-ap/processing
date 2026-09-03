@@ -222,7 +222,9 @@ func (p *P) processClientActivity(act *vocab.Activity, receivedIn vocab.IRI) (vo
 	return act, nil
 }
 
-func (p P) validBaseInboxes() vocab.ItemCollection {
+// SharedInboxes returns the list of inbox collections the processing uses to disseminate
+// to local actors that use it as such (actor's endpoints.sharedInbox corresponds).
+func (p *P) SharedInboxes() vocab.ItemCollection {
 	result := make(vocab.ItemCollection, 0, len(p.baseIRI))
 	for _, iri := range validateLocalIRI(p.s, p.baseIRI...) {
 		_ = result.Append(vocab.Inbox.IRI(iri))
@@ -233,7 +235,7 @@ func (p P) validBaseInboxes() vocab.ItemCollection {
 // BuildOutboxRecipientsList builds the recipients list of the received 'it' Activity is addressed to:
 //   - the author's Outbox
 //   - the recipients' Inboxes
-func (p P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab.ItemCollection {
+func (p *P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab.ItemCollection {
 	act, err := vocab.ToIntransitiveActivity(it)
 	if err != nil {
 		return nil
@@ -245,11 +247,18 @@ func (p P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab.
 
 	actor := act.Actor
 	allRecipients := make(vocab.ItemCollection, 0)
+
+	// NOTE(marius): append the "receivedIn" collection to the list of recipients
+	//  We do this, because it could be missing from the Activity's recipients fields (to, bto, cc, bcc)
+	_ = allRecipients.Append(receivedIn)
+
 	_ = vocab.OnItem(actor, func(actor vocab.Item) error {
 		// NOTE(marius): this is needed only for client to server interactions
 		if vocab.IsNil(actor) || p.IsLocal(actor) {
 			return nil
 		}
+		// NOTE(marius): this most likely overlaps with the logic above,
+		//  of adding the receivedIn collection to the recipients list.
 		if actIRI := actor.GetLink(); !vocab.PublicNS.Equal(actIRI) {
 			_ = allRecipients.Append(vocab.Outbox.IRI(actIRI))
 		}
@@ -257,15 +266,18 @@ func (p P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab.
 	})
 
 	actorHasBlocked := p.actorHasBlockedFn(actor)
+
 	if hasRecipients, ok := it.(vocab.HasRecipients); ok {
-		for _, rec := range hasRecipients.Recipients() {
+		activityRecipients := hasRecipients.Recipients()
+
+		for _, rec := range activityRecipients {
 			recIRI := rec.GetLink()
+
 			if vocab.PublicNS.Equal(recIRI) {
-				// NOTE(marius): if the activity is addressed to the Public NS, we store it in the local service's inbox,
-				//  because we consider that to be the "sharedInbox" for the server.
-				// TODO(marius): We need an async mechanism to synchronize shared inboxes with the actors that use it.
-				//  See TODO in the BuildInboxRecipientsList related to shared Inbox
-				_ = allRecipients.Append(p.validBaseInboxes()...)
+				// NOTE(marius): if the activity is Public, we store it in the local shared inboxes
+				//  See [disseminateToLocalCollections] for the part where we disseminate to the actors
+				//  that use them.
+				_ = allRecipients.Append(p.SharedInboxes()...)
 				continue
 			}
 
@@ -305,10 +317,6 @@ func (p P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab.
 			})
 		}
 	}
-
-	// NOTE(marius): append the "receivedIn" collection to the list of recipients
-	//  We do this, because it could be missing from the Activity's recipients fields (to, bto, cc, bcc)
-	_ = allRecipients.Append(receivedIn)
 
 	return vocab.ItemCollectionDeduplication(&allRecipients)
 }
