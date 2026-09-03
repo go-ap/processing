@@ -164,25 +164,33 @@ func (p *P) disseminateToLocalCollections(it vocab.Item, iris ...vocab.IRI) erro
 		state := func(ctx context.Context) ssm.Fn {
 			ll.Debugf("Saving to local collection")
 			if err := p.AddItemToCollection(col, it); err != nil {
-				ll.Warnf("Unable to disseminate activity %s", err)
+				ll.WithContext(lw.Ctx{"err": err}).Warnf("Unable to disseminate activity")
+			}
+
+			var next []ssm.Fn
+			if isPublic && sharedInboxes.Contains(col.GetLink()) {
+				sharedInboxRecipients := loadSharedInboxRecipients(p, col.GetLink())
+				next = make([]ssm.Fn, 0, len(sharedInboxRecipients))
+				for _, localRec := range sharedInboxRecipients {
+					toSharedInboxState := func(ctx context.Context) ssm.Fn {
+						newCol := vocab.Inbox.IRI(localRec)
+						ll = ll.WithContext(lw.Ctx{"to": newCol})
+						ll.Debugf("Disseminate to local sharedInbox collection")
+						if err := p.AddItemToCollection(newCol, it); err != nil {
+							ll.WithContext(lw.Ctx{"err": err}).Warnf("Unable to disseminate activity")
+						}
+						return ssm.End
+					}
+					next = append(next, toSharedInboxState)
+				}
+			}
+			if len(next) > 0 {
+				return ssm.Batch(next...)
 			}
 			return ssm.End
 		}
 		states = append(states, state)
 
-		if isPublic && sharedInboxes.Contains(col.GetLink()) {
-			for _, localRec := range loadSharedInboxRecipients(p, col.GetLink()) {
-				toSharedInboxState := func(ctx context.Context) ssm.Fn {
-					newCol := vocab.Inbox.IRI(localRec)
-					ll.WithContext(lw.Ctx{"to": newCol}).Debugf("Disseminate to sharedInbox collection")
-					if err := p.AddItemToCollection(newCol, it); err != nil {
-						ll.Warnf("Unable to disseminate activity %s", err)
-					}
-					return ssm.End
-				}
-				states = append(states, toSharedInboxState)
-			}
-		}
 	}
 
 	return ssm.Run(context.Background(), states...)
