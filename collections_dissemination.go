@@ -172,8 +172,14 @@ func (p *P) disseminateToLocalCollections(it vocab.Item, iris ...vocab.IRI) erro
 				sharedInboxRecipients := loadSharedInboxRecipients(p, col.GetLink())
 				next = make([]ssm.Fn, 0, len(sharedInboxRecipients))
 				for _, localRec := range sharedInboxRecipients {
+					newCol := vocab.Inbox.IRI(localRec)
+					if vocab.IRIs(iris).Contains(newCol) {
+						// NOTE(marius): skip actors that already exist in the list of collections
+						//  to disseminate to.
+						continue
+					}
+
 					toSharedInboxState := func(ctx context.Context) ssm.Fn {
-						newCol := vocab.Inbox.IRI(localRec)
 						ll = ll.WithContext(lw.Ctx{"to": newCol})
 						ll.Debugf("Disseminate to local sharedInbox collection")
 						if err := p.AddItemToCollection(newCol, it); err != nil {
@@ -190,7 +196,6 @@ func (p *P) disseminateToLocalCollections(it vocab.Item, iris ...vocab.IRI) erro
 			return ssm.End
 		}
 		states = append(states, state)
-
 	}
 
 	return ssm.Run(context.Background(), states...)
