@@ -230,69 +230,6 @@ func (p *P) BuildReplyToCollections(it vocab.Item) vocab.ItemCollection {
 	return collections
 }
 
-func loadSharedInboxRecipients(p P, sharedInbox vocab.IRI) vocab.ItemCollection {
-	if len(p.baseIRI) == 0 {
-		return nil
-	}
-
-	next := func(it vocab.Item) vocab.IRI {
-		var next vocab.IRI
-		typ := it.GetType()
-		switch {
-		case vocab.ActivityVocabularyTypes{vocab.CollectionPageType, vocab.OrderedCollectionPageType}.Match(typ):
-			_ = vocab.OnCollectionPage(it, func(p *vocab.CollectionPage) error {
-				if p.Next != nil {
-					next = p.Next.GetLink()
-				}
-				return nil
-			})
-		case vocab.ActivityVocabularyTypes{vocab.CollectionType, vocab.OrderedCollectionType}.Match(typ):
-			_ = vocab.OnCollection(it, func(p *vocab.Collection) error {
-				if p.First != nil {
-					next = p.First.GetLink()
-				}
-				return nil
-			})
-		}
-		return next
-	}
-
-	actors := make(vocab.ItemCollection, 0)
-	for _, us := range validateLocalIRI(p.s, p.baseIRI...) {
-		if !sharedInbox.Contains(us, true) {
-			continue
-		}
-		// NOTE(marius): all of this is terrible, as it relies on FedBOX discoverability of actors
-		//  It also doesn't iterate through the whole collection but only through the first page of results
-		iri := vocab.CollectionPath("actors").Of(us).GetLink()
-		for {
-			col, err := p.s.Load(iri)
-			if err != nil {
-				p.l.Warnf("unable to load actors for sharedInbox check: %+s", err)
-				break
-			}
-			_ = vocab.OnCollectionIntf(col, func(col vocab.CollectionInterface) error {
-				for _, act := range col.Collection() {
-					_ = vocab.OnActor(act, func(act *vocab.Actor) error {
-						if act.Endpoints == nil || act.Endpoints.SharedInbox == nil {
-							return nil
-						}
-						if sharedInbox.Equals(act.Endpoints.SharedInbox.GetLink(), false) && !actors.Contains(act.GetLink()) {
-							_ = actors.Append(actors)
-						}
-						return nil
-					})
-				}
-				return nil
-			})
-			if iri = next(col); iri == "" {
-				break
-			}
-		}
-	}
-	return actors
-}
-
 // CollectionManagementActivity processes matching activities
 //
 // https://www.w3.org/TR/activitystreams-vocabulary/#h-motivations-collections

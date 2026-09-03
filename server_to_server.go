@@ -67,20 +67,20 @@ func (p P) ProcessServerActivity(it vocab.Item, author vocab.Actor, receivedIn v
 	}
 
 	// NOTE(marius): the separation between transitive and intransitive activities overlaps the separation we're
-	// using in the processingClientActivity function between the ActivityStreams motivations separation.
-	// This means that 'it' should probably be treated as a vocab.Item until the last possible moment.
+	//  using in the processingClientActivity function between the ActivityStreams motivations separation.
+	//  This means that 'it' should probably be treated as a vocab.Item until the last possible moment.
 	if vocab.IntransitiveActivityTypes.Match(it.GetType()) {
 		err = vocab.OnIntransitiveActivity(it, func(act *vocab.IntransitiveActivity) error {
-			if err := p.saveRemoteIntransitiveActivity(act); err != nil {
-				p.l.WithContext(lw.Ctx{"err": err.Error()}).Warnf("unable to save remote activity and objects locally")
+			if err = p.saveRemoteIntransitiveActivityProperties(act); err != nil {
+				p.l.WithContext(lw.Ctx{"err": err}).Warnf("unable to save remote intransitive activity and its properties")
 			}
-			it, err = processServerIntransitiveActivity(p, act, receivedIn)
+			it, err = p.processServerIntransitiveActivity(act, receivedIn)
 			return err
 		})
 	} else {
 		err = vocab.OnActivity(it, func(act *vocab.Activity) error {
-			if err := p.saveRemoteActivity(act); err != nil {
-				p.l.WithContext(lw.Ctx{"err": err.Error()}).Warnf("unable to save remote activity and objects locally")
+			if err = p.saveRemoteActivityProperties(act); err != nil {
+				p.l.WithContext(lw.Ctx{"err": err}).Warnf("unable to save remote activity and its properties")
 			}
 			it, err = p.processServerActivity(act, receivedIn)
 			return err
@@ -279,32 +279,47 @@ func (p P) localSaveIfMissing(it vocab.Item) error {
 	return err
 }
 
-func (p P) saveRemoteIntransitiveActivity(act *vocab.IntransitiveActivity) error {
-	if !vocab.IsNil(act.Actor) && !p.IsLocalIRI(act.Actor.GetLink()) {
-		if err := p.localSaveIfMissing(act.Actor); err != nil {
-			return err
+func (p P) saveRemoteIntransitiveActivityProperties(act *vocab.IntransitiveActivity) error {
+	saveOnMissingRemote := func(it vocab.Item) error {
+		if vocab.IsNil(it) || p.IsLocalIRI(it.GetLink()) {
+			return nil
 		}
+		return p.localSaveIfMissing(it)
 	}
-	if !vocab.IsNil(act.Target) && !p.IsLocalIRI(act.Target.GetLink()) {
-		if err := p.localSaveIfMissing(act.Target); err != nil {
-			return err
-		}
+
+	errs := make([]error, 0, 4)
+	if err := saveOnMissingRemote(act.Actor); err != nil {
+		errs = append(errs, err)
 	}
-	return nil
+	if err := saveOnMissingRemote(act.Target); err != nil {
+		errs = append(errs, err)
+	}
+	if err := saveOnMissingRemote(act.Origin); err != nil {
+		errs = append(errs, err)
+	}
+	if err := saveOnMissingRemote(act.Instrument); err != nil {
+		errs = append(errs, err)
+	}
+	return errors.Join(errs...)
 }
 
-func (p P) saveRemoteActivity(act *vocab.Activity) error {
+func (p P) saveRemoteActivityProperties(act *vocab.Activity) error {
+	errs := make([]error, 0, 2)
 	if !vocab.IsNil(act.Object) && !p.IsLocalIRI(act.Object.GetLink()) {
 		if err := p.localSaveIfMissing(act.Object); err != nil {
-			return err
+			errs = append(errs, err)
 		}
 	}
-	return vocab.OnIntransitiveActivity(act, func(act *vocab.IntransitiveActivity) error {
-		return p.saveRemoteIntransitiveActivity(act)
+	err := vocab.OnIntransitiveActivity(act, func(act *vocab.IntransitiveActivity) error {
+		return p.saveRemoteIntransitiveActivityProperties(act)
 	})
+	if err != nil {
+		errs = append(errs, err)
+	}
+	return errors.Join(errs...)
 }
 
-func processServerIntransitiveActivity(p P, it vocab.Item, receivedIn vocab.IRI) (vocab.Item, error) {
+func (p *P) processServerIntransitiveActivity(it vocab.Item, receivedIn vocab.IRI) (vocab.Item, error) {
 	return it, errors.NotImplementedf("processing intransitive activities is not yet finished")
 }
 
@@ -324,7 +339,7 @@ func (p *P) processServerActivity(act *vocab.Activity, receivedIn vocab.IRI) (vo
 
 // BuildInboxRecipientsList builds the recipients list of the received 'it' Activity is addressed to:
 //   - the *local* recipients' Inboxes
-func (p P) BuildInboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab.ItemCollection {
+func (p *P) BuildInboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab.ItemCollection {
 	act, err := vocab.ToActivity(it)
 	if err != nil {
 		return nil
@@ -360,30 +375,88 @@ func (p P) BuildInboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab.I
 	}
 
 	// NOTE(marius): append the receivedIn collection to the list of recipients
-	// We do this, because it could be missing from the Activity's recipients fields (to, bto, cc, bcc)
+	//  We do this, because it could be missing from the Activity's recipients fields (to, bto, cc, bcc)
 	_ = allRecipients.Append(receivedIn)
 
 	// NOTE(marius): for local dissemination, we need to check if "receivedIn" corresponds to a sharedInbox
-	// that is used by actors on the current server.
-	// So we load all actors that use 'receivedIn' as a sharedInbox, and append them to the recipients list.
+	//  that is used by actors on the current server.
+	//  So we load all actors that use 'receivedIn' as a sharedInbox, and append them to the recipients list.
 	//
-	// This logic might not be entirely sound, as I suspect we should search all local inbox recipients if
-	// they are shared collections and dispatch them accordingly.
 	// TODO(marius): maybe a better solution would be to have the processor map the shared inboxes and watch for
 	//  new activity in them and dispatch those asynchronously.
 	for _, rec := range loadSharedInboxRecipients(p, receivedIn) {
-		if !allRecipients.Contains(rec.GetLink()) {
-			continue
-		}
-		_ = allRecipients.Append(receivedIn)
+		_ = allRecipients.Append(vocab.Inbox.Of(rec))
 	}
 
 	return vocab.ItemCollectionDeduplication(&allRecipients)
 }
 
+func loadSharedInboxRecipients(p *P, sharedInbox vocab.IRI) vocab.ItemCollection {
+	if len(p.baseIRI) == 0 {
+		return nil
+	}
+
+	next := func(it vocab.Item) vocab.IRI {
+		var next vocab.IRI
+		typ := it.GetType()
+		switch {
+		case vocab.ActivityVocabularyTypes{vocab.CollectionPageType, vocab.OrderedCollectionPageType}.Match(typ):
+			_ = vocab.OnCollectionPage(it, func(p *vocab.CollectionPage) error {
+				if p.Next != nil {
+					next = p.Next.GetLink()
+				}
+				return nil
+			})
+		case vocab.ActivityVocabularyTypes{vocab.CollectionType, vocab.OrderedCollectionType}.Match(typ):
+			_ = vocab.OnCollection(it, func(p *vocab.Collection) error {
+				if p.First != nil {
+					next = p.First.GetLink()
+				}
+				return nil
+			})
+		}
+		return next
+	}
+
+	actors := make(vocab.ItemCollection, 0)
+	for _, us := range validateLocalIRI(p.s, p.baseIRI...) {
+		if !sharedInbox.Contains(us, true) {
+			continue
+		}
+		// NOTE(marius): all of this is terrible, as it relies on FedBOX discoverability of actors
+		//  It also doesn't iterate through the whole collection but only through the first page of results
+		iri := vocab.CollectionPath("actors").Of(us).GetLink()
+		for {
+			col, err := p.s.Load(iri)
+			if err != nil {
+				p.l.Warnf("unable to load actors for sharedInbox check: %+s", err)
+				break
+			}
+			_ = vocab.OnCollectionIntf(col, func(col vocab.CollectionInterface) error {
+				for _, act := range col.Collection() {
+					_ = vocab.OnActor(act, func(act *vocab.Actor) error {
+						if act.Endpoints == nil || vocab.IsNil(act.Endpoints.SharedInbox) {
+							return nil
+						}
+						if sharedInbox.Equal(act.Endpoints.SharedInbox.GetLink()) {
+							_ = actors.Append(act)
+						}
+						return nil
+					})
+				}
+				return nil
+			})
+			if iri = next(col); iri == "" {
+				break
+			}
+		}
+	}
+	return actors
+}
+
 // BuildLocalCollectionsRecipients builds the recipients list of the received 'it' Activity is addressed to:
 //   - any *local* collections
-func (p P) BuildLocalCollectionsRecipients(it vocab.Item, receivedIn vocab.IRI) vocab.ItemCollection {
+func (p *P) BuildLocalCollectionsRecipients(it vocab.Item, receivedIn vocab.IRI) vocab.ItemCollection {
 	act, err := vocab.ToActivity(it)
 	if err != nil {
 		return nil
