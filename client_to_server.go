@@ -5,6 +5,7 @@ import (
 
 	"git.sr.ht/~mariusor/lw"
 	vocab "github.com/go-ap/activitypub"
+	"github.com/go-ap/errors"
 )
 
 // C2SProcessor
@@ -232,9 +233,12 @@ func (p *P) SharedInboxes() vocab.ItemCollection {
 	return result
 }
 
-// BuildOutboxRecipientsList builds the recipients list of the received 'it' Activity is addressed to:
+// BuildOutboxRecipientsList builds the recipients list to which the 'it' activity is addressed when received
+// in an Outbox:
 //   - the author's Outbox
 //   - the recipients' Inboxes
+//
+// On public activities we group actors by sharedInbox if they have it.
 func (p *P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab.ItemCollection {
 	act, err := vocab.ToIntransitiveActivity(it)
 	if err != nil {
@@ -267,8 +271,18 @@ func (p *P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab
 
 	actorHasBlocked := p.actorHasBlockedFn(actor)
 
+	activityIsPublic := false
+	actorGetSharedInbox := func(act *vocab.Actor) (vocab.IRI, bool) {
+		if act == nil || act.Endpoints == nil || vocab.IsNil(act.Endpoints.SharedInbox) || p.IsLocalIRI(act.ID) {
+			return vocab.PublicNS, false
+		}
+		return act.Endpoints.SharedInbox.GetLink(), true
+	}
+
 	if hasRecipients, ok := it.(vocab.HasRecipients); ok {
 		activityRecipients := hasRecipients.Recipients()
+
+		activityIsPublic = activityRecipients.Contains(vocab.PublicNS)
 
 		for _, rec := range activityRecipients {
 			recIRI := rec.GetLink()
@@ -278,6 +292,7 @@ func (p *P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab
 				//  See [disseminateToLocalCollections] for the part where we disseminate to the actors
 				//  that use them.
 				_ = allRecipients.Append(p.SharedInboxes()...)
+				// NOTE(marius): we use this to determine if we group actors by sharedInbox
 				continue
 			}
 
@@ -287,13 +302,11 @@ func (p *P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab
 				continue
 			}
 
-			if !p.IsLocalIRI(recIRI) {
-				_ = allRecipients.Append(vocab.Inbox.IRI(recIRI))
-				continue
-			}
-
 			recipient, err := loader.Load(recIRI)
-			if err != nil || vocab.IsNil(recipient) {
+			if (err != nil && errors.IsNotFound(err)) && !p.IsLocalIRI(recIRI) {
+				recipient, err = p.c.LoadIRI(recIRI)
+			}
+			if vocab.IsNil(recipient) {
 				continue
 			}
 
@@ -307,8 +320,8 @@ func (p *P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab
 					return nil
 				}
 				return vocab.OnActor(rec, func(act *vocab.Actor) error {
-					if (act.Endpoints != nil && !vocab.IsNil(act.Endpoints.SharedInbox)) && !p.IsLocalIRI(act.ID) {
-						_ = allRecipients.Append(act.Endpoints.SharedInbox.GetLink())
+					if sharedInbox, exists := actorGetSharedInbox(act); exists && activityIsPublic {
+						_ = allRecipients.Append(sharedInbox)
 					} else {
 						_ = allRecipients.Append(vocab.Inbox.Of(rec))
 					}
@@ -318,5 +331,5 @@ func (p *P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab
 		}
 	}
 
-	return vocab.ItemCollectionDeduplication(&allRecipients)
+	return allRecipients
 }
