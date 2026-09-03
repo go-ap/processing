@@ -203,30 +203,30 @@ func (p *P) disseminateToLocalCollections(it vocab.Item, iris ...vocab.IRI) erro
 
 // AddItemToCollection attempts to append "it" to collection "col"
 //
-// If the collection is not local, it doesn't do anything
-// If the item is a non-local IRI, it tries to dereference it, and then save a local representation of it.
+// If the collection is not local, it doesn't do anything.
+// If the item is a non-local IRI, it tries to dereference it, save a representation of it to local storage,
+// and only then add it to the collection.
 func (p P) AddItemToCollection(col vocab.IRI, it vocab.Item) error {
 	if !p.IsLocalIRI(col) {
 		return nil
 	}
-	if !p.IsLocal(it) && vocab.IsIRI(it) {
+
+	lCtx := lw.Ctx{"col": col, "it": it.GetLink()}
+	if vocab.IsIRI(it) && !p.IsLocal(it) {
 		// NOTE(marius): the fetching and saving of the remote item is a candidate for switching to async
-		deref, err := p.c.CtxLoadIRI(context.TODO(), it.GetLink())
-		if err != nil {
-			p.l.Warnf("unable to load remote object [%s]: %s", it.GetLink(), err.Error())
+		if der, err := deref(context.TODO(), p.c, it); err != nil {
+			p.l.WithContext(lCtx, lw.Ctx{"err": err}).Warnf("unable to load remote object")
 		} else {
-			it = deref
-		}
-		if _, err = p.s.Save(it); err != nil {
-			p.l.Warnf("unable to save remote object [%s] locally: %s", it.GetLink(), err.Error())
+			if it, err = p.s.Save(der); err != nil {
+				p.l.WithContext(lCtx, lw.Ctx{"err": err}).Warnf("unable to save locally remote object")
+			}
 		}
 	}
 	if err := p.s.AddTo(col, it); err != nil {
-		if errors.IsConflict(err) {
-			return nil
+		if !errors.IsConflict(err) {
+			p.l.WithContext(lCtx, lw.Ctx{"err": err}).Warnf("unable to add object to collection")
+			return err
 		}
-		p.l.WithContext(lw.Ctx{"err": err, "col": col.GetLink(), "it": it.GetLink()}).Warnf("unable to add object to collection")
-		return err
 	}
 	return nil
 }
@@ -236,8 +236,9 @@ func (p P) AddItemToCollection(col vocab.IRI, it vocab.Item) error {
 func disseminateItemToLocalInReplyToCollections(p *P, it vocab.Item) error {
 	return vocab.OnItem(it, func(it vocab.Item) error {
 		replyToCollections := p.BuildReplyToCollections(it)
+		lCtx := lw.Ctx{"replyTo": replyToCollections, "it": it.GetLink()}
 		if err := p.AddToLocalCollections(it, replyToCollections...); err != nil {
-			p.l.Warnf(errors.Annotatef(err, "unable to add object to local replyTo collections").Error())
+			p.l.WithContext(lCtx, lw.Ctx{"err": err}).Warnf("unable to add object to replyTo collections")
 		}
 		return nil
 	})
