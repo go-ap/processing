@@ -144,6 +144,12 @@ func (p *P) disseminateToLocalCollections(it vocab.Item, iris ...vocab.IRI) erro
 		sharedInboxes = p.SharedInboxes()
 	}
 
+	var actor vocab.Item
+	_ = vocab.OnIntransitiveActivity(it, func(act *vocab.IntransitiveActivity) error {
+		actor = act.Actor
+		return nil
+	})
+	actorHasBlocked := p.actorHasBlockedFn(actor)
 	states := make([]ssm.Fn, 0, len(iris))
 	for _, col := range iris {
 		ll := p.l.WithContext(lw.Ctx{"to": col})
@@ -176,6 +182,16 @@ func (p *P) disseminateToLocalCollections(it vocab.Item, iris ...vocab.IRI) erro
 					if vocab.IRIs(iris).Contains(newCol) {
 						// NOTE(marius): skip actors that already exist in the list of collections
 						//  to disseminate to.
+						continue
+					}
+					if actorHasBlocked(localRec) {
+						// NOTE(marius): we do extra checks for sharedInbox recipients being blocked
+						ll.WithContext(lw.Ctx{"blocked": localRec.GetLink(), "actor": actor.GetLink()}).Debugf("activity actor has blocked sharedInbox recipient")
+						continue
+					}
+					if p.actorHasBlockedFn(localRec)(actor) {
+						// NOTE(marius): we do extra checks for sharedInbox recipient having blocked the actor
+						ll.WithContext(lw.Ctx{"actor": localRec.GetLink(), "blocked": actor.GetLink()}).Debugf("sharedInbox recipient has blocked activity actor")
 						continue
 					}
 
