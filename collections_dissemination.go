@@ -79,7 +79,7 @@ func (p P) disseminateToRemoteCollections(it vocab.Item, iris ...vocab.IRI) erro
 			}()
 			ll := p.l.WithContext(lw.Ctx{"to": col, "retry": currentRetry, "delay": delay.String()})
 			if _, _, err := p.c.CtxToCollection(context.TODO(), it, col); err != nil {
-				ll.Warnf("Unable to disseminate activity %s", err)
+				ll.WithContext(lw.Ctx{"err": err}).Warnf("Unable to disseminate activity")
 				switch {
 				case errors.IsConflict(err):
 					// Resource already exists
@@ -178,6 +178,12 @@ func (p *P) disseminateToLocalCollections(it vocab.Item, iris ...vocab.IRI) erro
 				sharedInboxRecipients := loadSharedInboxRecipients(p, col.GetLink())
 				next = make([]ssm.Fn, 0, len(sharedInboxRecipients))
 				for _, localRec := range sharedInboxRecipients {
+					if !p.IsLocalIRI(localRec.GetLink()) {
+						// NOTE(marius): this shouldn't really happen as a shared inbox should be shared only
+						//  by actors on the same instance.
+						continue
+					}
+
 					newCol := vocab.Inbox.IRI(localRec)
 					if vocab.IRIs(iris).Contains(newCol) {
 						// NOTE(marius): skip actors that already exist in the list of collections
@@ -251,10 +257,11 @@ func (p P) AddItemToCollection(col vocab.IRI, it vocab.Item) error {
 // to them if they are local.
 func disseminateItemToLocalInReplyToCollections(p *P, it vocab.Item) error {
 	return vocab.OnItem(it, func(it vocab.Item) error {
-		replyToCollections := p.BuildReplyToCollections(it)
-		lCtx := lw.Ctx{"replyTo": replyToCollections, "it": it.GetLink()}
-		if err := p.AddToLocalCollections(it, replyToCollections...); err != nil {
-			p.l.WithContext(lCtx, lw.Ctx{"err": err}).Warnf("unable to add object to replyTo collections")
+		if replyToCollections := p.BuildReplyToCollections(it); len(replyToCollections) >= 0 {
+			lCtx := lw.Ctx{"replyTo": replyToCollections, "it": it.GetLink()}
+			if err := p.AddToLocalCollections(it, replyToCollections...); err != nil {
+				p.l.WithContext(lCtx, lw.Ctx{"err": err}).Warnf("unable to add object to replyTo collections")
+			}
 		}
 		return nil
 	})

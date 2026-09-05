@@ -140,7 +140,7 @@ func TestP_AddActivity(t *testing.T) {
 			_ = vocab.OnItem(got.Target, func(tgt vocab.Item) error {
 				col, err := p.s.Load(tgt.GetLink())
 				if err != nil {
-					t.Errorf("AddActivity() unable to load target form storage: %v", err)
+					t.Errorf("AddActivity() unable to load target form storage: %+v", err)
 					return nil
 				}
 				target, ok := col.(vocab.CollectionInterface)
@@ -235,7 +235,7 @@ func TestP_RemoveActivity(t *testing.T) {
 			_ = vocab.OnItem(got.Target, func(tgt vocab.Item) error {
 				col, err := p.s.Load(tgt.GetLink())
 				if err != nil {
-					t.Errorf("RemoveActivity() unable to load target form storage: %v", err)
+					t.Errorf("RemoveActivity() unable to load target form storage: %+v", err)
 					return nil
 				}
 				target, ok := col.(vocab.CollectionInterface)
@@ -338,7 +338,7 @@ func TestP_MoveActivity(t *testing.T) {
 			_ = vocab.OnItem(got.Origin, func(orig vocab.Item) error {
 				col, err := p.s.Load(orig.GetLink())
 				if err != nil {
-					t.Errorf("MoveActivity() unable to load origin form storage: %v", err)
+					t.Errorf("MoveActivity() unable to load origin form storage: %+v", err)
 					return nil
 				}
 				origin, ok := col.(vocab.CollectionInterface)
@@ -356,7 +356,7 @@ func TestP_MoveActivity(t *testing.T) {
 			_ = vocab.OnItem(got.Target, func(tgt vocab.Item) error {
 				col, err := p.s.Load(tgt.GetLink())
 				if err != nil {
-					t.Errorf("MoveActivity() unable to load target form storage: %v", err)
+					t.Errorf("MoveActivity() unable to load target form storage: %+v", err)
 					return nil
 				}
 				target, ok := col.(vocab.CollectionInterface)

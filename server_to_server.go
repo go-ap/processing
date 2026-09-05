@@ -123,11 +123,11 @@ func (p P) ProcessServerInboxDelivery(it vocab.Item, receivedIn vocab.IRI, first
 
 	sync := func() {
 		if err := p.AddToLocalCollections(it, recipients...); err != nil {
-			p.l.Warnf("errors when disseminating to local actors: %s", err)
+			p.l.WithContext(lw.Ctx{"err": err}).Warnf("errors when disseminating to local actors")
 		}
 
 		if err := p.ForwardFromInbox(it, toForward, firstDelivery); err != nil {
-			p.l.Warnf("errors when forwarding to remote actors: %s", err)
+			p.l.WithContext(lw.Ctx{"err": err}).Warnf("errors when forwarding to remote actors")
 		}
 	}
 
