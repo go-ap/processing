@@ -15,7 +15,6 @@ func (p *P) AddActivity(add *vocab.Add) (*vocab.Activity, error) {
 	if vocab.IsNil(add) {
 		return nil, InvalidActivity("nil Add activity")
 	}
-
 	if vocab.IsNil(add.Object) {
 		return nil, InvalidActivityObject("unable to Add nil object")
 	}
@@ -23,23 +22,30 @@ func (p *P) AddActivity(add *vocab.Add) (*vocab.Activity, error) {
 		return nil, InvalidActivityObject("unable to Add to nil target")
 	}
 
-	addCtx := lw.Ctx{}
+	targets := make(vocab.IRIs, 0)
+	toAdd := make(vocab.ItemCollection, 0)
+
 	// NOTE(marius): we use [vocab.OnItem] here to handle both the cases when the target or the object
 	// are composed of multiple items.
-	err := vocab.OnItem(add.Target, func(target vocab.Item) error {
+	_ = vocab.OnItem(add.Target, func(it vocab.Item) error {
 		// NOTE(marius): this behaviour has no atomicity, as we exit at first failure
 		// and we don't undo any of the previous adds if target was composed of multiple collections.
-		addCtx["to"] = target.GetLink()
-		return vocab.OnItem(add.Object, func(object vocab.Item) error {
-			addCtx["object"] = object.GetLink()
-			return p.s.AddTo(target.GetLink(), object)
-		})
+		return targets.Append(it.GetLink())
 	})
-	if err != nil && !errors.IsConflict(err) {
-		p.l.WithContext(addCtx, lw.Ctx{"err": err.Error()}).Warnf("unable to add object")
-		return nil, errors.Annotatef(err, "unable to add %s to target collection %s", add.Object, add.Target)
-	}
+	_ = vocab.OnItem(add.Object, func(object vocab.Item) error {
+		return toAdd.Append(object.GetLink())
+	})
 
+	errs := make([]error, 0, len(targets))
+	for _, target := range targets {
+		if err := p.s.AddTo(target, toAdd...); err != nil && !errors.IsConflict(err) {
+			p.l.WithContext(lw.Ctx{"target": target, "items": toAdd, "err": err}).Warnf("unable to add object")
+			errs = append(errs, err)
+		}
+	}
+	if len(errs) > 0 {
+		return nil, errors.Annotatef(errors.Join(errs...), "unable to add %s to target collection %s", add.Object, add.Target)
+	}
 	return add, nil
 }
 
@@ -49,7 +55,6 @@ func (p *P) RemoveActivity(remove *vocab.Remove) (*vocab.Activity, error) {
 	if vocab.IsNil(remove) {
 		return nil, InvalidActivity("nil Remove activity")
 	}
-
 	if vocab.IsNil(remove.Object) {
 		return nil, InvalidActivityObject("unable to Remove nil object")
 	}
@@ -57,21 +62,29 @@ func (p *P) RemoveActivity(remove *vocab.Remove) (*vocab.Activity, error) {
 		return nil, InvalidActivityObject("unable to Remove from nil origin")
 	}
 
-	removeCtx := lw.Ctx{}
+	origins := make(vocab.IRIs, 0)
+	toRemove := make(vocab.ItemCollection, 0)
+
 	// NOTE(marius): we use OnItem here to handle both the cases when the target or the object
 	//  are composed of multiple items.
-	err := vocab.OnItem(remove.Origin, func(target vocab.Item) error {
+	_ = vocab.OnItem(remove.Origin, func(it vocab.Item) error {
 		// NOTE(marius): this behaviour has no atomicity, as we exit at first failure
 		//  and we don't undo any of the previous removals if origin was composed of multiple collections.
-		removeCtx["from"] = target.GetLink()
-		return vocab.OnItem(remove.Object, func(object vocab.Item) error {
-			removeCtx["item"] = object.GetLink()
-			return p.s.RemoveFrom(target.GetLink(), object)
-		})
+		return origins.Append(it.GetLink())
 	})
-	if err != nil {
-		p.l.WithContext(removeCtx, lw.Ctx{"err": err.Error()}).Warnf("unable to remove object")
-		return nil, errors.Annotatef(err, "unable to remove %s from target collection %s", remove.Object, remove.Target)
+	_ = vocab.OnItem(remove.Object, func(object vocab.Item) error {
+		return toRemove.Append(object.GetLink())
+	})
+
+	errs := make([]error, 0, len(origins))
+	for _, origin := range origins {
+		if err := p.s.RemoveFrom(origin, toRemove...); err != nil {
+			p.l.WithContext(lw.Ctx{"from": origin, "items": toRemove, "err": err}).Warnf("unable to remove object")
+			errs = append(errs, err)
+		}
+	}
+	if len(errs) > 0 {
+		return nil, errors.Annotatef(errors.Join(errs...), "unable to remove %s from target collection %s", remove.Object, remove.Target)
 	}
 	return remove, nil
 }
@@ -89,23 +102,40 @@ func (p *P) MoveActivity(move *vocab.Activity) (*vocab.Activity, error) {
 		return p.UpdateObjectID(move)
 	}
 
-	// NOTE(marius): we use [vocab.OnItem] here to handle the cases when the target, the origin or the object
-	// are composed of multiple items.
-	moveCtx := lw.Ctx{"from": move.Origin.GetLink(), "to": move.Target.GetLink(), "object": move.Object.GetLink()}
-	err := vocab.OnItem(move.Object, func(object vocab.Item) error {
-		err := vocab.OnItem(move.Origin, func(origin vocab.Item) error {
-			return p.s.RemoveFrom(origin.GetLink(), object)
-		})
-		if err != nil {
-			return err
-		}
-		return vocab.OnItem(move.Target, func(target vocab.Item) error {
-			return p.s.AddTo(target.GetLink(), object)
-		})
+	origins := make(vocab.IRIs, 0)
+	targets := make(vocab.IRIs, 0)
+	toMove := make(vocab.ItemCollection, 0)
+
+	// NOTE(marius): we use OnItem here to handle both the cases when the target or the object
+	//  are composed of multiple items.
+	_ = vocab.OnItem(move.Origin, func(it vocab.Item) error {
+		// NOTE(marius): this behaviour has no atomicity, as we exit at first failure
+		//  and we don't undo any of the previous removals if origin was composed of multiple collections.
+		return origins.Append(it.GetLink())
 	})
-	if err != nil && !errors.IsConflict(err) {
-		p.l.WithContext(moveCtx, lw.Ctx{"err": err.Error()}).Warnf("unable to move object")
-		return nil, errors.Annotatef(err, "unable to move %s from origin collection %s to target collection %s", move.Object, move.Origin, move.Target)
+	// NOTE(marius): we use [vocab.OnItem] here to handle both the cases when the target or the object
+	// are composed of multiple items.
+	_ = vocab.OnItem(move.Target, func(it vocab.Item) error {
+		// NOTE(marius): this behaviour has no atomicity, as we exit at first failure
+		// and we don't undo any of the previous adds if target was composed of multiple collections.
+		return targets.Append(it.GetLink())
+	})
+	_ = vocab.OnItem(move.Object, func(object vocab.Item) error {
+		return toMove.Append(object.GetLink())
+	})
+
+	errs := make([]error, 0, len(targets))
+	for _, target := range targets {
+		if err := p.s.AddTo(target, toMove...); err != nil && !errors.IsConflict(err) {
+			p.l.WithContext(lw.Ctx{"target": target, "items": toMove, "err": err}).Warnf("unable to add object for move operation")
+			errs = append(errs, err)
+		}
+	}
+	for _, origin := range origins {
+		if err := p.s.RemoveFrom(origin, toMove...); err != nil {
+			p.l.WithContext(lw.Ctx{"from": origin, "items": toMove, "err": err}).Warnf("unable to remove object for move operation")
+			errs = append(errs, err)
+		}
 	}
 
 	return move, nil
