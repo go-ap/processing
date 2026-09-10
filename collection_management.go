@@ -33,7 +33,7 @@ func (p *P) AddActivity(add *vocab.Add) (*vocab.Activity, error) {
 		return targets.Append(it.GetLink())
 	})
 	_ = vocab.OnItem(add.Object, func(object vocab.Item) error {
-		return toAdd.Append(object.GetLink())
+		return toAdd.Append(object)
 	})
 
 	errs := make([]error, 0, len(targets))
@@ -73,7 +73,7 @@ func (p *P) RemoveActivity(remove *vocab.Remove) (*vocab.Activity, error) {
 		return origins.Append(it.GetLink())
 	})
 	_ = vocab.OnItem(remove.Object, func(object vocab.Item) error {
-		return toRemove.Append(object.GetLink())
+		return toRemove.Append(object)
 	})
 
 	errs := make([]error, 0, len(origins))
@@ -121,7 +121,7 @@ func (p *P) MoveActivity(move *vocab.Activity) (*vocab.Activity, error) {
 		return targets.Append(it.GetLink())
 	})
 	_ = vocab.OnItem(move.Object, func(object vocab.Item) error {
-		return toMove.Append(object.GetLink())
+		return toMove.Append(object)
 	})
 
 	errs := make([]error, 0, len(targets))
