@@ -173,16 +173,12 @@ func AcceptActivity(p *P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Act
 		return act, errors.BadRequestf("Missing actor for %s Activity", act.Type)
 	}
 
-	if vocab.IsIRI(act.Object) {
-		// dereference object activity
-		if actLoader, ok := p.s.(ReadStore); ok {
-			var err error
-			if act.Object, err = actLoader.Load(act.Object.GetLink()); err != nil {
-				return act, errors.BadRequestf("Unable to dereference object: %s", act.Object.GetLink())
-			}
-		}
+	var err error
+	// dereference object activity
+	if act.Object, err = p.DereferenceItem(act.Object); err != nil {
+		p.l.WithContext(lw.Ctx{"iri": act.Object.GetLink()}).Warnf("unable to dereference object")
 	}
-	err := vocab.OnActivity(act.Object, func(follow *vocab.Activity) error {
+	err = vocab.OnActivity(act.Object, func(follow *vocab.Activity) error {
 		if err := dispatchFollowSideEffectToLocalCollections(p, follow); err != nil {
 			return err
 		}

@@ -92,5 +92,5 @@ func (p P) DereferenceItem(it vocab.Item) (vocab.Item, error) {
 			}
 		}
 	}
-	return firstOrItem(toKeep), nil
+	return toKeep.Normalize(), nil
 }
