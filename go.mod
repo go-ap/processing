@@ -5,16 +5,16 @@ go 1.26.0
 require (
 	git.sr.ht/~mariusor/lw v0.0.0-20260910124117-d80376e1433e
 	git.sr.ht/~mariusor/ssm v0.0.0-20260505081700-875e54c38633
-	github.com/go-ap/activitypub v0.0.0-20260909093825-f72cfa142bd0
-	github.com/go-ap/client v0.0.0-20260910124519-85c4b1876743
+	github.com/go-ap/activitypub v0.0.0-20260912133130-64400e895afb
+	github.com/go-ap/client v0.0.0-20260912143512-3b253ad1ec1f
 	github.com/go-ap/errors v0.0.0-20260701132509-92e5e4fd6394
-	github.com/go-ap/filters v0.0.0-20260909101441-177fa69736fd
+	github.com/go-ap/filters v0.0.0-20260912142558-3ae29b7e3a3a
 	github.com/go-ap/jsonld v0.0.0-20260607140920-737b40e0ca38
 	github.com/google/go-cmp v0.7.0
 )
 
 require (
-	git.sr.ht/~mariusor/cache v0.0.0-20260516133819-5427e9c3067b // indirect
+	git.sr.ht/~mariusor/cache v0.0.0-20260911160635-3a397efbb885 // indirect
 	git.sr.ht/~mariusor/go-xsd-duration v0.0.0-20220703122237-02e73435a078 // indirect
 	github.com/RoaringBitmap/roaring v1.9.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
