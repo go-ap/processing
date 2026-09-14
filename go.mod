@@ -5,10 +5,10 @@ go 1.26.0
 require (
 	git.sr.ht/~mariusor/lw v0.0.0-20260910124117-d80376e1433e
 	git.sr.ht/~mariusor/ssm v0.0.0-20260505081700-875e54c38633
-	github.com/go-ap/activitypub v0.0.0-20260913133145-416f1c0ed9a1
-	github.com/go-ap/client v0.0.0-20260913133407-5c321018b994
+	github.com/go-ap/activitypub v0.0.0-20260914124931-8ec3d41415b0
+	github.com/go-ap/client v0.0.0-20260914130311-2e1aa88ea2f9
 	github.com/go-ap/errors v0.0.0-20260701132509-92e5e4fd6394
-	github.com/go-ap/filters v0.0.0-20260913133245-971d96337e18
+	github.com/go-ap/filters v0.0.0-20260914130005-a94e6e63f9e9
 	github.com/go-ap/jsonld v0.0.0-20260607140920-737b40e0ca38
 	github.com/google/go-cmp v0.7.0
 )
@@ -54,7 +54,7 @@ require (
 	golang.org/x/text v0.42.0 // indirect
 	golang.org/x/tools v0.49.0 // indirect
 	gopkg.in/neurosnap/sentences.v1 v1.0.7 // indirect
-	quamina.net/go/quamina/v2 v2.0.2 // indirect
+	quamina.net/go/quamina/v2 v2.0.3 // indirect
 )
 
 tool (
