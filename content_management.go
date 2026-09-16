@@ -650,34 +650,26 @@ func (p *P) updateObjectForCreate(o *vocab.Object, act *vocab.Activity) error {
 		o.AttributedTo = act.Actor.GetLink()
 	}
 
-	// Merging the activity's and the object's "Audience"
-	if aud := vocab.ItemCollectionDeduplication(&act.Audience, &o.Audience); aud != nil {
-		o.Audience = vocab.FlattenItemCollection(aud)
-		act.Audience = vocab.FlattenItemCollection(aud)
-	}
-	// Merging the activity's and the object's "To" addressing
-	if to := vocab.ItemCollectionDeduplication(&act.To, &o.To); to != nil {
-		o.To = vocab.FlattenItemCollection(to)
-		act.To = vocab.FlattenItemCollection(to)
-	}
-	// Merging the activity's and the object's "Bto" addressing
-	if bto := vocab.ItemCollectionDeduplication(&act.Bto, &o.Bto); bto != nil {
-		o.Bto = vocab.FlattenItemCollection(bto)
-		act.Bto = vocab.FlattenItemCollection(bto)
-	}
-	// Merging the activity's and the object's "Cc" addressing
-	if cc := vocab.ItemCollectionDeduplication(&act.CC, &o.CC); cc != nil {
-		o.CC = vocab.FlattenItemCollection(cc)
-		act.CC = vocab.FlattenItemCollection(cc)
-	}
-	// Merging the activity's and the object's "Bcc" addressing
-	if bcc := vocab.ItemCollectionDeduplication(&act.BCC, &o.BCC); bcc != nil {
-		o.BCC = vocab.FlattenItemCollection(bcc)
-		act.BCC = vocab.FlattenItemCollection(bcc)
+	dedup := func(a, o *vocab.ItemCollection) {
+		if common := vocab.ItemCollectionDeduplication(a, o); len(common) > 0 {
+			*o = vocab.FlattenItemCollection(common)
+			*a = vocab.FlattenItemCollection(common)
+		}
 	}
 
+	// Merging the activity's and the object's "Audience"
+	dedup(&act.Audience, &o.Audience)
+	// Merging the activity's and the object's "To" addressing
+	dedup(&act.To, &o.To)
+	// Merging the activity's and the object's "Bto" addressing
+	dedup(&act.Bto, &o.Bto)
+	// Merging the activity's and the object's "Cc" addressing
+	dedup(&act.CC, &o.CC)
+	// Merging the activity's and the object's "Bcc" addressing
+	dedup(&act.BCC, &o.BCC)
+
 	// TODO(marius): Move these to a ProcessObject function
-	// Set the published date
+	//  Set the published date
 	if o.Published.IsZero() {
 		o.Published = time.Now().UTC()
 	}

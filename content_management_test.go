@@ -270,3 +270,92 @@ func compareItems(x, y any) bool {
 }
 
 var EquateItems = cmp.FilterValues(areItems, cmp.Comparer(compareItems))
+
+func TestP_updateObjectForCreate(t *testing.T) {
+	type args struct {
+		o   *vocab.Object
+		act *vocab.Activity
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{
+			name:    "empty",
+			args:    args{},
+			wantErr: false,
+		},
+		{
+			name: "audience",
+			args: args{
+				o:   &vocab.Object{Audience: vocab.ItemCollection{vocab.IRI("http://example.com/1")}},
+				act: &vocab.Activity{Audience: vocab.ItemCollection{vocab.IRI("http://example.com/2")}},
+			},
+			wantErr: false,
+		},
+		{
+			name: "to",
+			args: args{
+				o:   &vocab.Object{To: vocab.ItemCollection{vocab.IRI("http://example.com/1")}},
+				act: &vocab.Activity{To: vocab.ItemCollection{vocab.IRI("http://example.com/2")}},
+			},
+			wantErr: false,
+		},
+		{
+			name: "cc",
+			args: args{
+				o:   &vocab.Object{CC: vocab.ItemCollection{vocab.IRI("http://example.com/1")}},
+				act: &vocab.Activity{CC: vocab.ItemCollection{vocab.IRI("http://example.com/2")}},
+			},
+			wantErr: false,
+		},
+		{
+			name: "bto",
+			args: args{
+				o:   &vocab.Object{Bto: vocab.ItemCollection{vocab.IRI("http://example.com/1")}},
+				act: &vocab.Activity{Bto: vocab.ItemCollection{vocab.IRI("http://example.com/2")}},
+			},
+			wantErr: false,
+		},
+		{
+			name: "bcc",
+			args: args{
+				o:   &vocab.Object{BCC: vocab.ItemCollection{vocab.IRI("http://example.com/1")}},
+				act: &vocab.Activity{BCC: vocab.ItemCollection{vocab.IRI("http://example.com/2")}},
+			},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := &P{createIDFn: defaultIDGenerator("http://example.com/ids")}
+
+			if err := p.updateObjectForCreate(tt.args.o, tt.args.act); (err != nil) != tt.wantErr {
+				t.Errorf("updateObjectForCreate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.args.o == nil || tt.args.act == nil {
+				return
+			}
+			if !cmp.Equal(tt.args.o.Audience, tt.args.act.Audience, EquateItems) {
+				t.Errorf("updateObjectForCreate(): Audience diff %s", cmp.Diff(tt.args.o.Audience, tt.args.act.Audience, EquateItems))
+			}
+			// To
+			if !cmp.Equal(tt.args.o.To, tt.args.act.To, EquateItems) {
+				t.Errorf("updateObjectForCreate(): To diff %s", cmp.Diff(tt.args.o.To, tt.args.act.To, EquateItems))
+			}
+			// CC
+			if !cmp.Equal(tt.args.o.CC, tt.args.act.CC, EquateItems) {
+				t.Errorf("updateObjectForCreate(): CC diff %s", cmp.Diff(tt.args.o.CC, tt.args.act.CC, EquateItems))
+			}
+			// Bto
+			if !cmp.Equal(tt.args.o.Bto, tt.args.act.Bto, EquateItems) {
+				t.Errorf("updateObjectForCreate(): Bto diff %s", cmp.Diff(tt.args.o.Bto, tt.args.act.Bto, EquateItems))
+			}
+			// BCC
+			if !cmp.Equal(tt.args.o.BCC, tt.args.act.BCC, EquateItems) {
+				t.Errorf("updateObjectForCreate(): BCC diff %s", cmp.Diff(tt.args.o.BCC, tt.args.act.BCC, EquateItems))
+			}
+		})
+	}
+}
