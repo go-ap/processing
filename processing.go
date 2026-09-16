@@ -148,25 +148,26 @@ func (p P) ProcessActivity(it vocab.Item, author vocab.Actor, receivedIn vocab.I
 	}
 }
 
-func (p *P) createNewTags(tags vocab.ItemCollection, parent vocab.Item) error {
-	if len(tags) == 0 {
+func (p *P) createNewTags(tags vocab.Item, parent vocab.Item) error {
+	if vocab.IsNil(tags) {
 		return nil
 	}
 	// According to the example in the Implementation Notes on the Activity Streams Vocabulary spec,
 	// tag objects are ActivityStreams Objects without a type, that's why we use an empty string valid type:
 	// https://www.w3.org/TR/activitystreams-vocabulary/#microsyntaxes
 	validTagTypes := vocab.ActivityVocabularyTypes{vocab.MentionType, vocab.ObjectType, vocab.NilType}
-	for _, tag := range tags {
+	_ = vocab.OnItem(tags, func(tag vocab.Item) error {
 		if validTagTypes.Match(tag.GetType()) {
-			continue
+			return nil
 		}
 		if id := tag.GetID(); len(id) > 0 {
-			continue
+			return nil
 		}
 		if err := SetIDIfMissing(tag, parent, p.createIDFn); err == nil {
 			tag, _ = p.s.Save(tag)
 		}
-	}
+		return nil
+	})
 	return nil
 }
 
