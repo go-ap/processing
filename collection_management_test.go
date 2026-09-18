@@ -91,11 +91,11 @@ func TestP_AddActivity(t *testing.T) {
 			base: "https://jdoe.example.local",
 			add: &vocab.Activity{
 				Target: vocab.IRI("https://jdoe.example.com/inbox"),
-				Object: &vocab.Object{ID: "https://example.com", Type: vocab.ProfileType, Content: vocab.NaturalLanguageValuesNew(vocab.DefaultLangRef("test"))},
+				Object: &vocab.Object{ID: "https://example.com", Type: vocab.ProfileType, Content: vocab.LangValues(vocab.DefaultLangRef("test"))},
 			},
 			want: &vocab.Activity{
 				Target: vocab.IRI("https://jdoe.example.com/inbox"),
-				Object: &vocab.Object{ID: "https://example.com", Type: vocab.ProfileType, Content: vocab.NaturalLanguageValuesNew(vocab.DefaultLangRef("test"))},
+				Object: &vocab.Object{ID: "https://example.com", Type: vocab.ProfileType, Content: vocab.LangValues(vocab.DefaultLangRef("test"))},
 			},
 		},
 		{
@@ -189,7 +189,7 @@ func TestP_RemoveActivity(t *testing.T) {
 		{
 			name:  "remove random object from inbox",
 			base:  "https://jdoe.example.local",
-			items: vocab.ItemCollection{&vocab.Object{ID: "https://example.com", Type: vocab.ProfileType, Content: vocab.NaturalLanguageValuesNew(vocab.DefaultLangRef("test"))}},
+			items: vocab.ItemCollection{&vocab.Object{ID: "https://example.com", Type: vocab.ProfileType, Content: vocab.LangValues(vocab.DefaultLangRef("test"))}},
 			remove: &vocab.Activity{
 				Origin: vocab.IRI("https://jdoe.example.com/inbox"),
 				Object: vocab.IRI("https://example.com"),
@@ -287,7 +287,7 @@ func TestP_MoveActivity(t *testing.T) {
 			name: "move random object from inbox to outbox",
 			base: "https://jdoe.example.local",
 			items: vocab.ItemCollection{
-				&vocab.Object{ID: "https://example.com", Type: vocab.ProfileType, Content: vocab.NaturalLanguageValuesNew(vocab.DefaultLangRef("test"))},
+				&vocab.Object{ID: "https://example.com", Type: vocab.ProfileType, Content: vocab.LangValues(vocab.DefaultLangRef("test"))},
 			},
 			remove: &vocab.Activity{
 				Origin: vocab.IRI("https://jdoe.example.com/inbox"),

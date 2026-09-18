@@ -143,7 +143,7 @@ var (
 
 	defaultActor = &vocab.Actor{
 		ID:        defaultActorID,
-		Name:      vocab.NaturalLanguageValuesNew(vocab.DefaultLangRef("John Doe")),
+		Name:      vocab.LangValues(vocab.DefaultLangRef("John Doe")),
 		Likes:     vocab.IRIf(defaultActorID, vocab.Likes),
 		Shares:    vocab.IRIf(defaultActorID, vocab.Shares),
 		Inbox:     vocab.IRIf(defaultActorID, vocab.Inbox),
@@ -207,17 +207,17 @@ func Test_cleanupMediaObjectFromItem(t *testing.T) {
 		},
 		{
 			name: "non empty, w/o data content",
-			it:   &vocab.Object{Content: vocab.DefaultNaturalLanguage("test")},
-			want: &vocab.Object{Content: vocab.DefaultNaturalLanguage("test")},
+			it:   &vocab.Object{Content: vocab.DefaultLangValue("test")},
+			want: &vocab.Object{Content: vocab.DefaultLangValue("test")},
 		},
 		{
 			name: "non empty, w/ data content, no ID",
-			it:   &vocab.Object{Content: vocab.DefaultNaturalLanguage("data:image/png;base64,AAA")},
+			it:   &vocab.Object{Content: vocab.DefaultLangValue("data:image/png;base64,AAA")},
 			want: &vocab.Object{},
 		},
 		{
 			name: "non empty, w/ data content, has ID",
-			it:   &vocab.Object{ID: vocab.IRI("https://example.com"), Content: vocab.DefaultNaturalLanguage("data:image/png;base64,AAA")},
+			it:   &vocab.Object{ID: vocab.IRI("https://example.com"), Content: vocab.DefaultLangValue("data:image/png;base64,AAA")},
 			want: &vocab.Object{ID: vocab.IRI("https://example.com"), URL: vocab.IRI("https://example.com")},
 		},
 	}
