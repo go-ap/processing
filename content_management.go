@@ -652,7 +652,9 @@ func (p *P) updateObjectForCreate(o *vocab.Object, act *vocab.Activity) error {
 	// Merging the activity's and the object's "Bcc" addressing
 	dedup(&act.BCC, &o.BCC)
 
-	o.Published = time.Now().UTC()
+	if o.Published.IsZero() {
+		o.Published = time.Now().UTC()
+	}
 
 	// NOTE(marius): set the activity's ID _after_ we updated the recipients.
 	// See the extra check done in processClientActivity before setting the Activity ID.
