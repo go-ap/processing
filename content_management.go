@@ -266,25 +266,19 @@ func CreateActivityFromClient(p *P, act *vocab.Activity) (*vocab.Activity, error
 		if err := p.CreateCollectionsForObject(ob); err != nil {
 			return errors.Annotatef(err, "unable to save collections for object: %s", ob.GetLink())
 		}
+		if err = p.updateCreateActivityObject(ob, act); err != nil {
+			return errors.Annotatef(err, "unable to create activity's object %s", ob.GetLink())
+		}
+
+		if ob, err = p.s.Save(vocab.FlattenProperties(ob)); err != nil {
+			return errors.Annotatef(err, "unable to save object to storage %s", ob.GetLink())
+		}
+
+		_ = disseminateItemToLocalInReplyToCollections(p, ob)
 		return nil
 	})
-	if err != nil {
-		return act, err
-	}
 
-	if err = p.updateCreateActivityObject(act.Object, act); err != nil {
-		return act, errors.Annotatef(err, "unable to create activity's object %s", act.Object.GetLink())
-	}
-
-	if err = disseminateItemToLocalInReplyToCollections(p, act.Object); err != nil {
-		return act, err
-	}
-
-	if act.Object, err = p.s.Save(vocab.FlattenProperties(act.Object)); err != nil {
-		return act, errors.Annotatef(err, "unable to save object to storage %s", act.Object.GetLink())
-	}
-
-	return act, nil
+	return act, err
 }
 
 // UndoCreateActivity
@@ -497,19 +491,18 @@ func CreateActivityFromServer(p *P, act *vocab.Activity) (*vocab.Activity, error
 // The receiving server MUST take care to be sure that the Update is authorized to modify its object. At minimum,
 // this may be done by ensuring that the Update and its object are of same origin.
 func (p *P) UpdateActivity(upd *vocab.Activity) (*vocab.Activity, error) {
-	obj := make(vocab.ItemCollection, 0, 2)
+
 	err := vocab.OnItem(upd.Object, func(ob vocab.Item) error {
-		old, err := p.loadAndUpdateSingleItem(ob)
+		ob, err := p.loadAndUpdateSingleItem(ob)
 		if err != nil {
 			return err
 		}
-		return obj.Append(old)
+		return nil
 	})
 	if err != nil {
 		return upd, err
 	}
-	upd.Object = obj.Normalize()
-	return upd, disseminateItemToLocalInReplyToCollections(p, obj)
+	return upd, disseminateItemToLocalInReplyToCollections(p, upd.Object)
 }
 
 func (p *P) loadAndUpdateSingleItem(it vocab.Item) (vocab.Item, error) {
