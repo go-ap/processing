@@ -5,7 +5,6 @@ import (
 
 	"git.sr.ht/~mariusor/lw"
 	vocab "github.com/go-ap/activitypub"
-	"github.com/go-ap/errors"
 )
 
 // C2SProcessor
@@ -156,19 +155,23 @@ func (p *P) processClientIntransitiveActivity(act vocab.Item, receivedIn vocab.I
 }
 
 func (p *P) processClientActivity(act *vocab.Activity, receivedIn vocab.IRI) (vocab.Item, error) {
-	if len(act.GetLink()) == 0 {
-		if err := SetIDIfMissing(act, nil, p.createIDFn); err != nil {
-			return act, err
-		}
-	}
 	if vocab.IsNil(act.Object) {
 		return act, InvalidActivityObject("is nil")
 	}
 
-	var err error
 	typ := act.GetType()
+
+	// NOTE(marius): due to how we copy the recipients from the object to the Create activities, the Create might
+	// not be "Public" at this time, so we set the ID specifically after we have handled that. See updateObjectForCreate.
+	if vocab.EmptyIRI.Equal(act.ID) && !(vocab.CreateType.Match(typ) && !vocab.RelationshipType.Match(act.Object.GetType())) {
+		if err := SetIDIfMissing(act, nil, p.createIDFn); err != nil {
+			return act, err
+		}
+	}
+
 	// TODO(marius): this does not work correctly if act.Object is an ItemCollection
 	//  First we process the activity to effect whatever changes we need to on the activity properties.
+	var err error
 	switch {
 	case vocab.ContentManagementActivityTypes.Match(typ) && !vocab.RelationshipType.Match(act.Object.GetType()):
 		act, err = ContentManagementActivityFromClient(p, act)
@@ -210,7 +213,7 @@ func (p *P) processClientActivity(act *vocab.Activity, receivedIn vocab.IRI) (vo
 	// Making a local copy of the activity in order to not lose information that could be required
 	// later in the call system.
 	toSave := *act
-	if _, err := p.s.Save(vocab.FlattenProperties(&toSave)); err != nil {
+	if _, err = p.s.Save(vocab.FlattenProperties(&toSave)); err != nil {
 		return act, err
 	}
 
@@ -247,27 +250,27 @@ func (p *P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab
 	if vocab.IsNil(act) {
 		return nil
 	}
-	loader := p.s
 
 	actor := act.Actor
+
 	allRecipients := make(vocab.ItemCollection, 0)
-
-	// NOTE(marius): append the "receivedIn" collection to the list of recipients
-	//  We do this, because it could be missing from the Activity's recipients fields (to, bto, cc, bcc)
-	_ = allRecipients.Append(receivedIn)
-
 	_ = vocab.OnItem(actor, func(actor vocab.Item) error {
-		// NOTE(marius): this is needed only for client to server interactions
-		if vocab.IsNil(actor) || p.IsLocal(actor) {
-			return nil
-		}
-		// NOTE(marius): this most likely overlaps with the logic above,
+		// NOTE(marius): this most likely overlaps with the logic below,
 		//  of adding the receivedIn collection to the recipients list.
 		if actIRI := actor.GetLink(); !vocab.PublicNS.Equal(actIRI) {
-			_ = allRecipients.Append(vocab.Outbox.IRI(actIRI))
+			where := vocab.Inbox
+			if p.IsLocal(actor) {
+				where = vocab.Outbox
+			}
+			return allRecipients.Append(where.IRI(actIRI))
 		}
 		return nil
 	})
+
+	// NOTE(marius): append the "receivedIn" collection to the list of recipients
+	//  We do this, because its Actor could be missing from the Activity's recipients fields (to, bto, cc, bcc)
+	//  The previous step, would probably have added it anyway, but we do it again, just to be sure.
+	_ = allRecipients.Append(receivedIn)
 
 	actorHasBlocked := p.actorHasBlockedFn(actor)
 
@@ -302,11 +305,8 @@ func (p *P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab
 				continue
 			}
 
-			recipient, err := loader.Load(recIRI)
-			if (err != nil && errors.IsNotFound(err)) && !p.IsLocalIRI(recIRI) {
-				recipient, err = p.c.LoadIRI(recIRI)
-			}
-			if vocab.IsNil(recipient) {
+			recipient, err := p.DereferenceItem(recIRI)
+			if err != nil || vocab.IsNil(recipient) {
 				continue
 			}
 

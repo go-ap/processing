@@ -331,7 +331,7 @@ func (p P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab
 // ValidateClientContentManagementActivity
 func ValidateClientContentManagementActivity(l ReadStore, act *vocab.Activity) error {
 	if vocab.IsNil(act.Object) {
-		return errors.BadRequestf("nil object for %s activity", act.Type)
+		return errors.BadRequestf("nil object for %v activity", act.Type)
 	}
 
 	return vocab.OnItem(act.Object, func(ob vocab.Item) error {
@@ -343,7 +343,7 @@ func ValidateClientContentManagementActivity(l ReadStore, act *vocab.Activity) e
 			fallthrough
 		case vocab.DeleteType.Match(act.Type):
 			if len(ob.GetLink()) == 0 {
-				return errors.BadRequestf("empty object id for %s activity", act.Type)
+				return errors.BadRequestf("empty object id for %v activity", act.Type)
 			}
 			if !vocab.IsObject(ob) {
 				return nil
@@ -532,7 +532,7 @@ func (p P) ValidateClientActor(a vocab.Item, expected vocab.Actor) (vocab.Item, 
 	// NOTE(marius): we use OnItem for the cases where the received
 	// actor is actually a slice of actors
 	err := vocab.OnItem(a, func(item vocab.Item) error {
-		if !p.IsLocal(a.GetLink()) {
+		if !p.IsLocal(item.GetLink()) {
 			return errors.Newf("%s is not a local IRI", a.GetLink())
 		}
 		return nil
@@ -569,20 +569,27 @@ func (p P) ValidateActor(a vocab.Item, expected vocab.Actor) (vocab.Item, error)
 	if a, err = p.DereferenceItem(a); err != nil {
 		return a, errors.NewBadRequest(err, "unable to dereference Activity Actor")
 	}
+
+	// NOTE(marius): we check that among the actors of the activity we have at least one that
+	// matches the one we extracted from the authorization mechanism.
+	foundExpected := false
 	err = vocab.OnActor(a, func(act *vocab.Actor) error {
-		a = act
 		if typ := act.GetType(); !vocab.ActorTypes.Match(typ) {
 			return InvalidActivityActor("invalid type %v", typ)
 		}
-		if !expected.GetLink().Equal(act.GetLink()) {
-			return InvalidActivityActor("the actor doesn't match the authenticated one")
+		if !foundExpected {
+			foundExpected = act.ID.Equal(expected.GetLink())
 		}
 		return nil
 	})
+	if err == nil && !foundExpected {
+		err = InvalidActivityActor("the actor doesn't match the authenticated one")
+	}
 	return a, err
 }
 
 func (p P) ValidateClientObject(o vocab.Item) (vocab.Item, error) {
+	objects := make(vocab.ItemCollection, 0, 2)
 	err := vocab.OnItem(o, func(it vocab.Item) error {
 		if vocab.IsNil(it) {
 			return InvalidActivityObject("is nil")
@@ -591,10 +598,10 @@ func (p P) ValidateClientObject(o vocab.Item) (vocab.Item, error) {
 		if it, err = p.DereferenceItem(it); err != nil {
 			return errors.NewBadRequest(err, "unable to dereference Activity Object")
 		}
-		o = firstOrItem(it)
+		objects.Append(it)
 		return nil
 	})
-	return o, err
+	return objects.Normalize(), err
 }
 
 func (p P) ValidateServerObject(o vocab.Item) (vocab.Item, error) {

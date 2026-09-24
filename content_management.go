@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"strconv"
 	"time"
 
 	vocab "github.com/go-ap/activitypub"
@@ -70,15 +69,22 @@ func defaultIDGenerator(base vocab.IRI) IDGenerator {
 }
 
 func SetIDIfMissing(it vocab.Item, parentActivity vocab.Item, createIDFn IDGenerator) error {
-	if !vocab.IsItemCollection(it) {
-		if len(it.GetID()) > 0 {
+	return vocab.OnItem(it, func(it vocab.Item) error {
+		if !vocab.EmptyIRI.Equal(it.GetID()) {
 			return nil
 		}
 		id, err := createIDFn(it, parentActivity)
 		if err != nil {
 			return err
 		}
-		if it.GetID().Equal("") {
+		u, err := id.URL()
+		if err != nil {
+			return err
+		}
+		if u.Scheme == "" || u.Host == "" {
+			return errors.Newf("generated id is invalid: %s", id)
+		}
+		if vocab.EmptyIRI.Equal(it.GetID()) {
 			// NOTE(marius): if the createIDFn didn't set the ID itself, we set it.
 			// This feels a bit redundant at the moment, especially since we can get the ID with it.GetID() if we need it.
 			// A potential solution is to remove the ID from the return value of the createIDFn and expect the funciton
@@ -86,25 +92,6 @@ func SetIDIfMissing(it vocab.Item, parentActivity vocab.Item, createIDFn IDGener
 			return vocab.OnObject(it, setID(id))
 		}
 		return nil
-	}
-	colCreateId := func(it vocab.Item, byActivity vocab.Item, idx int) (vocab.ID, error) {
-		iri, err := createIDFn(it, byActivity)
-		if err != nil {
-			return iri, err
-		}
-		return iri.AddPath(strconv.Itoa(idx + 1)), nil
-	}
-	return vocab.OnItemCollection(it, func(col *vocab.ItemCollection) error {
-		m := make([]error, 0)
-		for i, c := range *col {
-			if len(c.GetID()) > 0 {
-				continue
-			}
-			if _, err := colCreateId(c, parentActivity, i); err != nil {
-				m = append(m, err)
-			}
-		}
-		return errors.Join(m...)
 	})
 }
 
@@ -268,16 +255,21 @@ func CreateActivityFromClient(p *P, act *vocab.Activity) (*vocab.Activity, error
 		return act, err
 	}
 
-	if vocab.ActorTypes.Match(act.Object.GetType()) {
-		// TODO(marius): @PreHook@ we can replace this with a pre-hook function on Create activities to create they keys
-		if err = vocab.OnActor(act.Object, p.actorKeyGenFn); err != nil {
-			return act, errors.Annotatef(err, "unable to generate private/public key pair for object %s", act.Object.GetLink())
+	err = vocab.OnItem(act.Object, func(ob vocab.Item) error {
+		if vocab.ActorTypes.Match(ob.GetType()) {
+			// TODO(marius): @PreHook@ we can replace this with a pre-hook function on Create activities to create they keys
+			if err := vocab.OnActor(ob, p.actorKeyGenFn); err != nil {
+				return errors.Annotatef(err, "unable to generate private/public key pair for object %s", ob.GetLink())
+			}
 		}
-	}
-
-	// TODO(marius): @PreHook@ we can replace this functionality with a function that creates the collections
-	if err = p.CreateCollectionsForObject(act.Object); err != nil {
-		return act, errors.Annotatef(err, "unable to save collections for object")
+		// TODO(marius): @PreHook@ we can replace this functionality with a function that creates the collections
+		if err := p.CreateCollectionsForObject(ob); err != nil {
+			return errors.Annotatef(err, "unable to save collections for object: %s", ob.GetLink())
+		}
+		return nil
+	})
+	if err != nil {
+		return act, err
 	}
 
 	if err = p.updateCreateActivityObject(act.Object, act); err != nil {
@@ -505,32 +497,19 @@ func CreateActivityFromServer(p *P, act *vocab.Activity) (*vocab.Activity, error
 // The receiving server MUST take care to be sure that the Update is authorized to modify its object. At minimum,
 // this may be done by ensuring that the Update and its object are of same origin.
 func (p *P) UpdateActivity(upd *vocab.Activity) (*vocab.Activity, error) {
-	var err error
-	ob := upd.Object
-
-	if vocab.IsItemCollection(ob) {
-		err = vocab.OnItemCollection(ob, func(col *vocab.ItemCollection) error {
-			for i, it := range *col {
-				old, err := p.loadAndUpdateSingleItem(it)
-				if err != nil {
-					return err
-				}
-				(*col)[i] = old
-			}
-			upd.Object = *col
-			return nil
-		})
-		if err != nil {
-			return upd, err
-		}
-	} else {
+	obj := make(vocab.ItemCollection, 0, 2)
+	err := vocab.OnItem(upd.Object, func(ob vocab.Item) error {
 		old, err := p.loadAndUpdateSingleItem(ob)
 		if err != nil {
-			return upd, err
+			return err
 		}
-		upd.Object = old
+		return obj.Append(old)
+	})
+	if err != nil {
+		return upd, err
 	}
-	return upd, disseminateItemToLocalInReplyToCollections(p, upd.Object)
+	upd.Object = obj.Normalize()
+	return upd, disseminateItemToLocalInReplyToCollections(p, obj)
 }
 
 func (p *P) loadAndUpdateSingleItem(it vocab.Item) (vocab.Item, error) {
@@ -641,13 +620,17 @@ func (p *P) updateUpdateActivityObject(o vocab.Item) error {
 }
 
 func (p *P) updateObjectForCreate(o *vocab.Object, act *vocab.Activity) error {
-	if o == nil {
+	if o == nil || act == nil {
 		return nil
 	}
 	// See https://www.w3.org/TR/ActivityPub/#create-activity-outbox
 	// Copying the actor's IRI to the object's "AttributedTo"
 	if vocab.IsNil(o.AttributedTo) && !vocab.IsNil(act.Actor) {
-		o.AttributedTo = act.Actor.GetLink()
+		actors := make(vocab.IRIs, 0, 2)
+		_ = vocab.OnItem(act.Actor, func(item vocab.Item) error {
+			return actors.Append(item.GetLink())
+		})
+		o.AttributedTo = actors.Normalize()
 	}
 
 	dedup := func(a, o *vocab.ItemCollection) {
@@ -656,6 +639,9 @@ func (p *P) updateObjectForCreate(o *vocab.Object, act *vocab.Activity) error {
 			*a = vocab.FlattenItemCollection(common)
 		}
 	}
+
+	// TODO(marius): Move these to a ProcessObject function
+	//  Set the published date
 
 	// Merging the activity's and the object's "Audience"
 	dedup(&act.Audience, &o.Audience)
@@ -668,10 +654,14 @@ func (p *P) updateObjectForCreate(o *vocab.Object, act *vocab.Activity) error {
 	// Merging the activity's and the object's "Bcc" addressing
 	dedup(&act.BCC, &o.BCC)
 
-	// TODO(marius): Move these to a ProcessObject function
-	//  Set the published date
 	if o.Published.IsZero() {
 		o.Published = time.Now().UTC()
+	}
+
+	// NOTE(marius): set the activity's ID _after_ we updated the recipients.
+	// See the extra check done in processClientActivity before setting the Activity ID.
+	if err := SetIDIfMissing(act, nil, p.createIDFn); err != nil {
+		return err
 	}
 
 	// NOTE(marius): now that we've set the object's attributedTo, we
@@ -682,6 +672,7 @@ func (p *P) updateObjectForCreate(o *vocab.Object, act *vocab.Activity) error {
 	return p.updateObjectForUpdate(o)
 }
 
+// updateCreateActivityObject updates the activity and object's recipients.
 func (p *P) updateCreateActivityObject(o vocab.Item, act *vocab.Activity) error {
 	if vocab.IsLink(o) {
 		return nil
