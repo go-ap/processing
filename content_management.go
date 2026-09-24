@@ -517,7 +517,7 @@ func (p *P) loadAndUpdateSingleItem(it vocab.Item) (vocab.Item, error) {
 	if err != nil {
 		return it, err
 	}
-	if old, err = p.updateSingleItem(firstOrItem(old), it); err != nil {
+	if old, err = p.updateSingleItem(old, it); err != nil {
 		return it, err
 	}
 	return old, nil
@@ -604,9 +604,7 @@ func (p *P) updateObjectForUpdate(o *vocab.Object) error {
 	if o == nil {
 		return nil
 	}
-	if o.Updated.IsZero() {
-		o.Updated = time.Now().UTC()
-	}
+	o.Updated = time.Now().UTC()
 	// NOTE(marius): We're trying to automatically save tags as separate objects instead
 	// of storing them inline in the current Object.
 	return p.createNewTags(o.Tag, o)
@@ -654,9 +652,7 @@ func (p *P) updateObjectForCreate(o *vocab.Object, act *vocab.Activity) error {
 	// Merging the activity's and the object's "Bcc" addressing
 	dedup(&act.BCC, &o.BCC)
 
-	if o.Published.IsZero() {
-		o.Published = time.Now().UTC()
-	}
+	o.Published = time.Now().UTC()
 
 	// NOTE(marius): set the activity's ID _after_ we updated the recipients.
 	// See the extra check done in processClientActivity before setting the Activity ID.
@@ -669,7 +665,9 @@ func (p *P) updateObjectForCreate(o *vocab.Object, act *vocab.Activity) error {
 	if err := SetIDIfMissing(o, act, p.createIDFn); err != nil {
 		return err
 	}
-	return p.updateObjectForUpdate(o)
+	// NOTE(marius): We're trying to automatically save tags as separate objects instead
+	// of storing them inline in the current Object.
+	return p.createNewTags(o.Tag, o)
 }
 
 // updateCreateActivityObject updates the activity and object's recipients.

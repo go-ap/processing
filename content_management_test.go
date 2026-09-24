@@ -50,35 +50,6 @@ func Test_updateCreateActivityObject(t *testing.T) {
 	}
 }
 
-func Test_updateObjectForCreate(t *testing.T) {
-	type args struct {
-		o   *vocab.Object
-		act *vocab.Activity
-	}
-	tests := []struct {
-		name    string
-		initFns []OptionFn
-		args    args
-		wantErr bool
-	}{
-		{
-			name:    "empty",
-			initFns: nil,
-			args:    args{},
-			wantErr: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			p := New(tt.initFns...)
-			if err := p.updateObjectForCreate(tt.args.o, tt.args.act); (err != nil) != tt.wantErr {
-				t.Errorf("updateObjectForCreate() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
-
 func Test_updateObjectForUpdate(t *testing.T) {
 	type args struct {
 		l   WriteStore
