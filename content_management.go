@@ -107,7 +107,7 @@ func ContentManagementActivityFromClient(p *P, act *vocab.Activity) (*vocab.Acti
 	var err error
 	switch {
 	case vocab.CreateType.Match(act.Type):
-		act, err = CreateActivityFromClient(p, act)
+		act, err = p.CreateActivityFromClient(act)
 	case vocab.UpdateType.Match(act.Type):
 		act, err = p.UpdateActivity(act)
 	case vocab.DeleteType.Match(act.Type):
@@ -249,7 +249,7 @@ func validateCreateObjectIsNew(p *P, ob vocab.Item) error {
 // Receiving a Create activity in an inbox has surprisingly few side effects; the activity should appear in the actor's
 // inbox, and it is likely that the server will want to locally store a representation of this activity and its
 // accompanying object. However, this mostly happens in general with processing activities delivered to an inbox anyway.
-func CreateActivityFromClient(p *P, act *vocab.Activity) (*vocab.Activity, error) {
+func (p *P) CreateActivityFromClient(act *vocab.Activity) (*vocab.Activity, error) {
 	err := validateCreateObjectIsNew(p, act.Object)
 	if err != nil {
 		return act, err
@@ -261,10 +261,6 @@ func CreateActivityFromClient(p *P, act *vocab.Activity) (*vocab.Activity, error
 			if err := vocab.OnActor(ob, p.actorKeyGenFn); err != nil {
 				return errors.Annotatef(err, "unable to generate private/public key pair for object %s", ob.GetLink())
 			}
-		}
-		// TODO(marius): @PreHook@ we can replace this functionality with a function that creates the collections
-		if err := p.CreateCollectionsForObject(ob); err != nil {
-			return errors.Annotatef(err, "unable to save collections for object: %s", ob.GetLink())
 		}
 		if err = p.updateCreateActivityObject(ob, act); err != nil {
 			return errors.Annotatef(err, "unable to create activity's object %s", ob.GetLink())
@@ -346,19 +342,23 @@ func (p P) saveCollectionObjectForParent(parent, colIt vocab.Item) error {
 	if vocab.IsNil(colIt) {
 		// NOTE(marius): We respect the originating's object creator intention regarding which collections of an object to
 		// create, so it's their responsibility to populate them with IRIs or full Collection Objects.
+		//
+		// This is slightly unergonomic because for objects that don't have an ID set by the client, they also won't have
+		// collection IRIs.
+		return nil
+	}
+	// NOTE(marius): check first if collection exists
+	if _, err := p.s.Load(colIt.GetLink()); err == nil {
 		return nil
 	}
 	if vocab.IsIRI(colIt) {
 		// NOTE(marius): if the collection passed from the parent object is a Collection type we respect that,
 		// otherwise we replace it with an OrderedCollection.
-		colIt = blankOrderedCollection(colIt.GetLink())
-	}
-	if _, err := p.s.Load(colIt.GetLink()); err == nil {
-		return nil
+		colIt = blankOrderedCollection(colIt.GetLink(), parent)
 	}
 
 	var to, cc, bto, bcc, audience vocab.ItemCollection
-	published := time.Now().Truncate(time.Second).UTC()
+	published := time.Now().Round(time.Millisecond).UTC()
 	_ = vocab.OnObject(parent, func(p *vocab.Object) error {
 		to = p.To
 		bto = p.Bto
@@ -379,7 +379,6 @@ func (p P) saveCollectionObjectForParent(parent, colIt vocab.Item) error {
 		bcc = nil
 		audience = nil
 	}
-
 	_ = vocab.OnObject(colIt, func(c *vocab.Object) error {
 		c.To = to
 		c.CC = cc
@@ -387,17 +386,14 @@ func (p P) saveCollectionObjectForParent(parent, colIt vocab.Item) error {
 		c.BCC = bcc
 		c.Audience = audience
 		c.Published = published
-		if authorIRI := parent.GetLink(); authorIRI != "" {
-			c.AttributedTo = authorIRI
-		}
 		return nil
 	})
 	_, err := p.s.Save(colIt)
 	return err
 }
 
-func blankOrderedCollection(iri vocab.IRI) *vocab.OrderedCollection {
-	return &vocab.OrderedCollection{ID: iri, Type: vocab.OrderedCollectionType}
+func blankOrderedCollection(iri vocab.IRI, author vocab.Item) *vocab.OrderedCollection {
+	return &vocab.OrderedCollection{ID: iri, Type: vocab.OrderedCollectionType, AttributedTo: author.GetLink()}
 }
 
 // CreateCollectionsForObject creates the objects corresponding to each collection that an Actor has set.
@@ -405,27 +401,29 @@ func (p *P) CreateCollectionsForObject(it vocab.Item) error {
 	if vocab.IsNil(it) || !vocab.IsObject(it) {
 		return nil
 	}
-
-	if vocab.ActorTypes.Match(it.GetType()) {
-		_ = vocab.OnActor(it, func(a *vocab.Actor) error {
-			_ = p.saveCollectionObjectForParent(a, a.Inbox)
-			_ = p.saveCollectionObjectForParent(a, a.Outbox)
-			_ = p.saveCollectionObjectForParent(a, a.Followers)
-			_ = p.saveCollectionObjectForParent(a, a.Following)
-			_ = p.saveCollectionObjectForParent(a, a.Liked)
-			// NOTE(marius): shadow creating hidden collections for Blocked and Ignored items
-			// They do not exist on the actor, so we force their creation
-			_ = p.saveCollectionObjectForParent(a, blankOrderedCollection(filters.BlockedType.IRI(a)))
-			_ = p.saveCollectionObjectForParent(a, blankOrderedCollection(filters.IgnoredType.IRI(a)))
-			return nil
-		})
-	}
-	return vocab.OnObject(it, func(o *vocab.Object) error {
+	createCollectionsForObjectFn := func(o *vocab.Object) error {
 		_ = p.saveCollectionObjectForParent(o, o.Replies)
 		_ = p.saveCollectionObjectForParent(o, o.Likes)
 		_ = p.saveCollectionObjectForParent(o, o.Shares)
 		return nil
-	})
+	}
+	createCollectionsForActorFn := func(a *vocab.Actor) error {
+		_ = p.saveCollectionObjectForParent(a, a.Inbox)
+		_ = p.saveCollectionObjectForParent(a, a.Outbox)
+		_ = p.saveCollectionObjectForParent(a, a.Followers)
+		_ = p.saveCollectionObjectForParent(a, a.Following)
+		_ = p.saveCollectionObjectForParent(a, a.Liked)
+		// NOTE(marius): shadow creating hidden collections for Blocked and Ignored items
+		// They do not exist on the actor, so we force their creation
+		_ = p.saveCollectionObjectForParent(a, filters.BlockedType.IRI(a))
+		_ = p.saveCollectionObjectForParent(a, filters.IgnoredType.IRI(a))
+		return vocab.OnObject(a, createCollectionsForObjectFn)
+	}
+
+	if vocab.ActorTypes.Match(it.GetType()) {
+		return vocab.OnActor(it, createCollectionsForActorFn)
+	}
+	return vocab.OnObject(it, createCollectionsForObjectFn)
 }
 
 func deref(ctx context.Context, c client.Basic, it vocab.Item) (vocab.Item, error) {
@@ -597,6 +595,9 @@ func (p *P) updateObjectForUpdate(o *vocab.Object) error {
 	if o == nil {
 		return nil
 	}
+	if err := p.CreateCollectionsForObject(o); err != nil {
+		return errors.Annotatef(err, "unable to save collections for object: %s", o.GetLink())
+	}
 	o.Updated = time.Now().UTC()
 	// NOTE(marius): We're trying to automatically save tags as separate objects instead
 	// of storing them inline in the current Object.
@@ -614,6 +615,11 @@ func (p *P) updateObjectForCreate(o *vocab.Object, act *vocab.Activity) error {
 	if o == nil || act == nil {
 		return nil
 	}
+
+	if err := p.CreateCollectionsForObject(o); err != nil {
+		return errors.Annotatef(err, "unable to save collections for object: %s", o.GetLink())
+	}
+
 	// See https://www.w3.org/TR/ActivityPub/#create-activity-outbox
 	// Copying the actor's IRI to the object's "AttributedTo"
 	if vocab.IsNil(o.AttributedTo) && !vocab.IsNil(act.Actor) {
