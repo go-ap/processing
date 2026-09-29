@@ -591,84 +591,85 @@ func (p *P) updateSingleItem(found vocab.Item, with vocab.Item) (vocab.Item, err
 	return p.s.Save(found)
 }
 
-func (p *P) updateObjectForUpdate(o *vocab.Object) error {
-	if o == nil {
+func (p *P) updateObjectForUpdate(it vocab.Item) error {
+	if vocab.IsNil(it) {
 		return nil
 	}
-	if err := p.CreateCollectionsForObject(o); err != nil {
-		return errors.Annotatef(err, "unable to save collections for object: %s", o.GetLink())
-	}
-	o.Updated = time.Now().UTC()
-	// NOTE(marius): We're trying to automatically save tags as separate objects instead
-	// of storing them inline in the current Object.
-	return p.createNewTags(o.Tag, o)
+	return vocab.OnObject(it, func(o *vocab.Object) error {
+		o.Updated = time.Now().UTC()
+		// NOTE(marius): We're trying to automatically save tags as separate objects instead
+		// of storing them inline in the current Object.
+		return p.createNewTags(o.Tag, o)
+	})
 }
 
-func (p *P) updateUpdateActivityObject(o vocab.Item) error {
-	if vocab.IsLink(o) {
+func (p *P) updateUpdateActivityObject(it vocab.Item) error {
+	if vocab.IsLink(it) {
 		return nil
 	}
-	return vocab.OnObject(o, p.updateObjectForUpdate)
+	return p.updateObjectForUpdate(it)
 }
 
-func (p *P) updateObjectForCreate(o *vocab.Object, act *vocab.Activity) error {
-	if o == nil || act == nil {
+func (p *P) updateObjectForCreate(it vocab.Item, act *vocab.Activity) error {
+	if act == nil || vocab.IsNil(it) {
 		return nil
 	}
 
-	if err := p.CreateCollectionsForObject(o); err != nil {
-		return errors.Annotatef(err, "unable to save collections for object: %s", o.GetLink())
+	if err := p.CreateCollectionsForObject(it); err != nil {
+		return errors.Annotatef(err, "unable to save collections for object: %s", it.GetLink())
 	}
 
-	// See https://www.w3.org/TR/ActivityPub/#create-activity-outbox
-	// Copying the actor's IRI to the object's "AttributedTo"
-	if vocab.IsNil(o.AttributedTo) && !vocab.IsNil(act.Actor) {
-		actors := make(vocab.IRIs, 0, 2)
-		_ = vocab.OnItem(act.Actor, func(item vocab.Item) error {
-			return actors.Append(item.GetLink())
-		})
-		o.AttributedTo = actors.Normalize()
-	}
-
-	dedup := func(a, o *vocab.ItemCollection) {
-		if common := vocab.ItemCollectionDeduplication(a, o); len(common) > 0 {
-			*o = vocab.FlattenItemCollection(common)
-			*a = vocab.FlattenItemCollection(common)
+	return vocab.OnObject(it, func(o *vocab.Object) error {
+		// See https://www.w3.org/TR/ActivityPub/#create-activity-outbox
+		// Copying the actor's IRI to the object's "AttributedTo"
+		if vocab.IsNil(o.AttributedTo) && !vocab.IsNil(act.Actor) {
+			actors := make(vocab.IRIs, 0, 2)
+			_ = vocab.OnItem(act.Actor, func(item vocab.Item) error {
+				return actors.Append(item.GetLink())
+			})
+			o.AttributedTo = actors.Normalize()
 		}
-	}
 
-	// TODO(marius): Move these to a ProcessObject function
-	//  Set the published date
+		dedup := func(a, o *vocab.ItemCollection) {
+			if common := vocab.ItemCollectionDeduplication(a, o); len(common) > 0 {
+				*o = vocab.FlattenItemCollection(common)
+				*a = vocab.FlattenItemCollection(common)
+			}
+		}
 
-	// Merging the activity's and the object's "Audience"
-	dedup(&act.Audience, &o.Audience)
-	// Merging the activity's and the object's "To" addressing
-	dedup(&act.To, &o.To)
-	// Merging the activity's and the object's "Bto" addressing
-	dedup(&act.Bto, &o.Bto)
-	// Merging the activity's and the object's "Cc" addressing
-	dedup(&act.CC, &o.CC)
-	// Merging the activity's and the object's "Bcc" addressing
-	dedup(&act.BCC, &o.BCC)
+		// TODO(marius): Move these to a ProcessObject function
+		//  Set the published date
 
-	if o.Published.IsZero() {
-		o.Published = time.Now().UTC()
-	}
+		// Merging the activity's and the object's "Audience"
+		dedup(&act.Audience, &o.Audience)
+		// Merging the activity's and the object's "To" addressing
+		dedup(&act.To, &o.To)
+		// Merging the activity's and the object's "Bto" addressing
+		dedup(&act.Bto, &o.Bto)
+		// Merging the activity's and the object's "Cc" addressing
+		dedup(&act.CC, &o.CC)
+		// Merging the activity's and the object's "Bcc" addressing
+		dedup(&act.BCC, &o.BCC)
 
-	// NOTE(marius): set the activity's ID _after_ we updated the recipients.
-	// See the extra check done in processClientActivity before setting the Activity ID.
-	if err := SetIDIfMissing(act, nil, p.createIDFn); err != nil {
-		return err
-	}
+		if o.Published.IsZero() {
+			o.Published = time.Now().UTC()
+		}
 
-	// NOTE(marius): now that we've set the object's attributedTo, we
-	// can try to set its ID.
-	if err := SetIDIfMissing(o, act, p.createIDFn); err != nil {
-		return err
-	}
-	// NOTE(marius): We're trying to automatically save tags as separate objects instead
-	// of storing them inline in the current Object.
-	return p.createNewTags(o.Tag, o)
+		// NOTE(marius): set the activity's ID _after_ we updated the recipients.
+		// See the extra check done in processClientActivity before setting the Activity ID.
+		if err := SetIDIfMissing(act, nil, p.createIDFn); err != nil {
+			return err
+		}
+
+		// NOTE(marius): now that we've set the object's attributedTo, we
+		// can try to set its ID.
+		if err := SetIDIfMissing(o, act, p.createIDFn); err != nil {
+			return err
+		}
+		// NOTE(marius): We're trying to automatically save tags as separate objects instead
+		// of storing them inline in the current Object.
+		return p.createNewTags(o.Tag, o)
+	})
 }
 
 // updateCreateActivityObject updates the activity and object's recipients.
@@ -676,9 +677,7 @@ func (p *P) updateCreateActivityObject(o vocab.Item, act *vocab.Activity) error 
 	if vocab.IsLink(o) {
 		return nil
 	}
-	return vocab.OnObject(o, func(o *vocab.Object) error {
-		return p.updateObjectForCreate(o, act)
-	})
+	return p.updateObjectForCreate(o, act)
 }
 
 // DeleteActivity
