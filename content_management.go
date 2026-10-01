@@ -489,12 +489,9 @@ func CreateActivityFromServer(p *P, act *vocab.Activity) (*vocab.Activity, error
 // The receiving server MUST take care to be sure that the Update is authorized to modify its object. At minimum,
 // this may be done by ensuring that the Update and its object are of same origin.
 func (p *P) UpdateActivity(upd *vocab.Activity) (*vocab.Activity, error) {
-	err := vocab.OnItem(upd.Object, func(ob vocab.Item) error {
-		ob, err := p.loadAndUpdateSingleItem(ob)
-		if err != nil {
-			return err
-		}
-		return nil
+	err := vocab.OnItem(upd.Object, func(ob vocab.Item) (err error) {
+		upd.Object, err = p.loadAndUpdateSingleItem(ob)
+		return err
 	})
 	if err != nil {
 		return upd, err
