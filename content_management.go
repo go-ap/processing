@@ -489,7 +489,6 @@ func CreateActivityFromServer(p *P, act *vocab.Activity) (*vocab.Activity, error
 // The receiving server MUST take care to be sure that the Update is authorized to modify its object. At minimum,
 // this may be done by ensuring that the Update and its object are of same origin.
 func (p *P) UpdateActivity(upd *vocab.Activity) (*vocab.Activity, error) {
-
 	err := vocab.OnItem(upd.Object, func(ob vocab.Item) error {
 		ob, err := p.loadAndUpdateSingleItem(ob)
 		if err != nil {
@@ -599,7 +598,7 @@ func (p *P) updateObjectForUpdate(it vocab.Item) error {
 		o.Updated = time.Now().UTC()
 		// NOTE(marius): We're trying to automatically save tags as separate objects instead
 		// of storing them inline in the current Object.
-		return p.createNewTags(o.Tag, o)
+		return p.createNewTags(o.Tag, it)
 	})
 }
 
@@ -668,7 +667,7 @@ func (p *P) updateObjectForCreate(it vocab.Item, act *vocab.Activity) error {
 		}
 		// NOTE(marius): We're trying to automatically save tags as separate objects instead
 		// of storing them inline in the current Object.
-		return p.createNewTags(o.Tag, o)
+		return p.createNewTags(o.Tag, it)
 	})
 }
 
