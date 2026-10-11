@@ -419,7 +419,7 @@ func loadSharedInboxRecipients(p *P, sharedInbox vocab.IRI) vocab.ItemCollection
 		for {
 			col, err := p.s.Load(iri)
 			if err != nil {
-				p.l.Warnf("unable to load actors for sharedInbox check: %+s", err)
+				p.l.Tracef("unable to load actors for sharedInbox check: %v", err)
 				break
 			}
 			_ = vocab.OnCollectionIntf(col, func(col vocab.CollectionInterface) error {

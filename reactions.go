@@ -14,32 +14,32 @@ import (
 // This can include activities such as liking or disliking content, ignoring updates,
 // flagging content as being inappropriate, accepting or rejecting objects, etc.
 func (p *P) ReactionsActivity(act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activity, error) {
-	var err error
-	if act.Object != nil {
-		switch {
-		case vocab.DislikeType.Match(act.Type):
-			fallthrough
-		case vocab.LikeType.Match(act.Type):
-			act, err = AppreciationActivity(p, act)
-		case vocab.RejectType.Match(act.Type):
-			fallthrough
-		case vocab.TentativeRejectType.Match(act.Type):
-			// I think nothing happens here.
-			act, err = RejectActivity(p.s, act)
-		case vocab.TentativeAcceptType.Match(act.Type):
-			fallthrough
-		case vocab.AcceptType.Match(act.Type):
-			act, err = AcceptActivity(p, act, receivedIn)
-		case vocab.FlagType.Match(act.Type):
-			act, err = FlagActivity(p.s, act)
-		case vocab.BlockType.Match(act.Type):
-			act, err = p.BlockActivity(act, receivedIn)
-		case vocab.IgnoreType.Match(act.Type):
-			act, err = p.IgnoreActivity(act, receivedIn)
-		}
+	if vocab.IsNil(act.Object) {
+		return act, nil
 	}
 
-	return act, err
+	switch {
+	case vocab.DislikeType.Match(act.Type):
+		fallthrough
+	case vocab.LikeType.Match(act.Type):
+		return AppreciationActivity(p, act)
+	case vocab.RejectType.Match(act.Type):
+		fallthrough
+	case vocab.TentativeRejectType.Match(act.Type):
+		// I think nothing happens here.
+		return RejectActivity(p.s, act)
+	case vocab.TentativeAcceptType.Match(act.Type):
+		fallthrough
+	case vocab.AcceptType.Match(act.Type):
+		return AcceptActivity(p, act, receivedIn)
+	case vocab.FlagType.Match(act.Type):
+		return FlagActivity(p.s, act)
+	case vocab.BlockType.Match(act.Type):
+		return p.BlockActivity(act, receivedIn)
+	case vocab.IgnoreType.Match(act.Type):
+		return p.IgnoreActivity(act, receivedIn)
+	}
+	return act, nil
 }
 
 // AppreciationActivity
@@ -278,7 +278,7 @@ func FlagActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
 		return act, errors.BadRequestf("Activity has wrong type %s, expected %s", act.Type, vocab.FlagType)
 	}
 
-	vocab.OnObject(act.Object, func(o *vocab.Object) error {
+	_ = vocab.OnObject(act.Object, func(o *vocab.Object) error {
 		var toRemoveIRI vocab.IRI
 		if !vocab.ActorTypes.Match(o.Type) {
 			if o.AttributedTo != nil {
