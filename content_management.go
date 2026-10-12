@@ -773,7 +773,7 @@ func (p P) loadTombstoneForDelete(toRemove *vocab.ItemCollection) func(vocab.Ite
 			Type:       vocab.TombstoneType,
 			To:         vocab.ItemCollection{vocab.PublicNS},
 			Deleted:    p.timeNowFn(),
-			FormerType: it.GetType(),
+			FormerType: found.GetType(),
 		}
 		*toRemove = append(*toRemove, t)
 		return nil
