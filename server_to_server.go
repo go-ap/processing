@@ -330,7 +330,7 @@ func (p *P) processServerActivity(act *vocab.Activity, receivedIn vocab.IRI) (vo
 	case vocab.CreateType.Match(typ):
 		act, err = CreateActivityFromServer(p, act)
 	case vocab.DeleteType.Match(typ):
-		act, err = DeleteActivity(p.s, act)
+		act, err = p.DeleteActivity(act)
 	case vocab.ReactionsActivityTypes.Match(typ):
 		act, err = p.ReactionsActivity(act, receivedIn)
 	}

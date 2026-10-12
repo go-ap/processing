@@ -34,6 +34,8 @@ type P struct {
 	// actorKeyGenFn is a function that can be used to generate the public and private key pairs for actors that get
 	// created during the processing of **client** activities.
 	actorKeyGenFn vocab.WithActorFn
+
+	timeNowFn TimeNow
 }
 
 var nilLogger = lw.Nil()
@@ -45,6 +47,7 @@ func New(o ...OptionFn) *P {
 		createIDFn:      emptyIDGenerator,
 		localIRICheckFn: defaultLocalIRICheck,
 		actorKeyGenFn:   defaultKeyGenerator,
+		timeNowFn:       defaultTimeNowFn,
 	}
 	for _, fn := range o {
 		fn(&p)
@@ -73,13 +76,17 @@ func WithDisseminationRetryCount(r int) OptionFn {
 
 func WithIDGenerator(genFn IDGenerator) OptionFn {
 	return func(p *P) {
-		p.createIDFn = genFn
+		if genFn != nil {
+			p.createIDFn = genFn
+		}
 	}
 }
 
 func WithActorKeyGenerator(genFn vocab.WithActorFn) OptionFn {
 	return func(p *P) {
-		p.actorKeyGenFn = genFn
+		if genFn != nil {
+			p.actorKeyGenFn = genFn
+		}
 	}
 }
 
@@ -109,7 +116,17 @@ func WithIRI(i ...vocab.IRI) OptionFn {
 
 func WithLocalIRIChecker(isLocalFn IRIValidator) OptionFn {
 	return func(p *P) {
-		p.localIRICheckFn = isLocalFn
+		if isLocalFn != nil {
+			p.localIRICheckFn = isLocalFn
+		}
+	}
+}
+
+func WithTimeFn(timeNowFn TimeNow) OptionFn {
+	return func(p *P) {
+		if timeNowFn != nil {
+			p.timeNowFn = timeNowFn
+		}
 	}
 }
 

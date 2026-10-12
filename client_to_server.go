@@ -1,8 +1,6 @@
 package processing
 
 import (
-	"time"
-
 	"git.sr.ht/~mariusor/lw"
 	vocab "github.com/go-ap/activitypub"
 )
@@ -127,7 +125,7 @@ func (p *P) processClientIntransitiveActivity(act vocab.Item, receivedIn vocab.I
 			return err
 		}
 		if act.Published.IsZero() {
-			act.Published = time.Now().UTC()
+			act.Published = p.timeNowFn()
 		}
 		return nil
 	})
@@ -202,7 +200,7 @@ func (p *P) processClientActivity(act *vocab.Activity, receivedIn vocab.IRI) (vo
 	}
 
 	if act.Published.IsZero() {
-		act.Published = time.Now().Round(time.Millisecond).UTC()
+		act.Published = p.timeNowFn()
 	}
 
 	sync := func() {

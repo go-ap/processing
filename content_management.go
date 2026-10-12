@@ -22,6 +22,8 @@ type (
 	// IRIValidator designates the type for a function that can validate an IRI
 	// It's currently used as the type for var isLocalIRI
 	IRIValidator func(i vocab.IRI) bool
+	// TimeNow designates the function we use for loading the current local time.
+	TimeNow func() time.Time
 )
 
 func setID(id vocab.IRI) func(ob *vocab.Object) error {
@@ -36,7 +38,7 @@ func emptyIDGenerator(it vocab.Item, maybeCreate vocab.Item) (vocab.ID, error) {
 	if vocab.IsNil(it) {
 		return id, errors.Newf("unable to set ID on nil item")
 	}
-	when := time.Now()
+	when := time.Now().Round(time.Millisecond)
 	if id.Equal(vocab.NilID) && !vocab.IsNil(maybeCreate) {
 		id = maybeCreate.GetLink().AddPath(timeIDFn(when))
 	}
@@ -49,6 +51,8 @@ func emptyIDGenerator(it vocab.Item, maybeCreate vocab.Item) (vocab.ID, error) {
 func defaultLocalIRICheck(i vocab.IRI) bool { return false }
 
 func defaultKeyGenerator(_ *vocab.Actor) error { return nil }
+
+func defaultTimeNowFn() time.Time { return time.Now().UTC() }
 
 var timeIDFn = func(t time.Time) string { return fmt.Sprintf("%d", t.UnixMilli()) }
 
@@ -111,7 +115,7 @@ func ContentManagementActivityFromClient(p *P, act *vocab.Activity) (*vocab.Acti
 	case vocab.UpdateType.Match(act.Type):
 		act, err = p.UpdateActivity(act)
 	case vocab.DeleteType.Match(act.Type):
-		act, err = DeleteActivity(p.s, act)
+		act, err = p.DeleteActivity(act)
 	}
 	if err != nil && !isDuplicateKey(err) {
 		return act, err
@@ -358,7 +362,7 @@ func (p P) saveCollectionObjectForParent(parent, colIt vocab.Item) error {
 	}
 
 	var to, cc, bto, bcc, audience vocab.ItemCollection
-	published := time.Now().Round(time.Millisecond).UTC()
+	published := p.timeNowFn()
 	_ = vocab.OnObject(parent, func(p *vocab.Object) error {
 		to = p.To
 		bto = p.Bto
@@ -592,7 +596,7 @@ func (p *P) updateObjectForUpdate(it vocab.Item) error {
 		return nil
 	}
 	return vocab.OnObject(it, func(o *vocab.Object) error {
-		o.Updated = time.Now().UTC()
+		o.Updated = p.timeNowFn()
 		// NOTE(marius): We're trying to automatically save tags as separate objects instead
 		// of storing them inline in the current Object.
 		return p.createNewTags(o.Tag, it)
@@ -648,7 +652,7 @@ func (p *P) updateObjectForCreate(it vocab.Item, act *vocab.Activity) error {
 		dedup(&act.BCC, &o.BCC)
 
 		if o.Published.IsZero() {
-			o.Published = time.Now().UTC()
+			o.Published = p.timeNowFn()
 		}
 
 		// NOTE(marius): set the activity's ID _after_ we updated the recipients.
@@ -694,13 +698,13 @@ func (p *P) updateCreateActivityObject(o vocab.Item, act *vocab.Activity) error 
 // Note: that after an activity has been transmitted from an origin server to a remote server, there is nothing in the
 //
 // ActivityPub protocol that can enforce remote deletion of an object's representation.
-func DeleteActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
+func (p P) DeleteActivity(act *vocab.Activity) (*vocab.Activity, error) {
 	// NOTE(marius): I think this is only relevant to @c2s processing
 	var err error
 	ob := act.Object
 
 	var toRemove vocab.ItemCollection
-	if err = replaceItemWithTombstone(l, ob, &toRemove); err != nil {
+	if err = p.replaceItemWithTombstone(ob, &toRemove); err != nil {
 		return act, errors.Annotatef(err, "unable to create tombstone for object %s", ob)
 	}
 
@@ -709,7 +713,7 @@ func DeleteActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) 
 	}
 	result := make(vocab.ItemCollection, 0)
 	for _, r := range toRemove {
-		r, err = l.Save(r)
+		r, err = p.s.Save(r)
 		if err != nil {
 			return act, errors.Annotatef(err, "unable to save tombstone for object %s", r)
 		}
@@ -719,8 +723,8 @@ func DeleteActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) 
 	return act, nil
 }
 
-func replaceItemWithTombstone(l WriteStore, it vocab.Item, toRemove *vocab.ItemCollection) error {
-	return vocab.OnItem(it, loadTombstoneForDelete(l, toRemove))
+func (p P) replaceItemWithTombstone(it vocab.Item, toRemove *vocab.ItemCollection) error {
+	return vocab.OnItem(it, p.loadTombstoneForDelete(toRemove))
 }
 
 func removeItemCollections(st WriteStore, it vocab.Item) error {
@@ -751,14 +755,9 @@ func removeItemCollections(st WriteStore, it vocab.Item) error {
 	})
 }
 
-func loadTombstoneForDelete(l WriteStore, toRemove *vocab.ItemCollection) func(vocab.Item) error {
-	loader, ok := l.(ReadStore)
+func (p P) loadTombstoneForDelete(toRemove *vocab.ItemCollection) func(vocab.Item) error {
 	return func(it vocab.Item) error {
-		if !ok {
-			return errors.NotFoundf("unable to load %s %s", it.GetType(), it.GetLink())
-		}
-
-		found, err := loader.Load(it.GetLink())
+		found, err := p.s.Load(it.GetLink())
 		if err != nil {
 			return err
 		}
@@ -767,13 +766,13 @@ func loadTombstoneForDelete(l WriteStore, toRemove *vocab.ItemCollection) func(v
 		}
 
 		// NOTE(marius): we don't want the object's collections to still be accessible
-		_ = removeItemCollections(l, it)
+		_ = removeItemCollections(p.s, it)
 
 		t := vocab.Tombstone{
 			ID:         found.GetLink(),
 			Type:       vocab.TombstoneType,
 			To:         vocab.ItemCollection{vocab.PublicNS},
-			Deleted:    time.Now().UTC(),
+			Deleted:    p.timeNowFn(),
 			FormerType: it.GetType(),
 		}
 		*toRemove = append(*toRemove, t)

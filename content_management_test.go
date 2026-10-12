@@ -217,7 +217,7 @@ func compareErrors(x, y any) bool {
 	if errors.Is(xe, ye) || errors.Is(ye, xe) {
 		return true
 	}
-	return xe.Error() == ye.Error()
+	return (errors.Is(xe, ye) || errors.Is(ye, xe)) && xe.Error() == ye.Error()
 }
 
 var EquateWeakErrors = cmp.FilterValues(areErrors, cmp.Comparer(compareErrors))
