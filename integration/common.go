@@ -47,7 +47,7 @@ func (tt TestPair) TestFn(P *processing.P) func(*testing.T) {
 		if !cmp.Equal(err, tt.WantErr, EquateWeakErrors) {
 			t.Errorf("ProcessActivity() error = %s", cmp.Diff(tt.WantErr, err, EquateWeakErrors))
 		}
-		if want := tt.WantFn(); !cmp.Equal(act, want) {
+		if want := tt.WantFn(); !cmp.Equal(act, want, cmp.Comparer(vocab.ItemsEqual)) {
 			t.Errorf("ProcessActivity() activity = %s", cmp.Diff(want, act, cmp.Comparer(vocab.ItemsEqual)))
 		}
 	}

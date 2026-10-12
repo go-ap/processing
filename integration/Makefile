@@ -14,7 +14,8 @@ endif
 .PHONY: test coverage
 
 test:
-	go test $(TEST_FLAGS) -json ./ -verbose -inbox -outbox | go tool tparse -all -progress -trimpath github.com/go-ap/
+	go test $(TEST_FLAGS) -json ./ -verbose -inbox -outbox | go tool tparse -all -progress -trimpath github.com/go-ap
 
-coverage:
-	go tool covdata percent -i="$(find ./ -iname "coverage" -exec ls -d {} + | tr ' ' ',')"
+#coverage: TEST_FLAGS += -covermode=count -coverprofile $(PROJECT_NAME).coverprofile
+#coverage: test
+#	go tool covdata percent -i="$(find ./ -iname "coverage" -exec ls -d {} + | tr ' ' ',')"
