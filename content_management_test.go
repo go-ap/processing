@@ -300,7 +300,7 @@ func TestP_updateObjectForCreate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := &P{createIDFn: defaultIDGenerator("http://example.com/ids")}
+			p := &P{createIDFn: defaultIDGenerator("http://example.com/ids"), timeNowFn: defaultTimeNowFn}
 
 			if err := p.updateObjectForCreate(tt.args.o, tt.args.act); (err != nil) != tt.wantErr {
 				t.Errorf("updateObjectForCreate() error = %v, wantErr %v", err, tt.wantErr)
