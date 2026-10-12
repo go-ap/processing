@@ -39,7 +39,6 @@ func mockProcessor(t *testing.T, base vocab.IRI) *P {
 	l := lw.Dev(lw.SetOutput(t.Output()))
 	return &P{
 		baseIRI:         vocab.IRIs{base},
-		async:           false,
 		c:               mockClient(t, l),
 		s:               mockStorage(t, l),
 		l:               l,

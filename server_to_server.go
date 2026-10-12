@@ -131,7 +131,7 @@ func (p P) ProcessServerInboxDelivery(it vocab.Item, receivedIn vocab.IRI, first
 		}
 	}
 
-	if p.async {
+	if !p.sync {
 		// TODO(marius): Find another mechanism for running this asynchronously.
 		go sync()
 	} else {

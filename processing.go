@@ -17,7 +17,7 @@ type P struct {
 	l       lw.Logger
 
 	retries int
-	async   bool
+	sync    bool
 
 	// skipValidationOnInboundCollections determines if the validation functionality checks that the collection
 	// which received the activity actually exists.
@@ -57,11 +57,15 @@ func New(o ...OptionFn) *P {
 
 type OptionFn func(s *P)
 
-func Async(p *P) {
-	p.async = true
+// WithSynchronousProcessing configures the processor to not execute any of the potential asynchronous processing steps
+// in an asynchronous manner.
+func WithSynchronousProcessing(p *P) {
+	p.sync = true
 }
 
-func SkipInboundCollectionValidation(p *P) {
+// WithInboundCollectionValidationSkip configures the processor to skip checking that the collection in which the
+// activity that's being processed has been received, actually exists.
+func WithInboundCollectionValidationSkip(p *P) {
 	p.skipValidationOnInboundCollections = true
 }
 
@@ -74,6 +78,7 @@ func WithDisseminationRetryCount(r int) OptionFn {
 	}
 }
 
+// WithIDGenerator specifies the function that generates IDs for Activities and Objects handled in an Outbox.
 func WithIDGenerator(genFn IDGenerator) OptionFn {
 	return func(p *P) {
 		if genFn != nil {
@@ -82,6 +87,8 @@ func WithIDGenerator(genFn IDGenerator) OptionFn {
 	}
 }
 
+// WithActorKeyGenerator specifies the function that generates a Private and Public key pair for an Actor
+// that was created as a side effect of a Create Activity in an Outbox.
 func WithActorKeyGenerator(genFn vocab.WithActorFn) OptionFn {
 	return func(p *P) {
 		if genFn != nil {
@@ -90,30 +97,39 @@ func WithActorKeyGenerator(genFn vocab.WithActorFn) OptionFn {
 	}
 }
 
+// WithLogger sets a logger for the processor.
 func WithLogger(l lw.Logger) OptionFn {
 	return func(p *P) {
 		p.l = l
 	}
 }
 
+// WithClient sets an ActivityPub client on the processor.
+// It will be used to dereference remote IRIs that need a full representation, and also for disseminating
+// Activities to other servers.
+// In order to be able to perform the later it needs to be configured with a valid HTTP-Signatures authorization
+// mechanism.
 func WithClient(c c.Basic) OptionFn {
 	return func(p *P) {
 		p.c = c
 	}
 }
 
+// WithStorage sets the local storage for the processor.
 func WithStorage(s Store) OptionFn {
 	return func(p *P) {
 		p.s = s
 	}
 }
 
+// WithIRI configures the IRI list that the processor considers as being local.
 func WithIRI(i ...vocab.IRI) OptionFn {
 	return func(p *P) {
 		p.baseIRI = i
 	}
 }
 
+// WithLocalIRIChecker configures an external function that is used to determine if an IRI is local.
 func WithLocalIRIChecker(isLocalFn IRIValidator) OptionFn {
 	return func(p *P) {
 		if isLocalFn != nil {
@@ -122,6 +138,8 @@ func WithLocalIRIChecker(isLocalFn IRIValidator) OptionFn {
 	}
 }
 
+// WithTimeFn configures an external function to generate the Published, Updated, Deleted times for
+// Activities and Objects created as side effects of Content Management Outbox operations.
 func WithTimeFn(timeNowFn TimeNow) OptionFn {
 	return func(p *P) {
 		if timeNowFn != nil {
@@ -144,7 +162,8 @@ func validateLocalIRI(s Store, iris ...vocab.IRI) vocab.IRIs {
 	return validIRIs
 }
 
-// ProcessActivity processes an Activity received
+// ProcessActivity processes the "it" Activity received in the "receivedIn" collection.
+// The "author" parameter is the Actor that has been determined to be the Activity's author.
 func (p P) ProcessActivity(it vocab.Item, author vocab.Actor, receivedIn vocab.IRI) (vocab.Item, error) {
 	if vocab.IsNil(it) {
 		return nil, InvalidActivity("received nil")
@@ -225,8 +244,6 @@ func (p *P) actorHasBlockedFn(rec vocab.Item) func(act vocab.Item) bool {
 type KeyLoader interface {
 	LoadKey(vocab.IRI) (crypto.PrivateKey, error)
 }
-
-const OAuthOOBRedirectURN = "urn:ietf:wg:oauth:2.0:oob:auto"
 
 // BuildReplyToCollections builds the list of objects that it is inReplyTo
 func (p *P) BuildReplyToCollections(it vocab.Item) vocab.ItemCollection {
