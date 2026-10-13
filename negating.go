@@ -68,9 +68,10 @@ func (p *P) NegatingActivity(undo *vocab.Activity) (*vocab.Activity, error) {
 // on Inverse Activities and "Undo". The scope and restrictions of the Undo activity are the same as for the Undo
 // activity in the context of client to server interactions, but applied to a federated context.
 func (p *P) UndoActivity(undo *vocab.Activity) (*vocab.Activity, error) {
-	iri := undo.GetLink()
-	if len(iri) == 0 {
-		iri, _ = p.createIDFn(undo, nil)
+	if len(undo.ID) == 0 {
+		if err := SetIDIfMissing(undo, nil, p.createIDFn); err != nil {
+			return undo, err
+		}
 	}
 	_ = vocab.OnActivity(undo.Object, func(toUndo *vocab.Activity) error {
 		_ = toUndo.Bto.Append(undo.Bto...)

@@ -85,23 +85,20 @@ func reqIRI(r *http.Request) vocab.IRI {
 
 // ServeHTTP implements the http.Handler interface for the ActivityHandlerFn type
 func (a ActivityHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	var dat []byte
-	var it vocab.Item
-	var err error
-	var status = http.StatusInternalServerError
-
-	if status, err = a.ValidateRequest(r); err != nil {
+	if _, err := a.ValidateRequest(r); err != nil {
 		errors.HandleError(err).ServeHTTP(w, r)
 		return
 	}
 
 	receivedIn := reqIRI(r)
-	if it, status, err = a(receivedIn, r); err != nil {
+	it, status, err := a(receivedIn, r)
+	if err != nil {
 		errors.HandleError(err).ServeHTTP(w, r)
 		return
 	}
-	needsLocation := slices.Contains([]int{http.StatusNoContent, http.StatusGone}, status)
 
+	needsLocation := slices.Contains([]int{http.StatusNoContent, http.StatusGone}, status)
+	var dat []byte
 	if IsOutbox(receivedIn) && vocab.CreateType.Match(it.GetType()) && status == http.StatusCreated {
 		// NOTE(marius): For Create activities that contain an object we want to return it in the response
 		err = vocab.OnActivity(it, func(act *vocab.Activity) error {
@@ -158,10 +155,7 @@ func (c CollectionHandlerFn) ValidateRequest(r *http.Request) (int, error) {
 func (c CollectionHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var dat []byte
 
-	var status = http.StatusInternalServerError
-	var err error
-
-	status, err = c.ValidateRequest(r)
+	status, err := c.ValidateRequest(r)
 	if err != nil {
 		errors.HandleError(err).ServeHTTP(w, r)
 		return
@@ -209,7 +203,6 @@ func (c CollectionHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		dat = nil
 	}
 
-	status = http.StatusOK
 	if fromCache && ObjectNotUpdatedSince(r.Header, col) {
 		status = http.StatusNotModified
 	}
@@ -260,15 +253,10 @@ const (
 	year = 8766 * time.Hour
 )
 
-var NotModified = errors.NotModified("from cache")
-
 // ServeHTTP implements the http.Handler interface for the ItemHandlerFn type
 func (i ItemHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	var dat []byte
-	var err error
-	status := http.StatusInternalServerError
 
-	status, err = i.ValidateRequest(r)
+	status, err := i.ValidateRequest(r)
 	if err != nil {
 		errors.HandleError(err).ServeHTTP(w, r)
 		return
@@ -315,12 +303,12 @@ func (i ItemHandlerFn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", json.ContentType)
 
+	var dat []byte
 	if dat, err = json.WithContext(json.IRI(vocab.ActivityBaseURI), json.IRI(vocab.SecurityContextURI)).Marshal(it); err != nil {
 		errors.HandleError(err).ServeHTTP(w, r)
 		return
 	}
 
-	status = http.StatusOK
 	switch r.Method {
 	case http.MethodGet:
 		if vocab.TombstoneType.Match(it.GetType()) {

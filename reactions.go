@@ -186,7 +186,7 @@ func (p *P) AcceptActivity(act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Ac
 		if vocab.AcceptType.Match(act.Type) {
 			actor := follow.Actor
 			if !actor.GetLink().Equal(vocab.PublicNS) && !p.IsLocal(actor) && !act.Recipients().Contains(actor) {
-				act.BCC.Append(actor)
+				_ = act.BCC.Append(actor)
 			}
 		}
 		return nil

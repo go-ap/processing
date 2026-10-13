@@ -108,8 +108,7 @@ func (p *P) processClientIntransitiveActivity(act vocab.Item, receivedIn vocab.I
 	typ := act.GetType()
 	if vocab.QuestionActivityTypes.Match(typ) {
 		err := vocab.OnQuestion(act, func(q *vocab.Question) error {
-			var err error
-			q, err = p.QuestionActivity(q)
+			_, err := p.QuestionActivity(q)
 			return err
 		})
 		if err != nil {

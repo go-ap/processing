@@ -3,7 +3,6 @@ package processing
 import (
 	"fmt"
 	"path/filepath"
-	"sync"
 
 	"git.sr.ht/~mariusor/lw"
 	vocab "github.com/go-ap/activitypub"
@@ -57,10 +56,6 @@ type ActorValidator interface {
 //type TargetValidator interface {
 //	ValidTarget(vocab.Item) error
 //}
-
-type ipCache struct {
-	addr sync.Map
-}
 
 var ValidationError = errors.BadRequestf
 
@@ -598,8 +593,7 @@ func (p P) ValidateClientObject(o vocab.Item) (vocab.Item, error) {
 		if it, err = p.DereferenceItem(it); err != nil {
 			return errors.NewBadRequest(err, "unable to dereference Activity Object")
 		}
-		objects.Append(it)
-		return nil
+		return objects.Append(it)
 	})
 	return objects.Normalize(), err
 }

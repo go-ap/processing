@@ -3,7 +3,6 @@ package integration
 import (
 	"crypto/ed25519"
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
 	"testing"
@@ -78,7 +77,6 @@ func (ts TestSuite) Run(t *testing.T, P *processing.P) {
 
 var (
 	_, ed2559Key, _ = ed25519.GenerateKey(rand.Reader)
-	rsaKey, _       = rsa.GenerateKey(rand.Reader, 2048)
 
 	RootID = vocab.IRI("http://example.com")
 

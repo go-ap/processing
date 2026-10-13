@@ -46,9 +46,8 @@ func (p *P) RelationshipManagementActivity(act *vocab.Activity, receivedIn vocab
 	case vocab.InviteType.Match(act.Type):
 		fallthrough
 	default:
-		return act, errors.NotImplementedf("Activity %s is not implemented", act.Type)
 	}
-	return act, nil
+	return act, errors.NotImplementedf("Activity %s is not implemented", act.Type)
 }
 
 // FollowActivity is used when following an actor.

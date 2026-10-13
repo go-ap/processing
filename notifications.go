@@ -20,22 +20,6 @@ func (p P) ValidateClientNotificationActivity(act *vocab.Activity) error {
 	return nil
 }
 
-func collectionFromItem(it vocab.Item) vocab.ItemCollection {
-	if vocab.IsNil(it) {
-		return nil
-	}
-
-	var result vocab.ItemCollection
-	if !vocab.IsItemCollection(it) {
-		result = vocab.ItemCollection{it}
-	}
-	_ = vocab.OnItemCollection(it, func(col *vocab.ItemCollection) error {
-		result = *col
-		return nil
-	})
-	return result
-}
-
 // NotificationActivity processes matching activities
 //
 // https://www.w3.org/TR/activitystreams-vocabulary/#h-motivations-notification

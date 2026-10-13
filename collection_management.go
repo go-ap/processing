@@ -138,7 +138,7 @@ func (p *P) MoveActivity(move *vocab.Activity) (*vocab.Activity, error) {
 		}
 	}
 
-	return move, nil
+	return move, errors.Join(errs...)
 }
 
 // UpdateObjectID processes a [vocab.MoveType] activity which has identical Object and Origin properties.
@@ -155,15 +155,15 @@ func (p *P) UpdateObjectID(move *vocab.Activity) (*vocab.Activity, error) {
 
 	origin := move.Origin
 	if vocab.IsNil(origin) {
-		return nil, ValidationError(fmt.Sprintf("Origin is not valid: is nil"))
+		return nil, ValidationError("Origin is not valid: is nil")
 	}
 
 	object, err := p.DereferenceItem(move.Object)
 	if err != nil {
-		return nil, ValidationError(fmt.Sprintf("Move Object wasn't available in local storage"))
+		return nil, ValidationError("Move Object wasn't available in local storage")
 	}
 	if !object.GetLink().Equal(origin.GetLink()) {
-		return nil, ValidationError(fmt.Sprintf("Object and Origin of Move activity should not be different"))
+		return nil, ValidationError("Object and Origin of Move activity should not be different")
 	}
 	if !vocab.IsObject(move.Target) {
 		return nil, ValidationError(fmt.Sprintf("Target object %T of Move activity is invalid", move.Target))
@@ -173,7 +173,7 @@ func (p *P) UpdateObjectID(move *vocab.Activity) (*vocab.Activity, error) {
 		return nil, errors.Newf("Unable to copy Target to Object for special Move activity")
 	}
 
-	if object, err = p.s.Save(object); err != nil {
+	if _, err = p.s.Save(object); err != nil {
 		return nil, err
 	}
 

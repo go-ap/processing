@@ -52,7 +52,6 @@ func Test_updateCreateActivityObject(t *testing.T) {
 
 func Test_updateObjectForUpdate(t *testing.T) {
 	type args struct {
-		l   WriteStore
 		o   *vocab.Object
 		act *vocab.Activity
 	}
@@ -65,7 +64,7 @@ func Test_updateObjectForUpdate(t *testing.T) {
 		{
 			name:    "empty",
 			initFns: nil,
-			args:    args{},
+			args:    args{act: nil},
 			wantErr: false,
 		},
 	}
@@ -93,7 +92,7 @@ func Test_updateUpdateActivityObject(t *testing.T) {
 		{
 			name:    "empty",
 			initFns: nil,
-			args:    args{},
+			args:    args{act: nil},
 			wantErr: false,
 		},
 	}

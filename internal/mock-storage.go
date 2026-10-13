@@ -156,7 +156,7 @@ func (ms *MockStorage) Save(it vocab.Item) (vocab.Item, error) {
 			return it, errors.Annotatef(err, "could not create object's collections")
 		}
 	}
-	ms.Map.Store(it.GetLink(), it)
+	ms.Store(it.GetLink(), it)
 	return it, nil
 }
 
@@ -190,7 +190,7 @@ func saveCollectionIfExists(r *MockStorage, it, owner vocab.Item) vocab.Item {
 	if vocab.IsNil(it) {
 		return nil
 	}
-	r.Map.LoadOrStore(it.GetLink(), createNewCollection(it.GetLink(), owner))
+	r.LoadOrStore(it.GetLink(), createNewCollection(it.GetLink(), owner))
 	return it.GetLink()
 }
 

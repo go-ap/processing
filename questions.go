@@ -2,6 +2,7 @@ package processing
 
 import (
 	vocab "github.com/go-ap/activitypub"
+	"github.com/go-ap/errors"
 )
 
 // QuestionActivity processes matching activities
@@ -26,18 +27,29 @@ func (p *P) QuestionActivity(q *vocab.Question) (*vocab.Question, error) {
 
 func (p *P) saveQuestionAnswers(q *vocab.Question) func(col *vocab.ItemCollection) error {
 	return func(col *vocab.ItemCollection) error {
-		var err error
+		errs := make([]error, 0, col.Count())
 		for _, ans := range col.Collection() {
+			var err error
 			if iri := ans.GetLink(); len(iri) == 0 {
-				err = SetIDIfMissing(ans, q, p.createIDFn)
+				if err = SetIDIfMissing(ans, q, p.createIDFn); err != nil {
+					errs = append(errs, err)
+					continue
+				}
 			}
 
-			_ = vocab.OnActivity(q, func(act *vocab.Activity) error {
+			err = vocab.OnActivity(q, func(act *vocab.Activity) error {
 				return p.updateCreateActivityObject(ans, act)
 			})
+			if err != nil {
+				errs = append(errs, err)
+				continue
+			}
 
 			ans, err = p.s.Save(ans)
+			if err != nil {
+				errs = append(errs, err)
+			}
 		}
-		return err
+		return errors.Join(errs...)
 	}
 }

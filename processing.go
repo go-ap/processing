@@ -200,7 +200,7 @@ func (p *P) createNewTags(tags vocab.Item, parent vocab.Item) error {
 			return nil
 		}
 		if err := SetIDIfMissing(tag, parent, p.createIDFn); err == nil {
-			tag, _ = p.s.Save(tag)
+			_, _ = p.s.Save(tag)
 		}
 		return nil
 	})
@@ -285,9 +285,8 @@ func (p *P) CollectionManagementActivity(act *vocab.Activity) (*vocab.Activity, 
 	case vocab.RemoveType.Match(act.Type):
 		return p.RemoveActivity(act)
 	default:
-		return nil, errors.BadRequestf("Invalid type %v", act.GetType())
 	}
-	return act, errors.NotImplementedf("Processing %s activity is not implemented", act.GetType())
+	return act, errors.BadRequestf("Invalid type %v", act.GetType())
 }
 
 // EventRSVPActivity processes matching activities
