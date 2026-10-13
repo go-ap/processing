@@ -4,6 +4,8 @@ packages:
   - golangci-lint
 sources:
   - https://github.com/go-ap/processing
+secrets:
+  - 7c94f942-caf2-4fd3-bf07-55ba1f11f90c
 environment:
   GO111MODULE: 'on'
 tasks:
@@ -17,7 +19,7 @@ tasks:
       cd processing
       git switch -C master origin/master
       make coverage
-      #go tool goveralls -flagname unit-tests -service=${CI_NAME} -coverprofile processing.coverprofile -repotokenfile ~/.coveralls.tok
+      go tool goveralls -flagname unit-tests -service=${CI_NAME} -coverprofile processing.coverprofile -repotokenfile ~/.coveralls.tok
   - lint: |
       cd processing
       golangci-lint run || true
