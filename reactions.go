@@ -22,18 +22,18 @@ func (p *P) ReactionsActivity(act *vocab.Activity, receivedIn vocab.IRI) (*vocab
 	case vocab.DislikeType.Match(act.Type):
 		fallthrough
 	case vocab.LikeType.Match(act.Type):
-		return AppreciationActivity(p, act)
+		return p.AppreciationActivity(act)
 	case vocab.RejectType.Match(act.Type):
 		fallthrough
 	case vocab.TentativeRejectType.Match(act.Type):
 		// I think nothing happens here.
-		return RejectActivity(p.s, act)
+		return p.RejectActivity(act)
 	case vocab.TentativeAcceptType.Match(act.Type):
 		fallthrough
 	case vocab.AcceptType.Match(act.Type):
-		return AcceptActivity(p, act, receivedIn)
+		return p.AcceptActivity(act, receivedIn)
 	case vocab.FlagType.Match(act.Type):
-		return FlagActivity(p.s, act)
+		return p.FlagActivity(act)
 	case vocab.BlockType.Match(act.Type):
 		return p.BlockActivity(act, receivedIn)
 	case vocab.IgnoreType.Match(act.Type):
@@ -45,7 +45,7 @@ func (p *P) ReactionsActivity(act *vocab.Activity, receivedIn vocab.IRI) (*vocab
 // AppreciationActivity
 // The Like(and Dislike) activity indicates the actor likes the object.
 // The side effect of receiving this in an outbox is that the server SHOULD add the object to the actor's liked Collection.
-func AppreciationActivity(p *P, act *vocab.Activity) (*vocab.Activity, error) {
+func (p *P) AppreciationActivity(act *vocab.Activity) (*vocab.Activity, error) {
 	if vocab.IsNil(act.Object) {
 		return act, errors.BadRequestf("Missing object for %s Activity", act.Type)
 	}
@@ -165,7 +165,7 @@ func firstOrItem(it vocab.Item) vocab.Item {
 //
 // If the object of an Accept received to an inbox is a Follow activity previously sent by the receiver, the server
 // SHOULD add the actor to the receiver's Following Collection.
-func AcceptActivity(p *P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activity, error) {
+func (p *P) AcceptActivity(act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activity, error) {
 	if vocab.IsNil(act.Object) {
 		return act, errors.BadRequestf("Missing object for %s Activity", act.Type)
 	}
@@ -215,7 +215,7 @@ func dispatchFollowSideEffectToLocalCollections(p *P, a *vocab.Activity) error {
 	return errors.Join(errs...)
 }
 
-func RejectActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
+func (p *P) RejectActivity(act *vocab.Activity) (*vocab.Activity, error) {
 	if vocab.IsNil(act.Object) {
 		return act, errors.BadRequestf("Missing object for %s Activity", act.Type)
 	}
@@ -223,12 +223,9 @@ func RejectActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) 
 		return act, errors.BadRequestf("Missing actor for %s Activity", act.Type)
 	}
 
-	if colSaver, ok := l.(CollectionStore); ok {
-		inbox := vocab.Inbox.IRI(act.Actor)
-		err := colSaver.RemoveFrom(inbox, act.Object.GetLink())
-		return act, err
-	}
-	return act, nil
+	inbox := vocab.Inbox.IRI(act.Actor)
+	err := p.s.RemoveFrom(inbox, act.Object.GetLink())
+	return act, err
 }
 
 const BlockedCollection = vocab.CollectionPath("blocked")
@@ -267,7 +264,7 @@ func (p *P) BlockActivity(act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Act
 // There isn't any side effect to this activity except delivering it to the inboxes of its recipients.
 // From the list of recipients we remove the Object itself if it represents an Actor being flagged,
 // or its author if it's another type of object.
-func FlagActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity, error) {
+func (p *P) FlagActivity(act *vocab.Activity) (*vocab.Activity, error) {
 	if vocab.IsNil(act.Object) {
 		return act, errors.BadRequestf("Missing object for %s Activity", act.Type)
 	}

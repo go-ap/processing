@@ -26,11 +26,11 @@ func (p *P) RelationshipManagementActivity(act *vocab.Activity, receivedIn vocab
 	case vocab.RejectType.Match(act.Type):
 		fallthrough
 	case vocab.TentativeRejectType.Match(act.Type):
-		return RejectActivity(p.s, act)
+		return p.RejectActivity(act)
 	case vocab.TentativeAcceptType.Match(act.Type):
 		fallthrough
 	case vocab.AcceptType.Match(act.Type):
-		return AcceptActivity(p, act, receivedIn)
+		return p.AcceptActivity(act, receivedIn)
 	case vocab.BlockType.Match(act.Type):
 		//return p.BlockActivity(act, receivedIn)
 		fallthrough
