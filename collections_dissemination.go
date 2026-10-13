@@ -159,11 +159,11 @@ func (p *P) disseminateToLocalCollections(it vocab.Item, iris ...vocab.IRI) erro
 		}
 		if vocab.IsIRI(it) {
 			var err error
-			ll.Tracef("Object requires de-referencing from remote IRI %s", it.GetLink())
+			ll.WithContext(lw.Ctx{"iri": it.GetLink()}).Tracef("Object requires de-referencing from remote IRI")
 
 			// NOTE(marius): check comment inside dereferenceIRIBasedOnInbox() method
 			if it, err = p.dereferenceIRIBasedOnInbox(it, col); err != nil {
-				ll.Warnf("Unable to load remote object %s: %s", it, err)
+				ll.WithContext(lw.Ctx{"err": err, "iri": it.GetLink()}).Warnf("Unable to load remote object")
 				continue
 			}
 		}
