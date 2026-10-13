@@ -15,6 +15,11 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
+var (
+	outbox bool = true
+	inbox  bool = true
+)
+
 type TestPair struct {
 	Name       string
 	Author     vocab.Actor

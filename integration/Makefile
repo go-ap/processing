@@ -5,17 +5,8 @@ SHELL := bash
 MAKEFLAGS += --warn-undefined-variables
 MAKEFLAGS += --no-builtin-rules
 
-TEST_FLAGS ?= -timeout 180s -count=1
+.PHONY: test
 
-ifeq ($(origin GOCOVERDIR),undefined)
-TEST_FLAGS += -test.artifacts
-endif
-
-.PHONY: test coverage
-
+test: TEST_FLAGS ?= -timeout 180s -count=1 -covermode=count -coverpkg github.com/go-ap/processing
 test:
-	go test $(TEST_FLAGS) -json ./ -verbose -inbox -outbox | go tool tparse -all -progress -trimpath github.com/go-ap
-
-#coverage: TEST_FLAGS += -covermode=count -coverprofile $(PROJECT_NAME).coverprofile
-#coverage: test
-#	go tool covdata percent -i="$(find ./ -iname "coverage" -exec ls -d {} + | tr ' ' ',')"
+	go test  -json -cover $(TEST_FLAGS) ./ | go tool tparse -all -progress

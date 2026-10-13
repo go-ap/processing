@@ -3,7 +3,11 @@ TEST := $(GO) test
 TEST_FLAGS ?= -v
 TEST_TARGET ?= ./...
 GO111MODULE = on
-PROJECT_NAME := $(shell basename $(PWD))
+PROJECT := $(shell basename $(PWD))
+
+ifeq ($(origin GOCOVERDIR),undefined)
+GOCOVERDIR := $(shell pwd)/_coverage
+endif
 
 .PHONY: test coverage clean download
 
@@ -12,13 +16,15 @@ download: go.sum
 go.sum: go.mod
 	$(GO) mod tidy
 
-test: go.sum clean
-	$(TEST) $(TEST_FLAGS) -cover $(TEST_TARGET) -json | go tool tparse -all
+test: TEST_FLAGS += -json -cover -coverpkg github.com/go-ap/processing -covermode=count
+test: go.sum
+	$(TEST) $(TEST_FLAGS) $(TEST_TARGET) | go tool tparse -all
 
-coverage: TEST_TARGET := .
-coverage: TEST_FLAGS += -covermode=count -coverprofile $(PROJECT_NAME).coverprofile
-coverage: test
+coverage: TEST_FLAGS += -coverpkg github.com/go-ap/processing -covermode=count -args -test.gocoverdir=$(GOCOVERDIR)
+coverage:
+	test -n $(GOCOVERDIR) && mkdir -p $(GOCOVERDIR)
+	$(TEST) $(TEST_FLAGS) $(TEST_TARGET)
+	$(GO) tool covdata percent -i=$(GOCOVERDIR) -o $(PROJECT).coverprofile
 
 clean:
-	$(RM) -v *.coverprofile
-
+	$(RM) -r $(GOCOVERDIR)
