@@ -1,4 +1,4 @@
-package integration
+package internal
 
 import (
 	"sync"
@@ -7,17 +7,10 @@ import (
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
 	"github.com/go-ap/filters"
-	"github.com/go-ap/processing"
 )
 
-type memStorageError string
-
-func (e memStorageError) Error() string {
-	return string(e)
-}
-
-type memStorage struct {
-	*sync.Map
+type MockStorage struct {
+	sync.Map
 }
 
 var (
@@ -33,7 +26,7 @@ var (
 	allCollectionTypes = append(collectionTypes, orderedCollectionTypes...)
 )
 
-func (ms *memStorage) Load(i vocab.IRI, checks ...filters.Check) (vocab.Item, error) {
+func (ms *MockStorage) Load(i vocab.IRI, checks ...filters.Check) (vocab.Item, error) {
 	raw, ok := ms.Map.Load(i)
 	if !ok {
 		return nil, errors.NotFoundf("unable to find %s", i)
@@ -76,7 +69,7 @@ func (ms *memStorage) Load(i vocab.IRI, checks ...filters.Check) (vocab.Item, er
 	return filters.Checks(checks).Run(it), err
 }
 
-func loadFilteredPropsForIntransitiveActivity(ms *memStorage, checks ...filters.Check) vocab.WithIntransitiveActivityFn {
+func loadFilteredPropsForIntransitiveActivity(ms *MockStorage, checks ...filters.Check) vocab.WithIntransitiveActivityFn {
 	targetChecks := filters.TargetChecks(checks...)
 	actorChecks := filters.ActorChecks(checks...)
 	return func(a *vocab.IntransitiveActivity) error {
@@ -95,7 +88,7 @@ func loadFilteredPropsForIntransitiveActivity(ms *memStorage, checks ...filters.
 	}
 }
 
-func loadFilteredPropsForActivity(ms *memStorage, checks ...filters.Check) vocab.WithActivityFn {
+func loadFilteredPropsForActivity(ms *MockStorage, checks ...filters.Check) vocab.WithActivityFn {
 	objectChecks := filters.ObjectChecks(checks...)
 	return func(a *vocab.Activity) error {
 		if !vocab.IsNil(a.Object) && !a.ID.Equal(a.Object.GetLink()) {
@@ -108,13 +101,13 @@ func loadFilteredPropsForActivity(ms *memStorage, checks ...filters.Check) vocab
 	}
 }
 
-func loadFilteredPropsForActor(ms *memStorage, checks ...filters.Check) vocab.WithActorFn {
+func loadFilteredPropsForActor(ms *MockStorage, checks ...filters.Check) vocab.WithActorFn {
 	return func(actor *vocab.Actor) error {
 		return vocab.OnObject(actor, loadFilteredPropsForObject(ms, checks...))
 	}
 }
 
-func loadFilteredPropsForObject(ms *memStorage, fil ...filters.Check) func(o *vocab.Object) error {
+func loadFilteredPropsForObject(ms *MockStorage, fil ...filters.Check) func(o *vocab.Object) error {
 	tagChecks := filters.TagChecks(fil...)
 	if len(tagChecks) == 0 {
 		tagChecks = filters.Checks{filters.NoType}
@@ -129,7 +122,7 @@ func loadFilteredPropsForObject(ms *memStorage, fil ...filters.Check) func(o *vo
 	}
 }
 
-func dereferenceItemAndFilter(ms *memStorage, it vocab.Item, checks ...filters.Check) (vocab.Item, error) {
+func dereferenceItemAndFilter(ms *MockStorage, it vocab.Item, checks ...filters.Check) (vocab.Item, error) {
 	if vocab.IsNil(it) {
 		return it, nil
 	}
@@ -157,29 +150,18 @@ func dereferenceItemAndFilter(ms *memStorage, it vocab.Item, checks ...filters.C
 	return res.Normalize(), err
 }
 
-func saveCollectionIfExists(r *memStorage, it, owner vocab.Item) vocab.Item {
-	if vocab.IsNil(it) {
-		return nil
+func (ms *MockStorage) Save(it vocab.Item) (vocab.Item, error) {
+	if _, ok := ms.Map.Load(it.GetLink()); !ok {
+		if err := createItemCollections(ms, it); err != nil {
+			return it, errors.Annotatef(err, "could not create object's collections")
+		}
 	}
-	r.Map.LoadOrStore(it.GetLink(), createNewCollection(it.GetLink(), owner))
-	return it.GetLink()
-}
-
-func createNewCollection(colIRI vocab.IRI, owner vocab.Item) vocab.CollectionInterface {
-	col := vocab.OrderedCollection{
-		ID:        colIRI,
-		Type:      vocab.OrderedCollectionType,
-		CC:        vocab.ItemCollection{vocab.PublicNS},
-		Published: time.Now().Truncate(time.Second).UTC(),
-	}
-	if !vocab.IsNil(owner) {
-		col.AttributedTo = owner.GetLink()
-	}
-	return &col
+	ms.Map.Store(it.GetLink(), it)
+	return it, nil
 }
 
 // createItemCollections
-func createItemCollections(ms *memStorage, it vocab.Item) error {
+func createItemCollections(ms *MockStorage, it vocab.Item) error {
 	if vocab.IsNil(it) || !vocab.IsObject(it) {
 		return nil
 	}
@@ -204,22 +186,33 @@ func createItemCollections(ms *memStorage, it vocab.Item) error {
 	})
 }
 
-func (ms *memStorage) Save(it vocab.Item) (vocab.Item, error) {
-	if _, ok := ms.Map.Load(it.GetLink()); !ok {
-		if err := createItemCollections(ms, it); err != nil {
-			return it, errors.Annotatef(err, "could not create object's collections")
-		}
+func saveCollectionIfExists(r *MockStorage, it, owner vocab.Item) vocab.Item {
+	if vocab.IsNil(it) {
+		return nil
 	}
-	ms.Map.Store(it.GetLink(), it)
-	return it, nil
+	r.Map.LoadOrStore(it.GetLink(), createNewCollection(it.GetLink(), owner))
+	return it.GetLink()
 }
 
-func (ms *memStorage) Delete(it vocab.Item) error {
+func createNewCollection(colIRI vocab.IRI, owner vocab.Item) vocab.CollectionInterface {
+	col := vocab.OrderedCollection{
+		ID:        colIRI,
+		Type:      vocab.OrderedCollectionType,
+		CC:        vocab.ItemCollection{vocab.PublicNS},
+		Published: time.Now().Round(time.Millisecond).UTC(),
+	}
+	if !vocab.IsNil(owner) {
+		col.AttributedTo = owner.GetLink()
+	}
+	return &col
+}
+
+func (ms *MockStorage) Delete(it vocab.Item) error {
 	ms.Map.Delete(it.GetLink())
 	return nil
 }
 
-func (ms *memStorage) Create(col vocab.CollectionInterface) (vocab.CollectionInterface, error) {
+func (ms *MockStorage) Create(col vocab.CollectionInterface) (vocab.CollectionInterface, error) {
 	it, err := ms.Save(col)
 	if err != nil {
 		return nil, err
@@ -231,7 +224,7 @@ func (ms *memStorage) Create(col vocab.CollectionInterface) (vocab.CollectionInt
 	return col, nil
 }
 
-func (ms *memStorage) loadCol(colIRI vocab.IRI) (vocab.CollectionInterface, error) {
+func (ms *MockStorage) loadCol(colIRI vocab.IRI) (vocab.CollectionInterface, error) {
 	it, ok := ms.Map.Load(colIRI)
 	if !ok {
 		return nil, errors.NotFoundf("unable to load collection %s", colIRI)
@@ -243,7 +236,7 @@ func (ms *memStorage) loadCol(colIRI vocab.IRI) (vocab.CollectionInterface, erro
 	return col, nil
 }
 
-func (ms *memStorage) AddTo(colIRI vocab.IRI, items ...vocab.Item) error {
+func (ms *MockStorage) AddTo(colIRI vocab.IRI, items ...vocab.Item) error {
 	col, err := ms.loadCol(colIRI)
 	if err != nil {
 		return err
@@ -257,7 +250,7 @@ func (ms *memStorage) AddTo(colIRI vocab.IRI, items ...vocab.Item) error {
 	return err
 }
 
-func (ms *memStorage) RemoveFrom(colIRI vocab.IRI, items ...vocab.Item) error {
+func (ms *MockStorage) RemoveFrom(colIRI vocab.IRI, items ...vocab.Item) error {
 	col, err := ms.loadCol(colIRI)
 	if err != nil {
 		return err
@@ -268,5 +261,3 @@ func (ms *memStorage) RemoveFrom(colIRI vocab.IRI, items ...vocab.Item) error {
 	_, err = ms.Save(col)
 	return err
 }
-
-var _ processing.Store = &memStorage{}

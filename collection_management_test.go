@@ -1,12 +1,12 @@
 package processing
 
 import (
-	"sync"
 	"testing"
 
 	"git.sr.ht/~mariusor/lw"
 	vocab "github.com/go-ap/activitypub"
 	c "github.com/go-ap/client"
+	"github.com/go-ap/processing/internal"
 	"github.com/google/go-cmp/cmp"
 )
 
@@ -19,14 +19,16 @@ func emptyCol(id vocab.IRI) *vocab.OrderedCollection {
 }
 
 func mockStorage(t *testing.T, l lw.Logger) Store {
-	store := mockStore{Map: &sync.Map{}}
+	store := new(internal.MockStorage)
 
 	_, err := store.Save(defaultActor)
 	if err != nil {
 		t.Errorf("Failed to save default actor %v", err)
 	}
 	for _, col := range vocab.ActivityPubCollections {
-		_, err = store.Create(emptyCol(col.IRI(defaultActor)))
+		if _, err = store.Create(emptyCol(col.IRI(defaultActor))); err != nil {
+			t.Errorf("Failed to create collection for default actor %v", err)
+		}
 	}
 	return store
 }

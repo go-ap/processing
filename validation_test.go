@@ -7,11 +7,12 @@ import (
 	"git.sr.ht/~mariusor/lw"
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/client"
+	"github.com/go-ap/processing/internal"
 )
 
 func ExampleP_ValidateActivity_in_inbox() {
 	allIRIsAreLocal := func(_ vocab.IRI) bool { return true }
-	storage := new(MockStorage)
+	storage := new(internal.MockStorage)
 	p := New(
 		WithStorage(storage),
 		WithLocalIRIChecker(allIRIsAreLocal),
@@ -42,7 +43,7 @@ func ExampleP_ValidateActivity_in_inbox() {
 
 func ExampleP_ValidateActivity_in_outbox() {
 	allIRIsAreLocal := func(_ vocab.IRI) bool { return true }
-	storage := new(MockStorage)
+	storage := new(internal.MockStorage)
 	p := New(
 		WithStorage(storage),
 		WithLocalIRIChecker(allIRIsAreLocal),

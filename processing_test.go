@@ -3,147 +3,12 @@ package processing
 import (
 	"fmt"
 	"strconv"
-	"sync"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	vocab "github.com/go-ap/activitypub"
-	"github.com/go-ap/errors"
-	"github.com/go-ap/filters"
+	"github.com/go-ap/processing/internal"
 )
-
-type MockStorage struct {
-	sync.Map
-}
-
-func (ms *MockStorage) Load(i vocab.IRI, f ...filters.Check) (vocab.Item, error) {
-	raw, ok := ms.Map.Load(i)
-	if !ok {
-		return nil, errors.NotFoundf("unable to find %s", i)
-	}
-	ob, ok := raw.(vocab.Item)
-	if !ok {
-		return nil, errors.Newf("invalid item type in storage %T", raw)
-	}
-
-	if len(f) == 0 {
-		return ob, nil
-	}
-	typ := ob.GetType()
-	switch {
-	case vocab.ActivityVocabularyTypes{vocab.OrderedCollectionType, vocab.OrderedCollectionPageType}.Match(typ):
-		clone, _ := ob.(*vocab.OrderedCollection)
-		obCopy := *clone
-		return filters.Checks(f).Run(&obCopy), nil
-	case vocab.ActivityVocabularyTypes{vocab.CollectionType, vocab.CollectionPageType}.Match(typ):
-		clone, _ := ob.(*vocab.Collection)
-		obCopy := *clone
-		return filters.Checks(f).Run(&obCopy), nil
-	default:
-		return ob, nil
-	}
-}
-
-func saveCollectionIfExists(r *MockStorage, it, owner vocab.Item) vocab.Item {
-	if vocab.IsNil(it) {
-		return nil
-	}
-	r.Map.LoadOrStore(it.GetLink(), createNewCollection(it.GetLink(), owner))
-	return it.GetLink()
-}
-
-func createNewCollection(colIRI vocab.IRI, owner vocab.Item) vocab.CollectionInterface {
-	col := vocab.OrderedCollection{
-		ID:        colIRI,
-		Type:      vocab.OrderedCollectionType,
-		CC:        vocab.ItemCollection{vocab.PublicNS},
-		Published: time.Now().Truncate(time.Second).UTC(),
-	}
-	if !vocab.IsNil(owner) {
-		col.AttributedTo = owner.GetLink()
-	}
-	return &col
-}
-
-// createItemCollections
-func createItemCollections(ms *MockStorage, it vocab.Item) error {
-	if vocab.IsNil(it) || !vocab.IsObject(it) {
-		return nil
-	}
-	if vocab.ActorTypes.Match(it.GetType()) {
-		_ = vocab.OnActor(it, func(p *vocab.Actor) error {
-			p.Inbox = saveCollectionIfExists(ms, p.Inbox, p)
-			p.Outbox = saveCollectionIfExists(ms, p.Outbox, p)
-			p.Followers = saveCollectionIfExists(ms, p.Followers, p)
-			p.Following = saveCollectionIfExists(ms, p.Following, p)
-			p.Liked = saveCollectionIfExists(ms, p.Liked, p)
-			// NOTE(marius): shadow creating hidden collections for Blocked and Ignored items
-			saveCollectionIfExists(ms, filters.BlockedType.Of(p), p)
-			saveCollectionIfExists(ms, filters.IgnoredType.Of(p), p)
-			return nil
-		})
-	}
-	return vocab.OnObject(it, func(o *vocab.Object) error {
-		o.Replies = saveCollectionIfExists(ms, o.Replies, o)
-		o.Likes = saveCollectionIfExists(ms, o.Likes, o)
-		o.Shares = saveCollectionIfExists(ms, o.Shares, o)
-		return nil
-	})
-}
-
-func (ms *MockStorage) Save(it vocab.Item) (vocab.Item, error) {
-	if _, ok := ms.Map.Load(it.GetLink()); !ok {
-		if err := createItemCollections(ms, it); err != nil {
-			return it, errors.Annotatef(err, "could not create object's collections")
-		}
-	}
-	ms.Map.Store(it.GetLink(), it)
-	return it, nil
-}
-
-func (ms *MockStorage) Delete(it vocab.Item) error {
-	ms.Map.Delete(it.GetLink())
-	return nil
-}
-
-func (ms *MockStorage) loadCol(colIRI vocab.IRI) (vocab.CollectionInterface, error) {
-	it, ok := ms.Map.Load(colIRI)
-	if !ok {
-		return nil, errors.Newf("unable to load collection %s", colIRI)
-	}
-	col, ok := it.(vocab.CollectionInterface)
-	if !ok {
-		return nil, errors.Newf("invalid collection type %T %s", it, colIRI)
-	}
-	return col, nil
-}
-
-func (ms *MockStorage) AddTo(colIRI vocab.IRI, items ...vocab.Item) error {
-	col, err := ms.loadCol(colIRI)
-	if err != nil {
-		return err
-	}
-
-	if err = col.Append(items...); err != nil {
-		return err
-	}
-
-	_, err = ms.Save(col)
-	return err
-}
-
-func (ms *MockStorage) RemoveFrom(colIRI vocab.IRI, items ...vocab.Item) error {
-	col, err := ms.loadCol(colIRI)
-	if err != nil {
-		return err
-	}
-
-	col.Remove(items...)
-
-	_, err = ms.Save(col)
-	return err
-}
 
 var idGenerator = func() func(it vocab.Item, byActivity vocab.Item) (vocab.ID, error) {
 	cnt := atomic.Int32{}
@@ -169,7 +34,7 @@ var idGenerator = func() func(it vocab.Item, byActivity vocab.Item) (vocab.ID, e
 
 func ExampleP_ProcessActivity_in_outbox() {
 	allIRIsAreLocal := func(_ vocab.IRI) bool { return true }
-	storage := new(MockStorage)
+	storage := new(internal.MockStorage)
 	p := New(
 		WithStorage(storage),
 		WithLocalIRIChecker(allIRIsAreLocal),
@@ -215,7 +80,7 @@ func ExampleP_ProcessActivity_in_outbox() {
 
 func ExampleP_ProcessActivity_in_inbox() {
 	noIRIsAreLocal := func(_ vocab.IRI) bool { return false }
-	storage := new(MockStorage)
+	storage := new(internal.MockStorage)
 	p := New(
 		WithStorage(storage),
 		WithLocalIRIChecker(noIRIsAreLocal),
