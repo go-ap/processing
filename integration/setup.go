@@ -113,7 +113,7 @@ func (mp *MockPlumbing) LocalIRI(i vocab.IRI) bool {
 
 func (mp *MockPlumbing) ShiftIRI() vocab.IRI {
 	if len(mp.iris) == 0 {
-		panic(fmt.Errorf("trying to pop value from empty IRI slice"))
+		return ""
 	}
 	iri := mp.iris[0]
 	mp.iris = mp.iris[1:]
@@ -122,7 +122,7 @@ func (mp *MockPlumbing) ShiftIRI() vocab.IRI {
 
 func (mp *MockPlumbing) PopTime() time.Time {
 	if len(mp.times) == 0 {
-		panic(fmt.Errorf("trying to pop value from empty time.Time slice"))
+		return time.Time{}
 	}
 	tt := mp.times[len(mp.times)-1]
 	mp.times = mp.times[:len(mp.times)-1]

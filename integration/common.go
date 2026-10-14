@@ -215,11 +215,16 @@ func HasReplies(maybeIRI any) itemCheckFn {
 }
 
 func HasType(typ vocab.Typer) itemCheckFn {
-	types := typ.AsTypes()
 	return func(t *testing.T, it vocab.Item) {
 		t.Run("Type", func(t *testing.T) {
-			if ityp := it.GetType(); ityp != typ && !types.Match(ityp) {
-				t.Errorf("Received %s, expected %s", ityp, typ)
+			err := vocab.OnObject(it, func(ob *vocab.Object) error {
+				if !vocab.TypesEqual(ob.Type, typ) {
+					t.Errorf("Received %v, expected %v", ob.Type, typ)
+				}
+				return nil
+			})
+			if err != nil {
+				t.Errorf("Invalid Object: %+v", err)
 			}
 		})
 	}
@@ -229,7 +234,7 @@ func HasFormerType(typ vocab.Typer) itemCheckFn {
 	return func(t *testing.T, it vocab.Item) {
 		t.Run("FormerType", func(*testing.T) {
 			err := vocab.OnTombstone(it, func(ts *vocab.Tombstone) error {
-				if !ts.FormerType.AsTypes().Match(typ) {
+				if !vocab.TypesEqual(ts.FormerType, typ) {
 					t.Errorf("Received %s, expected %s", ts.FormerType, typ)
 				}
 				return nil

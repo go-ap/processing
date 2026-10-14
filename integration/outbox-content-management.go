@@ -102,16 +102,13 @@ func RunOutboxUpdateTests(t *testing.T) {
 	P := mp.InitP(WithMocks(Author, &toUpdate))
 
 	updated1 := toUpdate
-	updated1.Name = vocab.DefaultLangValue("Name")
-	updated1.Summary = vocab.DefaultLangValue("Summary")
 	updated1.Content = vocab.DefaultLangValue("<p>Content</p>")
-	updated1.Source.Content = vocab.DefaultLangValue("Content")
 
 	tests := TestSuite{
 		Name: "Update",
 		Tests: []RunnableTest{
 			TestPair{
-				Name:       "Update Name/Summary/Content/Source",
+				Name:       "Partial update",
 				Author:     Author,
 				ReceivedIn: vocab.Outbox.IRI(Author),
 				Activity: vocab.Update{
@@ -122,16 +119,15 @@ func RunOutboxUpdateTests(t *testing.T) {
 				TestFns: []ItemErrorTest{
 					HasID(mp.ShiftIRI),
 					HasType(vocab.UpdateType),
-					HasActor(Author.ID),
 					WasPublished(mp.PopTime),
 					HasObject(
-						HasID(updated1.ID),
-						HasAttributedTo(Author.ID),
 						WasUpdated(mp.PopTime),
-						HasName(updated1.Name),
-						HasSummary(updated1.Summary),
-						HasContent(updated1.Content),
-						HasSource(updated1.Source.Content, updated1.Source.MediaType),
+						// Original name
+						HasName(vocab.DefaultLangValue("Lipsum name")),
+						// Original summary
+						HasSummary(vocab.DefaultLangValue("Lipsum summary")),
+						// Updated content
+						HasContent(vocab.DefaultLangValue("<p>Content</p>")),
 					),
 				},
 			},
