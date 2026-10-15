@@ -5,6 +5,7 @@ import (
 	"time"
 
 	vocab "github.com/go-ap/activitypub"
+	"github.com/go-ap/activitypub/build"
 )
 
 func RunOutboxContentManagementTests(t *testing.T) {
@@ -26,16 +27,12 @@ func RunOutboxCreateTests(t *testing.T) {
 				Name:       "Actor gets copied to Object.AttributedTo",
 				Author:     Author,
 				ReceivedIn: vocab.Outbox.IRI(Author),
-				Activity: vocab.Create{
-					Type:  vocab.CreateType,
-					Actor: Author.ID,
-					Object: &vocab.Object{
-						Type: vocab.NoteType,
-						Name: vocab.DefaultLangValue("Lorem Ipsum"),
-					},
-				},
+				Activity: build.Create(
+					build.WithActor(Author.ID),
+					build.WithObject(build.Note(build.WithName("Lorem Ipsum"))),
+				),
 				TestFns: []ItemErrorTest{
-					HasActor(Author.ID),
+					HasActor(HasID(Author.ID)),
 					HasObject(HasAttributedTo(Author.ID)),
 				},
 			},
@@ -43,23 +40,23 @@ func RunOutboxCreateTests(t *testing.T) {
 				Name:       "Merge Recipients To/CC/Bto/BCC",
 				Author:     Author,
 				ReceivedIn: vocab.Outbox.IRI(Author),
-				Activity: vocab.Create{
-					Type:  vocab.CreateType,
-					Actor: Author.ID,
-					To:    vocab.ItemCollection{vocab.IRI("http://example.com/to/a1")},
-					CC:    vocab.ItemCollection{vocab.IRI("http://example.com/cc/a1")},
-					Bto:   vocab.ItemCollection{vocab.IRI("http://example.com/bto/a1")},
-					BCC:   vocab.ItemCollection{vocab.IRI("http://example.com/bcc/a1")},
-					Object: &vocab.Group{
-						Type:              vocab.GroupType,
-						Name:              vocab.DefaultLangValue("Lorem"),
-						To:                vocab.ItemCollection{vocab.IRI("http://example.com/to/o1")},
-						CC:                vocab.ItemCollection{vocab.IRI("http://example.com/cc/o1")},
-						Bto:               vocab.ItemCollection{vocab.IRI("http://example.com/bto/o1")},
-						BCC:               vocab.ItemCollection{vocab.IRI("http://example.com/bcc/o1")},
-						PreferredUsername: vocab.DefaultLangValue("lipsum"),
-					},
-				},
+				Activity: build.Create(
+					build.WithType(vocab.CreateType),
+					build.WithActor(Author.ID),
+					build.WithTo(vocab.IRI("http://example.com/to/a1")),
+					build.WithCC(vocab.IRI("http://example.com/cc/a1")),
+					build.WithBto(vocab.IRI("http://example.com/bto/a1")),
+					build.WithBCC(vocab.IRI("http://example.com/bcc/a1")),
+					build.WithObject(build.Group(
+						build.WithType(vocab.GroupType),
+						build.WithName("Lorem"),
+						build.WithTo(vocab.IRI("http://example.com/to/o1")),
+						build.WithCC(vocab.IRI("http://example.com/cc/o1")),
+						build.WithBto(vocab.IRI("http://example.com/bto/o1")),
+						build.WithBCC(vocab.IRI("http://example.com/bcc/o1")),
+						build.WithPreferredUsername("lipsum"),
+					)),
+				),
 				TestFns: []ItemErrorTest{
 					HasTo(vocab.IRIs{"http://example.com/to/a1", "http://example.com/to/o1"}),
 					HasBto(vocab.IRIs{"http://example.com/bto/a1", "http://example.com/bto/o1"}),
@@ -82,24 +79,22 @@ func RunOutboxCreateTests(t *testing.T) {
 func RunOutboxUpdateTests(t *testing.T) {
 	mp := MockPlumbing{}
 
-	toUpdate := vocab.Object{
-		ID:           RootID.AddPath("to-update"),
-		Type:         vocab.NoteType,
-		Name:         vocab.DefaultLangValue("Lipsum name"),
-		Summary:      vocab.DefaultLangValue("Lipsum summary"),
-		Content:      vocab.DefaultLangValue("<p>Lorem ipsum dolor sic amet</p>"),
-		AttributedTo: AuthorID,
-		MediaType:    "text/html",
-		Published:    time.Date(1984, time.February, 29, 0, 0, 0, 0, time.UTC),
-		Replies:      vocab.Replies.IRI(RootID.AddPath("to-update")),
-		To:           vocab.ItemCollection{vocab.PublicNS},
-		Source: vocab.Source{
-			Content:   vocab.DefaultLangValue("Lorem ipsum dolor sic amet"),
-			MediaType: "text/markdown",
-		},
-	}
+	noteID := RootID.AddPath("to-update")
+	toUpdate := build.Note(
+		build.WithID(noteID),
+		build.WithName("Lipsum name"),
+		build.WithSummary("Lipsum summary"),
+		build.WithContent("<p>Lorem ipsum dolor sic amet</p>"),
+		build.WithAttributedTo(AuthorID),
+		build.WithMediaType("text/html"),
+		build.WithPublished(time.Date(1984, time.February, 29, 0, 0, 0, 0, time.UTC)),
+		build.WithReplies(),
+		build.WithTo(vocab.ItemCollection{vocab.PublicNS}),
+		build.WithSourceContent("Lorem ipsum dolor sic amet"),
+		build.WithSourceMediaType("text/markdown"),
+	)
 
-	P := mp.InitP(WithMocks(Author, &toUpdate))
+	P := mp.InitP(WithMocks(Author, toUpdate))
 
 	updated1 := toUpdate
 	updated1.Content = vocab.DefaultLangValue("<p>Content</p>")
@@ -111,11 +106,7 @@ func RunOutboxUpdateTests(t *testing.T) {
 				Name:       "Partial update",
 				Author:     Author,
 				ReceivedIn: vocab.Outbox.IRI(Author),
-				Activity: vocab.Update{
-					Type:   vocab.UpdateType,
-					Actor:  Author.ID,
-					Object: updated1,
-				},
+				Activity:   build.Update(build.WithActor(Author.ID), build.WithObject(updated1)),
 				TestFns: []ItemErrorTest{
 					HasID(mp.ShiftIRI),
 					HasType(vocab.UpdateType),
@@ -140,22 +131,19 @@ func RunOutboxUpdateTests(t *testing.T) {
 func RunOutboxDeleteTests(t *testing.T) {
 	mp := MockPlumbing{}
 
-	toDelete := vocab.Object{
-		ID:           RootID.AddPath("to-delete"),
-		Type:         vocab.ArticleType,
-		Name:         vocab.DefaultLangValue("Lipsum name"),
-		Summary:      vocab.DefaultLangValue("Lipsum summary"),
-		Content:      vocab.DefaultLangValue("<p>Lorem ipsum dolor sic amet</p>"),
-		AttributedTo: AuthorID,
-		MediaType:    "text/html",
-		Published:    time.Date(1984, time.February, 29, 0, 0, 0, 0, time.UTC),
-		Replies:      vocab.Replies.IRI(RootID.AddPath("to-update")),
-		To:           vocab.ItemCollection{vocab.PublicNS},
-		Source: vocab.Source{
-			Content:   vocab.DefaultLangValue("Lorem ipsum dolor sic amet"),
-			MediaType: "text/markdown",
-		},
-	}
+	toDelete := build.Article(
+		build.WithID(RootID.AddPath("to-delete")),
+		build.WithName("Lipsum name"),
+		build.WithSummary("Lipsum summary"),
+		build.WithContent("<p>Lorem ipsum dolor sic amet</p>"),
+		build.WithAttributedTo(AuthorID),
+		build.WithMediaType("text/html"),
+		build.WithPublished(time.Date(1984, time.February, 29, 0, 0, 0, 0, time.UTC)),
+		build.WithReplies(),
+		build.WithTo(vocab.PublicNS),
+		build.WithSourceContent("Lorem ipsum dolor sic amet"),
+		build.WithSourceMediaType("text/markdown"),
+	)
 	P := mp.InitP(WithMocks(Author, toDelete))
 
 	tests := TestSuite{
@@ -165,15 +153,11 @@ func RunOutboxDeleteTests(t *testing.T) {
 				Name:       "Delete simple Article",
 				Author:     Author,
 				ReceivedIn: vocab.Outbox.IRI(Author),
-				Activity: vocab.Update{
-					Type:   vocab.DeleteType,
-					Actor:  Author.ID,
-					Object: toDelete.ID,
-				},
+				Activity:   build.Delete(build.WithActor(Author.ID), build.WithObject(toDelete.ID)),
 				TestFns: []ItemErrorTest{
 					HasID(mp.ShiftIRI),
 					HasType(vocab.DeleteType),
-					HasActor(Author.ID),
+					HasActor(HasID(Author.ID)),
 					WasPublished(mp.PopTime),
 					HasObject(
 						HasID(toDelete.ID),

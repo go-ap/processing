@@ -5,6 +5,7 @@ import (
 	"time"
 
 	vocab "github.com/go-ap/activitypub"
+	"github.com/go-ap/activitypub/build"
 	"github.com/go-ap/client"
 	"github.com/go-ap/processing"
 )
@@ -18,32 +19,29 @@ func RunInboxContentManagementTests(t *testing.T) {
 func RunInboxUpdateTests(t *testing.T) {
 	mp := MockPlumbing{}
 
-	original := vocab.Object{
-		ID:           RootID.AddPath("to-update"),
-		Type:         vocab.NoteType,
-		Name:         vocab.DefaultLangValue("Lipsum name"),
-		Summary:      vocab.DefaultLangValue("Lipsum summary"),
-		Content:      vocab.DefaultLangValue("<p>Lorem ipsum dolor sic amet</p>"),
-		AttributedTo: AuthorID,
-		MediaType:    "text/html",
-		Published:    time.Date(1984, time.February, 29, 0, 0, 0, 0, time.UTC),
-		Replies:      vocab.Replies.IRI(RootID.AddPath("to-update")),
-		To:           vocab.ItemCollection{vocab.PublicNS},
-		Source: vocab.Source{
-			Content:   vocab.DefaultLangValue("Lorem ipsum dolor sic amet"),
-			MediaType: "text/markdown",
-		},
-	}
+	original := build.Note(
+		build.WithID(RootID.AddPath("to-update")),
+		build.WithName("Lipsum name"),
+		build.WithSummary("Lipsum summary"),
+		build.WithContent("<p>Lorem ipsum dolor sic amet</p>"),
+		build.WithAttributedTo(AuthorID),
+		build.WithMediaType("text/html"),
+		build.WithPublished(time.Date(1984, time.February, 29, 0, 0, 0, 0, time.UTC)),
+		build.WithReplies(),
+		build.WithTo(vocab.PublicNS),
+		build.WithSourceContent("Lorem ipsum dolor sic amet"),
+		build.WithSourceMediaType("text/markdown"),
+	)
 
 	P := mp.InitP(
-		WithMocks(Author, &original),
+		WithMocks(Author, original),
 		processing.WithClient(client.New()),
 	)
 
-	updated := vocab.Object{
-		ID:      original.ID,
-		Content: vocab.DefaultLangValue("<p>Content</p>"),
-	}
+	updated := build.Object(
+		build.WithID(original.ID),
+		build.WithContent("<p>Content</p>"),
+	)
 
 	tests := TestSuite{
 		Name: "Update",
@@ -52,11 +50,7 @@ func RunInboxUpdateTests(t *testing.T) {
 				Name:       "Completely replace object",
 				Author:     Author,
 				ReceivedIn: vocab.Inbox.IRI(Author),
-				Activity: vocab.Update{
-					Type:   vocab.UpdateType,
-					Actor:  Author.ID,
-					Object: updated,
-				},
+				Activity:   build.Update(build.WithActor(Author.ID), build.WithObject(updated)),
 				TestFns: []ItemErrorTest{
 					HasID(mp.ShiftIRI),
 					HasType(vocab.UpdateType),
@@ -66,9 +60,9 @@ func RunInboxUpdateTests(t *testing.T) {
 						HasType(nil),
 						WasUpdated(mp.PopTime),
 						// Name was replaced with nil
-						HasName(vocab.NaturalLanguageValues(nil)),
+						HasName[vocab.NaturalLanguageValues](nil),
 						// Summary was replaced with nil
-						HasSummary(vocab.NaturalLanguageValues(nil)),
+						HasSummary[vocab.NaturalLanguageValues](nil),
 						// Content was updated
 						HasContent(vocab.DefaultLangValue("<p>Content</p>")),
 					),
