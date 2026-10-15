@@ -20,11 +20,14 @@ test: TEST_FLAGS += -json -cover -coverpkg github.com/go-ap/processing -covermod
 test: go.sum
 	$(TEST) $(TEST_FLAGS) $(TEST_TARGET) | go tool tparse -all
 
+$(GOCOVERDIR):
+	mkdir -p $(GOCOVERDIR)
+
 coverage: TEST_FLAGS += -coverpkg github.com/go-ap/processing -covermode=count -args -test.gocoverdir=$(GOCOVERDIR)
-coverage:
-	test -n $(GOCOVERDIR) && mkdir -p $(GOCOVERDIR)
+coverage: $(GOCOVERDIR)
 	$(TEST) $(TEST_FLAGS) $(TEST_TARGET)
 	$(GO) tool covdata percent -i=$(GOCOVERDIR) -o $(PROJECT).coverprofile
+	$(MAKE) clean
 
 clean:
 	$(RM) -r $(GOCOVERDIR)
