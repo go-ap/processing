@@ -2,7 +2,6 @@ package processing
 
 import (
 	vocab "github.com/go-ap/activitypub"
-	"github.com/go-ap/errors"
 )
 
 // QuestionActivity processes matching activities
@@ -16,40 +15,39 @@ func (p *P) QuestionActivity(q *vocab.Question) (*vocab.Question, error) {
 	// Saving the question items as individual objects makes sense to me,
 	// but it's not mention in either of the documents we're basing this implementation on.
 	// I can't think of any reason why saving them might be a _bad_ idea, so for the moment I'll leave it like this.
+	saveAnswersFn := p.saveQuestionAnswers(q)
 	if q.AnyOf != nil {
-		return q, vocab.OnItemCollection(q.AnyOf, p.saveQuestionAnswers(q))
+		return q, vocab.OnItem(q.AnyOf, saveAnswersFn)
 	}
 	if q.OneOf != nil {
-		return q, vocab.OnItemCollection(q.OneOf, p.saveQuestionAnswers(q))
+		return q, vocab.OnItem(q.OneOf, saveAnswersFn)
 	}
 	return q, nil
 }
 
-func (p *P) saveQuestionAnswers(q *vocab.Question) func(col *vocab.ItemCollection) error {
-	return func(col *vocab.ItemCollection) error {
-		errs := make([]error, 0, col.Count())
-		for _, ans := range col.Collection() {
-			var err error
-			if iri := ans.GetLink(); len(iri) == 0 {
-				if err = SetIDIfMissing(ans, q, p.createIDFn); err != nil {
-					errs = append(errs, err)
-					continue
-				}
-			}
-
-			err = vocab.OnActivity(q, func(act *vocab.Activity) error {
-				return p.updateCreateActivityObject(ans, act)
-			})
-			if err != nil {
-				errs = append(errs, err)
-				continue
-			}
-
-			ans, err = p.s.Save(ans)
-			if err != nil {
-				errs = append(errs, err)
+func (p *P) saveQuestionAnswers(q *vocab.Question) func(vocab.Item) error {
+	return func(ans vocab.Item) error {
+		var err error
+		if iri := ans.GetLink(); len(iri) == 0 {
+			if err = SetIDIfMissing(ans, q, p.createIDFn); err != nil {
+				return err
 			}
 		}
-		return errors.Join(errs...)
+
+		err = vocab.OnIntransitiveActivity(q, func(act *vocab.IntransitiveActivity) error {
+			// NOTE(marius): As we mentioned in the comment in the calling method,
+			// this is an assumption on our part that we want to apply the same logic for
+			// an Object Create on the answers to our Question activity.
+			return p.updateObjectForCreate(ans, act)
+		})
+		if err != nil {
+			return err
+		}
+
+		ans, err = p.s.Save(ans)
+		if err != nil {
+			return err
+		}
+		return nil
 	}
 }

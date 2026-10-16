@@ -351,7 +351,7 @@ func GeoSocialEventsActivity(l WriteStore, act *vocab.Activity) (*vocab.Activity
 //
 // The Geo-Social Events use case primarily deals with activities involving geo-tagging type activities. For instance,
 // it can include activities such as "Joe arrived at work", "Sally left work", and "John is travel from home to work".
-func GeoSocialEventsIntransitiveActivity(l WriteStore, act *vocab.IntransitiveActivity) (*vocab.IntransitiveActivity, error) {
+func GeoSocialEventsIntransitiveActivity(l WriteStore, act vocab.Item) (vocab.Item, error) {
 	// TODO(marius):
 	return act, errors.NotImplementedf("Processing %s activity is not implemented", act.GetType())
 }

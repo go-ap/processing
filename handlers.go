@@ -31,8 +31,8 @@ func (d pathTyper) Type(r *http.Request) vocab.CollectionPath {
 	}
 	col := vocab.Unknown
 	pathElements := strings.Split(strings.TrimPrefix(r.URL.Path, "/"), "/") // Skip first /
-	for i := len(pathElements) - 1; i >= 0; i-- {
-		col = vocab.CollectionPath(pathElements[i])
+	for _, pathElement := range slices.Backward(pathElements) {
+		col = vocab.CollectionPath(pathElement)
 		if vocab.ValidObjectCollection(col) || vocab.ValidActivityCollection(col) {
 			return col
 		}

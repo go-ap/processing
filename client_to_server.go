@@ -105,24 +105,23 @@ func (p *P) processClientIntransitiveActivity(act vocab.Item, receivedIn vocab.I
 			return act, err
 		}
 	}
+
 	typ := act.GetType()
-	if vocab.QuestionActivityTypes.Match(typ) {
-		err := vocab.OnQuestion(act, func(q *vocab.Question) error {
-			_, err := p.QuestionActivity(q)
+
+	var err error
+	switch {
+	case vocab.QuestionType.Match(typ):
+		err = vocab.OnQuestion(act, func(q *vocab.Question) error {
+			act, err = p.QuestionActivity(q)
 			return err
 		})
-		if err != nil {
-			return act, err
-		}
+	case vocab.GeoSocialEventsActivityTypes.Match(typ):
+		act, err = GeoSocialEventsIntransitiveActivity(p.s, act)
 	}
-	err := vocab.OnIntransitiveActivity(act, func(act *vocab.IntransitiveActivity) error {
-		var err error
-		if vocab.GeoSocialEventsActivityTypes.Match(typ) {
-			act, err = GeoSocialEventsIntransitiveActivity(p.s, act)
-		}
-		if err != nil {
-			return err
-		}
+	if err != nil {
+		return act, err
+	}
+	err = vocab.OnIntransitiveActivity(act, func(act *vocab.IntransitiveActivity) error {
 		if act.Published.IsZero() {
 			act.Published = p.timeNowFn()
 		}

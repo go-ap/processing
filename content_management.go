@@ -610,7 +610,7 @@ func (p *P) updateUpdateActivityObject(it vocab.Item) error {
 	return p.updateObjectForUpdate(it)
 }
 
-func (p *P) updateObjectForCreate(it vocab.Item, act *vocab.Activity) error {
+func (p *P) updateObjectForCreate(it vocab.Item, act *vocab.IntransitiveActivity) error {
 	if act == nil || vocab.IsNil(it) {
 		return nil
 	}
@@ -673,11 +673,13 @@ func (p *P) updateObjectForCreate(it vocab.Item, act *vocab.Activity) error {
 }
 
 // updateCreateActivityObject updates the activity and object's recipients.
-func (p *P) updateCreateActivityObject(o vocab.Item, act *vocab.Activity) error {
+func (p *P) updateCreateActivityObject(o vocab.Item, it vocab.Item) error {
 	if vocab.IsLink(o) {
 		return nil
 	}
-	return p.updateObjectForCreate(o, act)
+	return vocab.OnIntransitiveActivity(it, func(act *vocab.IntransitiveActivity) error {
+		return p.updateObjectForCreate(o, act)
+	})
 }
 
 // DeleteActivity
