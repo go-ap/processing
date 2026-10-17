@@ -48,7 +48,7 @@ func RunInboxUpdateTests(t *testing.T) {
 		Tests: []RunnableTest{
 			TestPair{
 				Name:       "Completely replace object",
-				Author:     Author,
+				Author:     *Author,
 				ReceivedIn: vocab.Inbox.IRI(Author),
 				Activity:   build.Update(build.WithActor(Author.ID), build.WithObject(updated)),
 				TestFns: []ItemErrorTest{

@@ -25,7 +25,7 @@ func RunOutboxCreateTests(t *testing.T) {
 		Tests: []RunnableTest{
 			TestPair{
 				Name:       "Actor gets copied to Object.AttributedTo",
-				Author:     Author,
+				Author:     *Author,
 				ReceivedIn: vocab.Outbox.IRI(Author),
 				Activity: build.Create(
 					build.WithActor(Author.ID),
@@ -38,7 +38,7 @@ func RunOutboxCreateTests(t *testing.T) {
 			},
 			TestPair{
 				Name:       "Merge Recipients To/CC/Bto/BCC",
-				Author:     Author,
+				Author:     *Author,
 				ReceivedIn: vocab.Outbox.IRI(Author),
 				Activity: build.Create(
 					build.WithType(vocab.CreateType),
@@ -104,7 +104,7 @@ func RunOutboxUpdateTests(t *testing.T) {
 		Tests: []RunnableTest{
 			TestPair{
 				Name:       "Partial update",
-				Author:     Author,
+				Author:     *Author,
 				ReceivedIn: vocab.Outbox.IRI(Author),
 				Activity:   build.Update(build.WithActor(Author.ID), build.WithObject(updated1)),
 				TestFns: []ItemErrorTest{
@@ -151,7 +151,7 @@ func RunOutboxDeleteTests(t *testing.T) {
 		Tests: []RunnableTest{
 			TestPair{
 				Name:       "Delete simple Article",
-				Author:     Author,
+				Author:     *Author,
 				ReceivedIn: vocab.Outbox.IRI(Author),
 				Activity:   build.Delete(build.WithActor(Author.ID), build.WithObject(toDelete.ID)),
 				TestFns: []ItemErrorTest{

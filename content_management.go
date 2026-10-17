@@ -610,46 +610,53 @@ func (p *P) updateUpdateActivityObject(it vocab.Item) error {
 	return p.updateObjectForUpdate(it)
 }
 
-func (p *P) updateObjectForCreate(it vocab.Item, act *vocab.IntransitiveActivity) error {
+func (p *P) updateObjectForCreate(it vocab.Item, act vocab.Item) error {
 	if act == nil || vocab.IsNil(it) {
 		return nil
 	}
 
-	if err := p.CreateCollectionsForObject(it); err != nil {
-		return errors.Annotatef(err, "unable to save collections for object: %s", it.GetLink())
+	attributedTo := make(vocab.ItemCollection, 0)
+	_ = vocab.OnIntransitiveActivity(act, func(act *vocab.IntransitiveActivity) error {
+		if !vocab.IsNil(act.Actor) {
+			_ = vocab.OnItem(act.Actor, func(item vocab.Item) error {
+				return attributedTo.Append(item.GetLink())
+			})
+		}
+		return nil
+	})
+
+	dedup := func(a, o *vocab.ItemCollection) {
+		// NOTE(marius): this deduplicates and flattens the two item collections,
+		// then replaces the originals with this new version.
+		if common := vocab.ItemCollectionDeduplication(a, o); len(common) > 0 {
+			common = vocab.FlattenItemCollection(common)
+			*o = common
+			*a = common
+		}
 	}
 
 	return vocab.OnObject(it, func(o *vocab.Object) error {
 		// See https://www.w3.org/TR/ActivityPub/#create-activity-outbox
 		// Copying the actor's IRI to the object's "AttributedTo"
-		if vocab.IsNil(o.AttributedTo) && !vocab.IsNil(act.Actor) {
-			actors := make(vocab.IRIs, 0, 2)
-			_ = vocab.OnItem(act.Actor, func(item vocab.Item) error {
-				return actors.Append(item.GetLink())
-			})
-			o.AttributedTo = actors.Normalize()
-		}
-
-		dedup := func(a, o *vocab.ItemCollection) {
-			if common := vocab.ItemCollectionDeduplication(a, o); len(common) > 0 {
-				*o = vocab.FlattenItemCollection(common)
-				*a = vocab.FlattenItemCollection(common)
-			}
+		if vocab.IsNil(o.AttributedTo) {
+			o.AttributedTo = attributedTo.Normalize()
 		}
 
 		// TODO(marius): Move these to a ProcessObject function
 		//  Set the published date
-
-		// Merging the activity's and the object's "Audience"
-		dedup(&act.Audience, &o.Audience)
-		// Merging the activity's and the object's "To" addressing
-		dedup(&act.To, &o.To)
-		// Merging the activity's and the object's "Bto" addressing
-		dedup(&act.Bto, &o.Bto)
-		// Merging the activity's and the object's "Cc" addressing
-		dedup(&act.CC, &o.CC)
-		// Merging the activity's and the object's "Bcc" addressing
-		dedup(&act.BCC, &o.BCC)
+		_ = vocab.OnObject(act, func(actOb *vocab.Object) error {
+			// Merging the activity's and the object's "Audience"
+			dedup(&actOb.Audience, &o.Audience)
+			// Merging the activity's and the object's "To" addressing
+			dedup(&actOb.To, &o.To)
+			// Merging the activity's and the object's "Bto" addressing
+			dedup(&actOb.Bto, &o.Bto)
+			// Merging the activity's and the object's "Cc" addressing
+			dedup(&actOb.CC, &o.CC)
+			// Merging the activity's and the object's "Bcc" addressing
+			dedup(&actOb.BCC, &o.BCC)
+			return nil
+		})
 
 		if o.Published.IsZero() {
 			o.Published = p.timeNowFn()
@@ -666,6 +673,11 @@ func (p *P) updateObjectForCreate(it vocab.Item, act *vocab.IntransitiveActivity
 		if err := SetIDIfMissing(o, act, p.createIDFn); err != nil {
 			return err
 		}
+
+		if err := p.CreateCollectionsForObject(it); err != nil {
+			return errors.Annotatef(err, "unable to save collections for object: %s", it.GetLink())
+		}
+
 		// NOTE(marius): We're trying to automatically save tags as separate objects instead
 		// of storing them inline in the current Object.
 		return p.createNewTags(o.Tag, it)
@@ -673,13 +685,11 @@ func (p *P) updateObjectForCreate(it vocab.Item, act *vocab.IntransitiveActivity
 }
 
 // updateCreateActivityObject updates the activity and object's recipients.
-func (p *P) updateCreateActivityObject(o vocab.Item, it vocab.Item) error {
-	if vocab.IsLink(o) {
+func (p *P) updateCreateActivityObject(ob vocab.Item, act vocab.Item) error {
+	if vocab.IsLink(ob) {
 		return nil
 	}
-	return vocab.OnIntransitiveActivity(it, func(act *vocab.IntransitiveActivity) error {
-		return p.updateObjectForCreate(o, act)
-	})
+	return p.updateObjectForCreate(ob, act)
 }
 
 // DeleteActivity

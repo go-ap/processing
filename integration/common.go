@@ -10,6 +10,7 @@ import (
 	"time"
 
 	vocab "github.com/go-ap/activitypub"
+	"github.com/go-ap/activitypub/build"
 	"github.com/go-ap/errors"
 	"github.com/go-ap/filters"
 	"github.com/go-ap/processing"
@@ -81,27 +82,24 @@ var (
 
 	AuthorID = RootID.AddPath("~jdoe")
 
-	Author = vocab.Actor{
-		ID:                AuthorID,
-		Type:              vocab.PersonType,
-		Name:              vocab.DefaultLangValue("Jane Doe"),
-		Published:         time.Date(2001, time.January, 1, 0, 0, 0, 0, time.UTC),
-		Audience:          vocab.ItemCollection{vocab.PublicNS},
-		Inbox:             vocab.Inbox.IRI(AuthorID),
-		Outbox:            vocab.Outbox.IRI(AuthorID),
-		Following:         vocab.Following.IRI(AuthorID),
-		Followers:         vocab.Followers.IRI(AuthorID),
-		Liked:             vocab.Liked.IRI(AuthorID),
-		Likes:             vocab.Likes.IRI(AuthorID),
-		Replies:           vocab.Replies.IRI(AuthorID),
-		Shares:            vocab.Shares.IRI(AuthorID),
-		PreferredUsername: vocab.DefaultLangValue("jdoe"),
-		Endpoints: &vocab.Endpoints{
-			SharedInbox: vocab.Inbox.IRI(RootID),
-			ProxyURL:    RootID.AddPath("proxy"),
-		},
-		PublicKey: PublicKey(ed2559Key.Public(), AuthorID),
-	}
+	Author = build.Person(
+		build.WithID(AuthorID),
+		build.WithName(vocab.DefaultLangValue("Jane Doe")),
+		build.WithPublished(time.Date(2001, time.January, 1, 0, 0, 0, 0, time.UTC)),
+		build.WithAudience(vocab.PublicNS),
+		build.WithInbox(),
+		build.WithOutbox(),
+		build.WithFollowing(),
+		build.WithFollowers(),
+		build.WithLiked(),
+		build.WithLikes(),
+		build.WithReplies(),
+		build.WithShares(),
+		build.WithPreferredUsername(vocab.DefaultLangValue("jdoe")),
+		build.WithSharedInbox(vocab.Inbox.IRI(RootID)),
+		build.WithProxyURL(RootID.AddPath("proxy")),
+		build.WithPublicKey(PublicKey(ed2559Key.Public(), AuthorID)),
+	)
 )
 
 func PublicKey(k any, id vocab.IRI) vocab.PublicKey {

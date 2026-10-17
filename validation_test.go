@@ -6,6 +6,7 @@ import (
 
 	"git.sr.ht/~mariusor/lw"
 	vocab "github.com/go-ap/activitypub"
+	"github.com/go-ap/activitypub/build"
 	"github.com/go-ap/client"
 	"github.com/go-ap/processing/internal"
 )
@@ -16,25 +17,23 @@ func ExampleP_ValidateActivity_in_inbox() {
 	p := New(
 		WithStorage(storage),
 		WithLocalIRIChecker(allIRIsAreLocal),
-		WithIDGenerator(idGenerator()),
+		WithIDGenerator(testIDGenerator()),
 	)
 
-	actor := vocab.Actor{
-		ID:     "http://example.com/~jdoe",
-		Type:   vocab.PersonType,
-		Inbox:  vocab.IRI("http://example.com/~jdoe/inbox"),
-		Outbox: vocab.IRI("http://example.com/~jdoe/outbox"),
-	}
+	actor := build.Person(
+		build.WithID("http://example.com/~jdoe"),
+		build.WithInbox(vocab.IRI("http://example.com/~jdoe/inbox")),
+		build.WithOutbox(vocab.IRI("http://example.com/~jdoe/outbox")),
+	)
+	inbox := build.OrderedCollection(build.WithID(vocab.Inbox.IRI(actor)))
+	outbox := build.OrderedCollection(build.WithID(vocab.Outbox.IRI(actor)))
 	_, _ = storage.Save(actor)
-	_, _ = storage.Save(&vocab.OrderedCollection{ID: vocab.Outbox.IRI(actor), Type: vocab.OrderedCollectionType})
-	_, _ = storage.Save(&vocab.OrderedCollection{ID: vocab.Inbox.IRI(actor), Type: vocab.OrderedCollectionType})
+	_, _ = storage.Save(inbox)
+	_, _ = storage.Save(outbox)
 
-	act := vocab.Activity{
-		Type:  vocab.CreateType,
-		Actor: actor,
-	}
+	act := build.Create(build.WithActor(actor))
 
-	err := p.ValidateActivity(act, actor, vocab.Inbox.IRI(actor))
+	err := p.ValidateActivity(act, *actor, vocab.Inbox.IRI(actor))
 	fmt.Printf("error: %v\n", err)
 
 	// Output:
@@ -47,29 +46,26 @@ func ExampleP_ValidateActivity_in_outbox() {
 	p := New(
 		WithStorage(storage),
 		WithLocalIRIChecker(allIRIsAreLocal),
-		WithIDGenerator(idGenerator()),
+		WithIDGenerator(testIDGenerator()),
 	)
 
-	actor := vocab.Actor{
-		ID:     "http://example.com/~jdoe",
-		Type:   vocab.PersonType,
-		Outbox: vocab.IRI("http://example.com/~jdoe/outbox"),
-	}
+	actor := build.Person(
+		build.WithID("http://example.com/~jdoe"),
+		build.WithOutbox(vocab.IRI("http://example.com/~jdoe/outbox")),
+	)
+	outbox := build.OrderedCollection(build.WithID(vocab.Outbox.IRI(actor)))
+	inbox := build.OrderedCollection(build.WithID(vocab.Inbox.IRI(actor)))
 	_, _ = storage.Save(actor)
-	_, _ = storage.Save(&vocab.OrderedCollection{ID: vocab.Outbox.IRI(actor), Type: vocab.OrderedCollectionType})
-	_, _ = storage.Save(&vocab.OrderedCollection{ID: vocab.Inbox.IRI(actor), Type: vocab.OrderedCollectionType})
+	_, _ = storage.Save(outbox)
+	_, _ = storage.Save(inbox)
 
-	note := vocab.Object{
-		ID:   "http://example.com/~jdoe/notes/1",
-		Type: vocab.NoteType,
-	}
-	act := vocab.Activity{
-		Type:   vocab.CreateType,
-		Actor:  actor,
-		Object: note,
-	}
+	note := build.Note(build.WithID("http://example.com/~jdoe/notes/1"))
+	act := build.Create(
+		build.WithActor(actor),
+		build.WithObject(note),
+	)
 
-	err := p.ValidateActivity(act, actor, vocab.Outbox.IRI(actor))
+	err := p.ValidateActivity(act, *actor, vocab.Outbox.IRI(actor))
 	fmt.Printf("error: %v\n", err)
 
 	// Output:

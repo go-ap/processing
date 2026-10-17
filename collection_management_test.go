@@ -5,17 +5,17 @@ import (
 
 	"git.sr.ht/~mariusor/lw"
 	vocab "github.com/go-ap/activitypub"
+	"github.com/go-ap/activitypub/build"
 	c "github.com/go-ap/client"
 	"github.com/go-ap/processing/internal"
 	"github.com/google/go-cmp/cmp"
 )
 
 func emptyCol(id vocab.IRI) *vocab.OrderedCollection {
-	return &vocab.OrderedCollection{
-		ID:           id,
-		Type:         vocab.OrderedCollectionType,
-		OrderedItems: make(vocab.ItemCollection, 0),
-	}
+	return build.OrderedCollection(
+		build.WithID(id),
+		build.WithOrderedItems(make(vocab.ItemCollection, 0)),
+	)
 }
 
 func mockStorage(t *testing.T, l lw.Logger) Store {

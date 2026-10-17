@@ -6,6 +6,7 @@ import (
 	"time"
 
 	vocab "github.com/go-ap/activitypub"
+	"github.com/go-ap/activitypub/build"
 	"github.com/go-ap/errors"
 	"github.com/google/go-cmp/cmp"
 )
@@ -244,7 +245,7 @@ var EquateItems = cmp.FilterValues(areItems, cmp.Comparer(compareItems))
 func TestP_updateObjectForCreate(t *testing.T) {
 	type args struct {
 		o   *vocab.Object
-		act *vocab.Activity
+		act *vocab.IntransitiveActivity
 	}
 	tests := []struct {
 		name    string
@@ -259,40 +260,40 @@ func TestP_updateObjectForCreate(t *testing.T) {
 		{
 			name: "audience",
 			args: args{
-				o:   &vocab.Object{Audience: vocab.ItemCollection{vocab.IRI("http://example.com/1")}},
-				act: &vocab.Activity{Audience: vocab.ItemCollection{vocab.IRI("http://example.com/2")}},
+				o:   build.Object(build.WithAudience(vocab.IRI("http://example.com/1"))),
+				act: build.IntransitiveActivity(build.WithAudience(vocab.IRI("http://example.com/2"))),
 			},
 			wantErr: false,
 		},
 		{
 			name: "to",
 			args: args{
-				o:   &vocab.Object{To: vocab.ItemCollection{vocab.IRI("http://example.com/1")}},
-				act: &vocab.Activity{To: vocab.ItemCollection{vocab.IRI("http://example.com/2")}},
+				o:   build.Object(build.WithTo(vocab.IRI("http://example.com/1"))),
+				act: build.IntransitiveActivity(build.WithTo(vocab.IRI("http://example.com/2"))),
 			},
 			wantErr: false,
 		},
 		{
 			name: "cc",
 			args: args{
-				o:   &vocab.Object{CC: vocab.ItemCollection{vocab.IRI("http://example.com/1")}},
-				act: &vocab.Activity{CC: vocab.ItemCollection{vocab.IRI("http://example.com/2")}},
+				o:   build.Object(build.WithCC(vocab.IRI("http://example.com/1"))),
+				act: build.IntransitiveActivity(build.WithCC(vocab.IRI("http://example.com/2"))),
 			},
 			wantErr: false,
 		},
 		{
 			name: "bto",
 			args: args{
-				o:   &vocab.Object{Bto: vocab.ItemCollection{vocab.IRI("http://example.com/1")}},
-				act: &vocab.Activity{Bto: vocab.ItemCollection{vocab.IRI("http://example.com/2")}},
+				o:   build.Object(build.WithBto(vocab.IRI("http://example.com/1"))),
+				act: build.IntransitiveActivity(build.WithBto(vocab.IRI("http://example.com/2"))),
 			},
 			wantErr: false,
 		},
 		{
 			name: "bcc",
 			args: args{
-				o:   &vocab.Object{BCC: vocab.ItemCollection{vocab.IRI("http://example.com/1")}},
-				act: &vocab.Activity{BCC: vocab.ItemCollection{vocab.IRI("http://example.com/2")}},
+				o:   build.Object(build.WithBCC(vocab.IRI("http://example.com/1"))),
+				act: build.IntransitiveActivity(build.WithBCC(vocab.IRI("http://example.com/2"))),
 			},
 			wantErr: false,
 		},

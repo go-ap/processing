@@ -3,32 +3,34 @@ package processing
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"testing"
 
 	vocab "github.com/go-ap/activitypub"
+	"github.com/go-ap/activitypub/build"
 	"github.com/go-ap/processing/internal"
 )
 
-var idGenerator = func() func(it vocab.Item, byActivity vocab.Item) (vocab.ID, error) {
+var testIDGenerator = func() func(it vocab.Item, byActivity vocab.Item) (vocab.ID, error) {
 	cnt := atomic.Int32{}
 	return func(it vocab.Item, byActivity vocab.Item) (vocab.ID, error) {
 		defer func() { cnt.Add(1) }()
-		var actorID vocab.ID
+		path := "object"
+
+		typ := it.GetType()
 		switch {
-		case append(vocab.ActivityTypes, vocab.IntransitiveActivityTypes...).Match(it.GetType()):
-			_ = vocab.OnActivity(it, func(act *vocab.Activity) error {
-				actorID = act.Actor.GetID()
-				return nil
-			})
-			return actorID.AddPath("outbox", strconv.Itoa(int(cnt.Load()))), nil
-		default:
-			_ = vocab.OnActivity(byActivity, func(act *vocab.Activity) error {
-				actorID = act.Actor.GetID()
-				return nil
-			})
-			return actorID.AddPath("objects", strconv.Itoa(int(cnt.Load()))), nil
+		case vocab.ActorTypes.Match(typ):
+			path = "actor"
+		case append(vocab.ActivityTypes, vocab.IntransitiveActivityTypes...).Match(typ):
+			path = "activity"
 		}
+		pref := ""
+		if typ != nil {
+			pref = strings.ToLower(typ.AsTypes().String()) + "-"
+		}
+		return vocab.IRI("http://example.com").AddPath(path, pref+strconv.Itoa(int(cnt.Load()))), nil
+
 	}
 }
 
@@ -38,24 +40,23 @@ func ExampleP_ProcessActivity_in_outbox() {
 	p := New(
 		WithStorage(storage),
 		WithLocalIRIChecker(allIRIsAreLocal),
-		WithIDGenerator(idGenerator()),
+		WithIDGenerator(testIDGenerator()),
 	)
 
-	actor := vocab.Actor{
-		ID:     "http://example.com/~jdoe",
-		Type:   vocab.PersonType,
-		Outbox: vocab.IRI("http://example.com/~jdoe/outbox"),
-	}
-	object := &vocab.Note{}
-	activity := vocab.Activity{
-		Type:   vocab.CreateType,
-		Actor:  actor,
-		Object: object,
-	}
+	actor := build.Person(
+		build.WithID("http://example.com/~jdoe"),
+		build.WithOutbox(vocab.IRI("http://example.com/~jdoe/outbox")),
+	)
+	outbox := build.OrderedCollection(build.WithID(vocab.Outbox.IRI(actor)))
+	object := build.Note()
+	activity := build.Create(
+		build.WithActor(actor),
+		build.WithObject(object),
+	)
 	_, _ = storage.Save(actor)
-	_, _ = storage.Save(&vocab.OrderedCollection{ID: vocab.Outbox.IRI(actor), Type: vocab.OrderedCollectionType})
+	_, _ = storage.Save(outbox)
 
-	it, err := p.ProcessActivity(activity, actor, vocab.Outbox.IRI(actor))
+	it, err := p.ProcessActivity(activity, *actor, vocab.Outbox.IRI(actor))
 	if err != nil {
 		fmt.Printf("error: %v\n", err)
 		return
@@ -72,10 +73,10 @@ func ExampleP_ProcessActivity_in_outbox() {
 	})
 
 	// Output:
-	// Activity ID: http://example.com/~jdoe/outbox/0
+	// Activity ID: http://example.com/activity/create-0
 	//        Type: Create
 	//    Actor ID: http://example.com/~jdoe
-	//   Object ID: http://example.com/~jdoe/objects/1
+	//   Object ID: http://example.com/object/note-1
 }
 
 func ExampleP_ProcessActivity_in_inbox() {
@@ -86,25 +87,26 @@ func ExampleP_ProcessActivity_in_inbox() {
 		WithLocalIRIChecker(noIRIsAreLocal),
 	)
 
-	actor := vocab.Actor{
-		ID:     "http://example.com/~jdoe",
-		Type:   vocab.PersonType,
-		Inbox:  vocab.IRI("http://example.com/~jdoe/inbox"),
-		Outbox: vocab.IRI("http://example.com/~jdoe/outbox"),
-	}
+	actor := build.Person(
+		build.WithID("http://example.com/~jdoe"),
+		build.WithInbox(vocab.IRI("http://example.com/~jdoe/inbox")),
+		build.WithOutbox(vocab.IRI("http://example.com/~jdoe/outbox")),
+	)
+	outbox := build.OrderedCollection(build.WithID(vocab.Outbox.IRI(actor)))
+	inbox := build.OrderedCollection(build.WithID(vocab.Inbox.IRI(actor)))
+
 	_, _ = storage.Save(actor)
-	_, _ = storage.Save(&vocab.OrderedCollection{ID: vocab.Outbox.IRI(actor), Type: vocab.OrderedCollectionType})
-	_, _ = storage.Save(&vocab.OrderedCollection{ID: vocab.Inbox.IRI(actor), Type: vocab.OrderedCollectionType})
+	_, _ = storage.Save(inbox)
+	_, _ = storage.Save(outbox)
 
-	object := &vocab.Note{}
-	activity := vocab.Activity{
-		ID:     "http://example.com/~jdoe/outbox/0",
-		Type:   vocab.CreateType,
-		Actor:  actor,
-		Object: object,
-	}
+	object := build.Note()
+	activity := build.Create(
+		build.WithID("http://example.com/~jdoe/outbox/0"),
+		build.WithActor(actor),
+		build.WithObject(object),
+	)
 
-	it, err := p.ProcessActivity(activity, actor, vocab.Inbox.IRI(actor))
+	it, err := p.ProcessActivity(activity, *actor, vocab.Inbox.IRI(actor))
 	if err != nil {
 		fmt.Printf("error: %v\n", err)
 		return

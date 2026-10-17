@@ -34,15 +34,10 @@ func (p *P) saveQuestionAnswers(q *vocab.Question) func(vocab.Item) error {
 			}
 		}
 
-		err = vocab.OnIntransitiveActivity(q, func(act *vocab.IntransitiveActivity) error {
-			// NOTE(marius): As we mentioned in the comment in the calling method,
-			// this is an assumption on our part that we want to apply the same logic for
-			// an Object Create on the answers to our Question activity.
-			return p.updateObjectForCreate(ans, act)
-		})
-		if err != nil {
-			return err
-		}
+		// NOTE(marius): As we mentioned in the comment in the calling method,
+		// this is an assumption on our part that we want to apply the same logic for
+		// an Object Create on the answers to our Question activity.
+		_ = p.updateObjectForCreate(ans, q)
 
 		ans, err = p.s.Save(ans)
 		if err != nil {
