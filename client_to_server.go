@@ -159,9 +159,11 @@ func (p *P) processClientActivity(act *vocab.Activity, receivedIn vocab.IRI) (vo
 
 	// NOTE(marius): due to how we copy the recipients from the object to the Create activities, the Create might
 	// not be "Public" at this time, so we set the ID specifically after we have handled that. See updateObjectForCreate.
-	if vocab.EmptyIRI.Equal(act.ID) && !(vocab.CreateType.Match(typ) && !vocab.RelationshipType.Match(act.Object.GetType())) {
-		if err := SetIDIfMissing(act, nil, p.createIDFn); err != nil {
-			return act, err
+	if vocab.EmptyIRI.Equal(act.ID) {
+		if !vocab.CreateType.Match(typ) || vocab.RelationshipType.Match(act.Object.GetType()) {
+			if err := SetIDIfMissing(act, nil, p.createIDFn); err != nil {
+				return act, err
+			}
 		}
 	}
 
