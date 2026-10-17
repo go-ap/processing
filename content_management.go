@@ -290,7 +290,7 @@ func (p P) UndoCreateActivity(create *vocab.Activity) (*vocab.Activity, error) {
 		return create, InvalidActivity("nil Create activity")
 	}
 	errs := make([]error, 0)
-	toRemove := create.GetLink()
+	toRemove := create.ID
 
 	allRec := create.Recipients()
 	removeCollectionOperations := make(map[vocab.IRI]vocab.ItemCollection)
@@ -299,7 +299,7 @@ func (p P) UndoCreateActivity(create *vocab.Activity) (*vocab.Activity, error) {
 	}
 	for _, rec := range allRec {
 		recIRI := rec.GetLink()
-		if recIRI == vocab.PublicNS || !p.IsLocalIRI(recIRI) {
+		if !p.IsLocalIRI(recIRI) {
 			continue
 		}
 		if !vocab.ValidCollectionIRI(recIRI) {

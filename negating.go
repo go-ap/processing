@@ -37,7 +37,7 @@ func (p P) ValidateClientNegatingActivity(act *vocab.Activity) error {
 // The Negating Activity use case primarily deals with the ability to redact previously completed activities.
 // See 5.5 Inverse Activities and "Undo" for more information:
 // https://www.w3.org/TR/activitystreams-vocabulary/#inverse
-func (p *P) NegatingActivity(undo *vocab.Activity) (*vocab.Activity, error) {
+func (p *P) NegatingActivity(undo *vocab.Undo) (*vocab.Activity, error) {
 	if vocab.IsNil(undo.Object) {
 		return undo, errors.BadRequestf("Missing object for %s Activity", undo.Type)
 	}
@@ -67,51 +67,62 @@ func (p *P) NegatingActivity(undo *vocab.Activity) (*vocab.Activity, error) {
 // The Undo activity is used to undo the side effects of previous activities. See the ActivityStreams documentation
 // on Inverse Activities and "Undo". The scope and restrictions of the Undo activity are the same as for the Undo
 // activity in the context of client to server interactions, but applied to a federated context.
-func (p *P) UndoActivity(undo *vocab.Activity) (*vocab.Activity, error) {
+func (p *P) UndoActivity(undo *vocab.Undo) (*vocab.Activity, error) {
 	if len(undo.ID) == 0 {
 		if err := SetIDIfMissing(undo, nil, p.createIDFn); err != nil {
 			return undo, err
 		}
 	}
-	_ = vocab.OnActivity(undo.Object, func(toUndo *vocab.Activity) error {
+	_ = vocab.OnObject(undo.Object, func(toUndo *vocab.Object) error {
+		// NOTE(marius): make sure we propagate the Undo activity to the recipients
+		// of the activity it operates on as its Object.
 		_ = toUndo.Bto.Append(undo.Bto...)
 		_ = toUndo.BCC.Append(undo.BCC...)
 		return nil
 	})
-	return undo, p.undoThisActivity(undo.Object)
+	return undo, vocab.OnItem(undo.Object, p.undoThisActivity)
 }
 
-func (p *P) undoThisActivity(toUndo vocab.Item) error {
-	if toUndo.GetID() == "" {
+func (p *P) undoThisActivity(act vocab.Item) error {
+	if act.GetID() == "" {
 		return InvalidActivity("empty IRI")
 	}
-	err := vocab.OnActivity(toUndo, func(toUndo *vocab.Activity) error {
+	return vocab.OnActivity(act, func(toUndo *vocab.Activity) error {
 		var err error
-		typ := toUndo.GetType()
 		switch {
-		case vocab.CreateType.Match(typ):
+		case vocab.CreateType.Match(toUndo.Type):
 			_, err = p.UndoCreateActivity(toUndo)
-		case vocab.DislikeType.Match(typ):
+		case vocab.DislikeType.Match(toUndo.Type):
 			// TODO(marius): Dislikes should not trigger a removal from Likes/Liked collections
 			fallthrough
-		case vocab.LikeType.Match(typ):
+		case vocab.LikeType.Match(toUndo.Type):
 			_, err = p.UndoAppreciationActivity(toUndo)
-		case UndoableRelationshipActivityTypes.Match(typ):
+		case UndoableRelationshipActivityTypes.Match(toUndo.Type):
 			_, err = p.UndoRelationshipManagementActivity(toUndo)
-		case vocab.AnnounceType.Match(typ):
+		case vocab.AnnounceType.Match(toUndo.Type):
 			_, err = p.UndoAnnounceActivity(toUndo)
+		}
+		if err != nil {
+			return err
+		}
+
+		if p.IsLocal(toUndo) {
+			// NOTE(marius): remove the activity that we operated Undo on
+			if err = p.s.Delete(toUndo.ID); err != nil && errors.IsNotFound(err) {
+				err = nil
+			}
+
+			// NOTE(marius): this most likely was distributed to shared inbox recipients, so we remove
+			// it from it and the actor's inboxes that use it.
+			removeFrom := make(vocab.IRIs, 0)
+			for _, si := range p.SharedInboxes().IRIs() {
+				_ = removeFrom.Append(si)
+				_ = removeFrom.Append(p.loadSharedInboxRecipients(si.GetLink())...)
+			}
+			for _, inb := range removeFrom {
+				_ = p.s.RemoveFrom(inb, toUndo.ID)
+			}
 		}
 		return err
 	})
-	if err != nil {
-		return err
-	}
-
-	if p.IsLocal(toUndo) {
-		// NOTE(marius): remove the activity that we operated Undo on
-		if err = p.s.Delete(toUndo.GetLink()); err != nil && errors.IsNotFound(err) {
-			err = nil
-		}
-	}
-	return err
 }

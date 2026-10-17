@@ -254,6 +254,7 @@ func (p P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab
 	}
 
 	err = vocab.OnIntransitiveActivity(a, func(act *vocab.IntransitiveActivity) error {
+		// NOTE(marius): validate the local actor
 		if act.Actor, err = p.ValidateClientActor(act.Actor, author); err != nil {
 			if errors.IsBadRequest(err) {
 				act.Actor = &author
@@ -276,16 +277,15 @@ func (p P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab
 	}
 
 	typ := a.GetType()
-	if vocab.QuestionActivityTypes.Match(typ) {
+	switch {
+	case vocab.QuestionActivityTypes.Match(typ):
 		err = vocab.OnQuestion(a, func(q *vocab.Question) error {
 			return ValidateClientQuestionActivity(p.s, q)
 		})
 		if err != nil {
 			return err
 		}
-	}
-
-	if vocab.ActivityTypes.Match(typ) {
+	case vocab.ActivityTypes.Match(typ):
 		err = vocab.OnActivity(a, func(act *vocab.Activity) error {
 			// TODO(marius): this needs to be extended by a ValidateActivityClientObject
 			//   because the first step would be to test the object in the context of the activity
@@ -294,27 +294,28 @@ func (p P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab
 				return err
 			}
 
-			if vocab.ContentManagementActivityTypes.Match(typ) && vocab.RelationshipType.Match(act.Object.GetType()) {
+			switch {
+			case vocab.ContentManagementActivityTypes.Match(typ) && vocab.RelationshipType.Match(act.Object.GetType()):
 				err = ValidateClientContentManagementActivity(p.s, act)
-			} else if vocab.CollectionManagementActivityTypes.Match(typ) {
+			case vocab.CollectionManagementActivityTypes.Match(typ):
 				err = ValidateClientCollectionManagementActivity(p.s, act)
-			} else if vocab.ReactionsActivityTypes.Match(typ) {
+			case vocab.ReactionsActivityTypes.Match(typ):
 				err = p.ValidateClientReactionsActivity(act)
-			} else if vocab.EventRSVPActivityTypes.Match(typ) {
+			case vocab.EventRSVPActivityTypes.Match(typ):
 				err = ValidateClientEventRSVPActivity(p.s, act)
-			} else if vocab.GroupManagementActivityTypes.Match(typ) {
+			case vocab.GroupManagementActivityTypes.Match(typ):
 				err = ValidateClientGroupManagementActivity(p.s, act)
-			} else if vocab.ContentExperienceActivityTypes.Match(typ) {
+			case vocab.ContentExperienceActivityTypes.Match(typ):
 				err = ValidateClientContentExperienceActivity(p.s, act)
-			} else if vocab.GeoSocialEventsActivityTypes.Match(typ) {
+			case vocab.GeoSocialEventsActivityTypes.Match(typ):
 				err = ValidateClientGeoSocialEventsActivity(p.s, act)
-			} else if vocab.NotificationActivityTypes.Match(typ) {
+			case vocab.NotificationActivityTypes.Match(typ):
 				err = p.ValidateClientNotificationActivity(act)
-			} else if vocab.RelationshipManagementActivityTypes.Match(typ) {
+			case vocab.RelationshipManagementActivityTypes.Match(typ):
 				err = ValidateClientRelationshipManagementActivity(p.s, act)
-			} else if vocab.NegatingActivityTypes.Match(typ) {
+			case vocab.NegatingActivityTypes.Match(typ):
 				err = p.ValidateClientNegatingActivity(act)
-			} else if vocab.OffersActivityTypes.Match(typ) {
+			case vocab.OffersActivityTypes.Match(typ):
 				err = ValidateClientOffersActivity(p.s, act)
 			}
 			return err
@@ -592,6 +593,9 @@ func (p P) ValidateClientObject(o vocab.Item) (vocab.Item, error) {
 		var err error
 		if it, err = p.DereferenceItem(it); err != nil {
 			return errors.NewBadRequest(err, "unable to dereference Activity Object")
+		}
+		if vocab.IsIRI(it) {
+			return errors.BadRequestf("unable to dereference Activity Object: %s", it)
 		}
 		return objects.Append(it)
 	})

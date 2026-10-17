@@ -175,7 +175,7 @@ func (p *P) disseminateToLocalCollections(it vocab.Item, iris ...vocab.IRI) erro
 
 			var next []ssm.Fn
 			if isPublic && sharedInboxes.Contains(col.GetLink()) {
-				sharedInboxRecipients := loadSharedInboxRecipients(p, col.GetLink())
+				sharedInboxRecipients := p.loadSharedInboxRecipients(col.GetLink())
 				next = make([]ssm.Fn, 0, len(sharedInboxRecipients))
 				for _, localRec := range sharedInboxRecipients {
 					if !p.IsLocalIRI(localRec.GetLink()) {

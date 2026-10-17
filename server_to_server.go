@@ -381,7 +381,7 @@ func (p *P) BuildInboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab.
 	return vocab.ItemCollectionDeduplication(&allRecipients)
 }
 
-func loadSharedInboxRecipients(p *P, sharedInbox vocab.IRI) vocab.ItemCollection {
+func (p *P) loadSharedInboxRecipients(sharedInbox vocab.IRI) vocab.ItemCollection {
 	if len(p.baseIRI) == 0 {
 		return nil
 	}
