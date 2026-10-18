@@ -7,7 +7,7 @@ import (
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/activitypub/build"
 	c "github.com/go-ap/client"
-	"github.com/go-ap/processing/internal"
+	conformance "github.com/go-ap/storage-conformance-suite"
 	"github.com/google/go-cmp/cmp"
 )
 
@@ -19,7 +19,7 @@ func emptyCol(id vocab.IRI) *vocab.OrderedCollection {
 }
 
 func mockStorage(t *testing.T, l lw.Logger) Store {
-	store := new(internal.MockStorage)
+	store := new(conformance.MemStorage)
 
 	_, err := store.Save(defaultActor)
 	if err != nil {

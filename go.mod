@@ -10,6 +10,7 @@ require (
 	github.com/go-ap/errors v0.0.0-20260701132509-92e5e4fd6394
 	github.com/go-ap/filters v0.0.0-20261018144629-c36aa22d954e
 	github.com/go-ap/jsonld v0.0.0-20260607140920-737b40e0ca38
+	github.com/go-ap/storage-conformance-suite v0.0.0-20261018145546-8cb9877f5343
 	github.com/google/go-cmp v0.7.0
 )
 
@@ -38,6 +39,8 @@ require (
 	github.com/mfridman/tparse v0.18.0 // indirect
 	github.com/mschoch/smat v0.2.0 // indirect
 	github.com/muesli/termenv v0.16.0 // indirect
+	github.com/openshift/osin v1.0.2-0.20210113124101-8612686d6dda // indirect
+	github.com/pborman/uuid v1.2.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/samber/slog-http v1.12.1 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
@@ -46,6 +49,7 @@ require (
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	go.opentelemetry.io/otel v1.47.0 // indirect
 	go.opentelemetry.io/otel/trace v1.47.0 // indirect
+	golang.org/x/crypto v0.58.0 // indirect
 	golang.org/x/mod v0.41.0 // indirect
 	golang.org/x/net v0.61.0 // indirect
 	golang.org/x/oauth2 v0.37.0 // indirect

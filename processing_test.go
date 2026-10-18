@@ -9,7 +9,7 @@ import (
 
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/activitypub/build"
-	"github.com/go-ap/processing/internal"
+	conformance "github.com/go-ap/storage-conformance-suite"
 )
 
 var testIDGenerator = func() func(it vocab.Item, byActivity vocab.Item) (vocab.ID, error) {
@@ -36,7 +36,7 @@ var testIDGenerator = func() func(it vocab.Item, byActivity vocab.Item) (vocab.I
 
 func ExampleP_ProcessActivity_in_outbox() {
 	allIRIsAreLocal := func(_ vocab.IRI) bool { return true }
-	storage := new(internal.MockStorage)
+	storage := new(conformance.MemStorage)
 	p := New(
 		WithStorage(storage),
 		WithLocalIRIChecker(allIRIsAreLocal),
@@ -81,7 +81,7 @@ func ExampleP_ProcessActivity_in_outbox() {
 
 func ExampleP_ProcessActivity_in_inbox() {
 	noIRIsAreLocal := func(_ vocab.IRI) bool { return false }
-	storage := new(internal.MockStorage)
+	storage := new(conformance.MemStorage)
 	p := New(
 		WithStorage(storage),
 		WithLocalIRIChecker(noIRIsAreLocal),

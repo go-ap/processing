@@ -8,12 +8,12 @@ import (
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/activitypub/build"
 	"github.com/go-ap/client"
-	"github.com/go-ap/processing/internal"
+	conformance "github.com/go-ap/storage-conformance-suite"
 )
 
 func ExampleP_ValidateActivity_in_inbox() {
 	allIRIsAreLocal := func(_ vocab.IRI) bool { return true }
-	storage := new(internal.MockStorage)
+	storage := new(conformance.MemStorage)
 	p := New(
 		WithStorage(storage),
 		WithLocalIRIChecker(allIRIsAreLocal),
@@ -42,7 +42,7 @@ func ExampleP_ValidateActivity_in_inbox() {
 
 func ExampleP_ValidateActivity_in_outbox() {
 	allIRIsAreLocal := func(_ vocab.IRI) bool { return true }
-	storage := new(internal.MockStorage)
+	storage := new(conformance.MemStorage)
 	p := New(
 		WithStorage(storage),
 		WithLocalIRIChecker(allIRIsAreLocal),

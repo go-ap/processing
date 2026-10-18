@@ -10,15 +10,19 @@ import (
 
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/processing"
-	"github.com/go-ap/processing/internal"
+	conformance "github.com/go-ap/storage-conformance-suite"
 )
 
-type StorageInitFn func(storage *internal.MockStorage)
-type InitFn any
+type (
+	MockStorage = conformance.MemStorage
+
+	StorageInitFn func(storage *MockStorage)
+	InitFn        any
+)
 
 func (mp *MockPlumbing) InitP(fns ...InitFn) *processing.P {
 	initFns := make([]processing.OptionFn, 0, len(fns))
-	storage := new(internal.MockStorage)
+	storage := new(MockStorage)
 
 	for _, fn := range fns {
 		switch initFn := fn.(type) {
@@ -38,7 +42,7 @@ func (mp *MockPlumbing) InitP(fns ...InitFn) *processing.P {
 }
 
 func WithMocks(it ...vocab.Item) StorageInitFn {
-	return func(storage *internal.MockStorage) {
+	return func(storage *MockStorage) {
 		p := processing.New(processing.WithStorage(storage))
 		for _, i := range it {
 			if _, err := storage.Save(i); err != nil {
