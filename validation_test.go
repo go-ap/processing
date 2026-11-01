@@ -106,12 +106,12 @@ func TestGenericValidator_ValidateTarget(t *testing.T) {
 
 var (
 	tInfFn = func(t *testing.T) client.LogFn {
-		return func(s string, el ...interface{}) {
+		return func(s string, el ...any) {
 			t.Logf(s, el...)
 		}
 	}
 	tErrFn = func(t *testing.T) client.LogFn {
-		return func(s string, el ...interface{}) {
+		return func(s string, el ...any) {
 			t.Errorf(s, el...)
 		}
 	}
