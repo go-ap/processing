@@ -236,7 +236,7 @@ func (p P) AddItemToCollection(col vocab.IRI, it vocab.Item) error {
 	lCtx := lw.Ctx{"col": col, "it": it.GetLink()}
 	if vocab.IsIRI(it) && !p.IsLocal(it) {
 		// NOTE(marius): the fetching and saving of the remote item is a candidate for switching to async
-		if der, err := deref(context.TODO(), p.c, it); err != nil {
+		if der, err := p.DereferenceItem(it); err != nil {
 			p.l.WithContext(lCtx, lw.Ctx{"err": err}).Warnf("unable to load remote object")
 		} else {
 			if it, err = p.s.Save(der); err != nil {

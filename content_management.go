@@ -7,7 +7,6 @@ import (
 	"time"
 
 	vocab "github.com/go-ap/activitypub"
-	"github.com/go-ap/client"
 	"github.com/go-ap/errors"
 	"github.com/go-ap/filters"
 )
@@ -430,28 +429,13 @@ func (p *P) CreateCollectionsForObject(it vocab.Item) error {
 	return vocab.OnObject(it, createCollectionsForObjectFn)
 }
 
-func deref(ctx context.Context, c client.Basic, it vocab.Item) (vocab.Item, error) {
-	if vocab.IsNil(it) {
-		return nil, nil
-	}
-	if vocab.IsIRI(it) {
-		der, err := c.CtxLoadIRI(ctx, it.GetLink())
-		if err != nil {
-			return it, err
-		}
-		it = der
-	}
-	return it, nil
-}
-
 func (p P) dereferenceIntransitiveActivityProperties(receivedIn vocab.IRI) func(act *vocab.IntransitiveActivity) error {
 	return func(act *vocab.IntransitiveActivity) error {
-		ctx := context.TODO()
 		var err error
-		if act.Actor, err = deref(ctx, p.c, act.Actor); err != nil {
+		if act.Actor, err = p.DereferenceItem(act.Actor); err != nil {
 			return err
 		}
-		if act.Target, err = deref(ctx, p.c, act.Target); err != nil {
+		if act.Target, err = p.DereferenceItem(act.Target); err != nil {
 			return err
 		}
 		return nil
@@ -460,9 +444,8 @@ func (p P) dereferenceIntransitiveActivityProperties(receivedIn vocab.IRI) func(
 
 func (p P) dereferenceActivityProperties(receivedIn vocab.IRI) func(act *vocab.Activity) error {
 	return func(act *vocab.Activity) error {
-		ctx := context.TODO()
 		var err error
-		if act.Object, err = deref(ctx, p.c, act.Object); err != nil {
+		if act.Object, err = p.DereferenceItem(act.Object); err != nil {
 			return err
 		}
 		return vocab.OnIntransitiveActivity(act, p.dereferenceIntransitiveActivityProperties(receivedIn))
