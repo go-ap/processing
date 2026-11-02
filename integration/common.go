@@ -3,6 +3,7 @@ package integration
 import (
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
@@ -77,12 +78,12 @@ func (ts TestSuite) Run(t *testing.T, P *processing.P) {
 
 var (
 	_, ed2559Key, _ = ed25519.GenerateKey(rand.Reader)
+	rsaKey, _       = rsa.GenerateKey(rand.Reader, 2048)
 
-	RootID = vocab.IRI("http://example.com")
+	RootID = vocab.IRI("http://example.localdomain")
 
 	AuthorID = RootID.AddPath("~jdoe")
-
-	Author = build.Person(
+	Author   = build.Person(
 		build.WithID(AuthorID),
 		build.WithName(vocab.DefaultLangValue("Jane Doe")),
 		build.WithPublished(time.Date(2001, time.January, 1, 0, 0, 0, 0, time.UTC)),
@@ -99,6 +100,25 @@ var (
 		build.WithSharedInbox(vocab.Inbox.IRI(RootID)),
 		build.WithProxyURL(RootID.AddPath("proxy")),
 		build.WithPublicKey(PublicKey(ed2559Key.Public(), AuthorID)),
+	)
+
+	RemoteAuthorID = vocab.IRI("http://example.com/~alice")
+	RemoteAuthor   = build.Person(
+		build.WithID(RemoteAuthorID),
+		build.WithName(vocab.DefaultLangValue("Alice L.")),
+		build.WithAudience(vocab.PublicNS),
+		build.WithInbox(),
+		build.WithOutbox(),
+		build.WithFollowing(),
+		build.WithFollowers(),
+		build.WithLiked(),
+		build.WithLikes(),
+		build.WithReplies(),
+		build.WithShares(),
+		build.WithPreferredUsername(vocab.DefaultLangValue("wonder_alice")),
+		build.WithSharedInbox(vocab.Inbox.IRI(RemoteAuthorID)),
+		build.WithProxyURL(RootID.AddPath("proxy")),
+		build.WithPublicKey(PublicKey(rsaKey.Public(), RemoteAuthorID)),
 	)
 )
 

@@ -6,8 +6,6 @@ import (
 
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/activitypub/build"
-	"github.com/go-ap/client"
-	"github.com/go-ap/processing"
 )
 
 func RunInboxContentManagementTests(t *testing.T) {
@@ -33,14 +31,21 @@ func RunInboxUpdateTests(t *testing.T) {
 		build.WithSourceMediaType("text/markdown"),
 	)
 
-	P := mp.InitP(
-		WithMocks(Author, original),
-		processing.WithClient(client.New()),
-	)
-
 	updated := build.Object(
 		build.WithID(original.ID),
 		build.WithContent("<p>Content</p>"),
+	)
+
+	updateID := vocab.IRI("http://example.com/~jdoe/upd-1")
+	update := build.Update(
+		build.WithID(updateID),
+		build.WithActor(RemoteAuthorID),
+		build.WithObject(updated),
+	)
+
+	P := mp.InitP(
+		WithLocalMocks(Author, original),
+		WithRemoteMocks(RemoteAuthor, update),
 	)
 
 	tests := TestSuite{
@@ -48,11 +53,11 @@ func RunInboxUpdateTests(t *testing.T) {
 		Tests: []RunnableTest{
 			TestPair{
 				Name:       "Completely replace object",
-				Author:     *Author,
+				Author:     *RemoteAuthor,
 				ReceivedIn: vocab.Inbox.IRI(Author),
-				Activity:   build.Update(build.WithActor(Author.ID), build.WithObject(updated)),
-				TestFns: []ItemErrorTest{
-					HasID(mp.ShiftIRI),
+				Activity:   update,
+				TestFns: TestAssertions{
+					HasID(updateID),
 					HasType(vocab.UpdateType),
 					WasPublished(mp.PopTime),
 					HasObject(

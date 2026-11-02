@@ -95,7 +95,8 @@ func (p P) ProcessServerActivity(it vocab.Item, author vocab.Actor, receivedIn v
 		firstDelivery = false
 	}
 
-	if it, err = p.s.Save(vocab.FlattenProperties(it)); err != nil {
+	// NOTE(marius): on remote activities, it's safer to save the whole object
+	if it, err = p.s.Save(it); err != nil {
 		return it, err
 	}
 
