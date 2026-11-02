@@ -43,9 +43,10 @@ func RunInboxUpdateTests(t *testing.T) {
 		build.WithObject(updated),
 	)
 
+	ms := Remote(WithRemoteMocks(RemoteAuthor, update))
 	P := mp.InitP(
 		WithLocalMocks(Author, original),
-		WithRemoteMocks(RemoteAuthor, update),
+		WithRemote(ms),
 	)
 
 	tests := TestSuite{
@@ -71,6 +72,7 @@ func RunInboxUpdateTests(t *testing.T) {
 						// Content was updated
 						HasContent(vocab.DefaultLangValue("<p>Content</p>")),
 					),
+					//ms.WillReceive(Request(vocab.Inbox.IRI(RemoteAuthorID), update)),
 				},
 			},
 		},

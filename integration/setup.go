@@ -2,12 +2,14 @@ package integration
 
 import (
 	"fmt"
+	"io"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"strings"
 	"sync"
+	"testing"
 	"time"
 
 	vocab "github.com/go-ap/activitypub"
@@ -16,6 +18,7 @@ import (
 	"github.com/go-ap/filters"
 	"github.com/go-ap/processing"
 	conformance "github.com/go-ap/storage-conformance-suite"
+	"github.com/google/go-cmp/cmp"
 )
 
 type (
@@ -25,6 +28,7 @@ type (
 
 	LocalStorageInitFn  func(storage *LocalStorage)
 	RemoteStorageInitFn func(storage *RemoteStorage)
+	RemoteInitFn        func(storage *MockRemote)
 	InitFn              any
 )
 
@@ -76,14 +80,11 @@ var _ processing.Store = new(RemoteStorage)
 func (mp *MockPlumbing) InitP(fns ...InitFn) *processing.P {
 	initFns := make([]processing.OptionFn, 0, len(fns))
 	localStorage := new(LocalStorage)
-	remoteStorage := new(RemoteStorage)
 
 	for _, fn := range fns {
 		switch initFn := fn.(type) {
 		case LocalStorageInitFn:
 			initFn(localStorage)
-		case RemoteStorageInitFn:
-			initFn(remoteStorage)
 		case processing.OptionFn:
 			initFns = append(initFns, initFn)
 		}
@@ -93,7 +94,6 @@ func (mp *MockPlumbing) InitP(fns ...InitFn) *processing.P {
 	initFns = append(initFns, processing.WithIDGenerator(mp.GenerateID))
 	initFns = append(initFns, processing.WithLocalIRIChecker(mp.LocalIRI))
 	initFns = append(initFns, processing.WithTimeFn(mp.Now))
-	initFns = append(initFns, processing.WithClient(mockClient(remoteStorage)))
 
 	pp := processing.New(initFns...)
 	return pp
@@ -108,6 +108,12 @@ func saveItemsToStorage(storage processing.Store, it ...vocab.Item) {
 		if err := p.CreateCollectionsForObject(i); err != nil {
 			panic(fmt.Errorf("failed saving item %s: %w", i.GetID(), err))
 		}
+	}
+}
+
+func WithRemote(mr *MockRemote) processing.OptionFn {
+	return func(p *processing.P) {
+		processing.WithClient(mr.C)(p)
 	}
 }
 
@@ -201,10 +207,24 @@ func (mp *MockPlumbing) PopTime() time.Time {
 	return tt
 }
 
-func mockClient(cl *RemoteStorage) *client.C {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		iri := vocab.IRI("http://" + req.Host + req.RequestURI)
-		it, err := cl.Load(iri)
+type MockRemote struct {
+	asserts  map[vocab.IRI]vocab.ItemCollection
+	received map[vocab.IRI]vocab.ItemCollection
+
+	S *RemoteStorage
+	C *client.C
+}
+
+func (mr *MockRemote) Run(t *testing.T, _ vocab.Item, _ error) {
+	if !cmp.Equal(mr.asserts, mr.received) {
+		t.Fatalf("invalid requests received %s", cmp.Diff(mr.asserts, mr.received))
+	}
+}
+
+func (mr *MockRemote) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	iri := vocab.IRI("http://" + req.Host + req.RequestURI)
+	if req.Method == http.MethodGet {
+		it, err := mr.S.Load(iri)
 		if err != nil {
 			errors.HandleError(err).ServeHTTP(w, req)
 			return
@@ -215,7 +235,53 @@ func mockClient(cl *RemoteStorage) *client.C {
 			return
 		}
 		w.Write(raw)
-	}))
+	}
 
-	return client.New(client.WithHTTPClient(srv.Client()))
+	raw, err := io.ReadAll(req.Body)
+	if err != nil {
+		errors.HandleError(err).ServeHTTP(w, req)
+		return
+	}
+	it, err := vocab.UnmarshalJSON(raw)
+	if err != nil {
+		errors.HandleError(err).ServeHTTP(w, req)
+		return
+	}
+	colIts, exists := mr.received[iri]
+	if !exists {
+		colIts = make(vocab.ItemCollection, 0)
+	}
+	colIts = append(colIts, it)
+	mr.received[iri] = colIts
+}
+
+func Request(iri vocab.IRI, items ...vocab.Item) RemoteInitFn {
+	return func(mr *MockRemote) {
+		mr.asserts[iri] = items
+	}
+}
+
+func (mr *MockRemote) WillReceive(initFns ...RemoteInitFn) TestAssertion {
+	for _, fn := range initFns {
+		fn(mr)
+	}
+	return mr
+}
+
+func Remote(fns ...InitFn) *MockRemote {
+	mr := MockRemote{
+		asserts:  make(map[vocab.IRI]vocab.ItemCollection),
+		received: make(map[vocab.IRI]vocab.ItemCollection),
+		S:        new(RemoteStorage),
+	}
+	for _, fn := range fns {
+		switch initFn := fn.(type) {
+		case RemoteStorageInitFn:
+			initFn(mr.S)
+		}
+	}
+
+	srv := httptest.NewServer(&mr)
+	mr.C = client.New(client.WithHTTPClient(srv.Client()))
+	return &mr
 }
