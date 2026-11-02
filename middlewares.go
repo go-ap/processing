@@ -29,6 +29,7 @@ func RequestToDiskMw(outPath string, checkDebugEnabledFn func() bool) func(next 
 				next.ServeHTTP(w, r)
 				return
 			}
+			defer ff.Close()
 
 			raw, err := httputil.DumpRequest(r, true)
 			if err == nil {
