@@ -149,7 +149,10 @@ var EquateWeakErrors = cmp.FilterValues(areErrors, cmp.Comparer(compareErrors))
 
 type itemCheckFn func(*testing.T, vocab.Item)
 
-func (icFn itemCheckFn) Run(t *testing.T, it vocab.Item, _ error) {
+func (icFn itemCheckFn) Run(t *testing.T, it vocab.Item, err error) {
+	if err != nil {
+		t.Fatalf("no error expected, received: '%+v'", err)
+	}
 	icFn(t, it)
 }
 
@@ -159,11 +162,11 @@ func (eFn errCheckFn) Run(t *testing.T, _ vocab.Item, err error) {
 	eFn(t, err)
 }
 
-type ItemErrorTest interface {
+type TestAssertion interface {
 	Run(t *testing.T, _ vocab.Item, err error)
 }
 
-type TestAssertions []ItemErrorTest
+type TestAssertions []TestAssertion
 
 func HasError(wantErr error) errCheckFn {
 	return func(t *testing.T, err error) {
@@ -179,7 +182,30 @@ func HasID(maybeIRI any) itemCheckFn {
 	return func(t *testing.T, it vocab.Item) {
 		want := iriArg(maybeIRI)
 		t.Run("ID", func(t *testing.T) {
-			if got := it.GetID(); !want.Equal(got) {
+			var got vocab.ID
+			switch {
+			case vocab.IsIRI(it):
+				got = it.GetLink()
+			case vocab.IsLink(it):
+				err := vocab.OnLink(it, func(link *vocab.Link) error {
+					got = link.ID
+					return nil
+				})
+				if err != nil {
+					t.Errorf("failed to load ID from %T", it)
+					return
+				}
+			default:
+				err := vocab.OnObject(it, func(ob *vocab.Object) error {
+					got = ob.ID
+					return nil
+				})
+				if err != nil {
+					t.Errorf("failed to load ID from %T", it)
+					return
+				}
+			}
+			if !want.Equal(got) {
 				t.Errorf("Received %s, expected %s", got, want)
 			}
 		})
@@ -235,14 +261,29 @@ func HasReplies(maybeIRI any) itemCheckFn {
 func HasType(typ vocab.Typer) itemCheckFn {
 	return func(t *testing.T, it vocab.Item) {
 		t.Run("Type", func(t *testing.T) {
-			err := vocab.OnObject(it, func(ob *vocab.Object) error {
-				if !vocab.TypesEqual(ob.Type, typ) {
-					t.Errorf("Received %v, expected %v", ob.Type, typ)
+			var got vocab.Typer
+			switch {
+			case vocab.IsLink(it):
+				err := vocab.OnLink(it, func(link *vocab.Link) error {
+					got = link.Type
+					return nil
+				})
+				if err != nil {
+					t.Errorf("failed to load Type from %T", it)
+					return
 				}
-				return nil
-			})
-			if err != nil {
-				t.Errorf("Invalid Object: %+v", err)
+			default:
+				err := vocab.OnObject(it, func(ob *vocab.Object) error {
+					got = ob.Type
+					return nil
+				})
+				if err != nil {
+					t.Errorf("failed to load Type from %T", it)
+					return
+				}
+			}
+			if !vocab.TypesEqual(got, typ) {
+				t.Errorf("Received %v, expected %v", got, typ)
 			}
 		})
 	}
@@ -484,6 +525,7 @@ func timeArg(maybeTime any) time.Time {
 	case func() time.Time:
 		return tt()
 	default:
+		return time.Time{}.Add(-time.Second)
 	}
 	panic(fmt.Errorf("%T argument can't be converted to an %T", maybeTime, time.Time{}))
 }

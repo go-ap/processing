@@ -18,7 +18,7 @@ func RunOutboxContentManagementTests(t *testing.T) {
 
 func RunOutboxCreateTests(t *testing.T) {
 	mp := MockPlumbing{}
-	P := mp.InitP(WithMocks(Author))
+	P := mp.InitP(WithLocalMocks(Author))
 
 	tests := TestSuite{
 		Name: "Create",
@@ -31,7 +31,7 @@ func RunOutboxCreateTests(t *testing.T) {
 					build.WithActor(Author.ID),
 					build.WithObject(build.Note(build.WithName("Lorem Ipsum"))),
 				),
-				TestFns: []ItemErrorTest{
+				TestFns: TestAssertions{
 					HasActor(HasID(Author.ID)),
 					HasObject(HasAttributedTo(Author.ID)),
 				},
@@ -57,7 +57,7 @@ func RunOutboxCreateTests(t *testing.T) {
 						build.WithPreferredUsername("lipsum"),
 					)),
 				),
-				TestFns: []ItemErrorTest{
+				TestFns: TestAssertions{
 					HasTo(vocab.IRIs{"http://example.com/to/a1", "http://example.com/to/o1"}),
 					HasBto(vocab.IRIs{"http://example.com/bto/a1", "http://example.com/bto/o1"}),
 					HasCC(vocab.IRIs{"http://example.com/cc/a1", "http://example.com/cc/o1"}),
@@ -94,7 +94,7 @@ func RunOutboxUpdateTests(t *testing.T) {
 		build.WithSourceMediaType("text/markdown"),
 	)
 
-	P := mp.InitP(WithMocks(Author, toUpdate))
+	P := mp.InitP(WithLocalMocks(Author, toUpdate))
 
 	updated1 := toUpdate
 	updated1.Content = vocab.DefaultLangValue("<p>Content</p>")
@@ -107,7 +107,7 @@ func RunOutboxUpdateTests(t *testing.T) {
 				Author:     *Author,
 				ReceivedIn: vocab.Outbox.IRI(Author),
 				Activity:   build.Update(build.WithActor(Author.ID), build.WithObject(updated1)),
-				TestFns: []ItemErrorTest{
+				TestFns: TestAssertions{
 					HasID(mp.ShiftIRI),
 					HasType(vocab.UpdateType),
 					WasPublished(mp.PopTime),
@@ -144,7 +144,7 @@ func RunOutboxDeleteTests(t *testing.T) {
 		build.WithSourceContent("Lorem ipsum dolor sic amet"),
 		build.WithSourceMediaType("text/markdown"),
 	)
-	P := mp.InitP(WithMocks(Author, toDelete))
+	P := mp.InitP(WithLocalMocks(Author, toDelete))
 
 	tests := TestSuite{
 		Name: "Delete",
@@ -154,7 +154,7 @@ func RunOutboxDeleteTests(t *testing.T) {
 				Author:     *Author,
 				ReceivedIn: vocab.Outbox.IRI(Author),
 				Activity:   build.Delete(build.WithActor(Author.ID), build.WithObject(toDelete.ID)),
-				TestFns: []ItemErrorTest{
+				TestFns: TestAssertions{
 					HasID(mp.ShiftIRI),
 					HasType(vocab.DeleteType),
 					HasActor(HasID(Author.ID)),

@@ -10,7 +10,7 @@ require (
 	github.com/go-ap/errors v0.0.0-20260701132509-92e5e4fd6394
 	github.com/go-ap/filters v0.0.0-20261101144638-4754d87b7869
 	github.com/go-ap/jsonld v0.0.0-20260607140920-737b40e0ca38
-	github.com/go-ap/storage-conformance-suite v0.0.0-20261018150454-9539fefd49d0
+	github.com/go-ap/storage-conformance-suite v0.0.0-20261101145434-f950c6192791
 	github.com/google/go-cmp v0.7.0
 )
 
@@ -39,7 +39,7 @@ require (
 	github.com/mfridman/tparse v0.18.0 // indirect
 	github.com/mschoch/smat v0.2.0 // indirect
 	github.com/muesli/termenv v0.16.0 // indirect
-	github.com/openshift/osin v1.0.2-0.20210113124101-8612686d6dda // indirect
+	github.com/openshift/osin v1.0.2-0.20220317075346-0f4d38c6e53f // indirect
 	github.com/pborman/uuid v1.2.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/samber/slog-http v1.12.1 // indirect

@@ -3,55 +3,123 @@ package integration
 import (
 	"fmt"
 	"math/rand"
+	"net/http"
+	"net/http/httptest"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	vocab "github.com/go-ap/activitypub"
+	"github.com/go-ap/client"
+	"github.com/go-ap/errors"
+	"github.com/go-ap/filters"
 	"github.com/go-ap/processing"
 	conformance "github.com/go-ap/storage-conformance-suite"
 )
 
 type (
-	MockStorage = conformance.MemStorage
+	LocalStorage conformance.MemStorage
 
-	StorageInitFn func(storage *MockStorage)
-	InitFn        any
+	RemoteStorage conformance.MemStorage
+
+	LocalStorageInitFn  func(storage *LocalStorage)
+	RemoteStorageInitFn func(storage *RemoteStorage)
+	InitFn              any
 )
+
+func (l *LocalStorage) Load(iri vocab.IRI, check ...filters.Check) (vocab.Item, error) {
+	return (*conformance.MemStorage)(l).Load(iri, check...)
+}
+
+func (l *LocalStorage) Save(item vocab.Item) (vocab.Item, error) {
+	return (*conformance.MemStorage)(l).Save(item)
+}
+
+func (l *LocalStorage) Delete(item vocab.Item) error {
+	return (*conformance.MemStorage)(l).Delete(item)
+}
+
+func (l *LocalStorage) AddTo(iri vocab.IRI, item ...vocab.Item) error {
+	return (*conformance.MemStorage)(l).AddTo(iri, item...)
+}
+
+func (l *LocalStorage) RemoveFrom(iri vocab.IRI, item ...vocab.Item) error {
+	return (*conformance.MemStorage)(l).RemoveFrom(iri, item...)
+}
+
+func (r *RemoteStorage) Load(iri vocab.IRI, check ...filters.Check) (vocab.Item, error) {
+	return (*conformance.MemStorage)(r).Load(iri, check...)
+}
+
+func (r *RemoteStorage) Save(item vocab.Item) (vocab.Item, error) {
+	return (*conformance.MemStorage)(r).Save(item)
+}
+
+func (r *RemoteStorage) Delete(item vocab.Item) error {
+	return (*conformance.MemStorage)(r).Delete(item)
+}
+
+func (r *RemoteStorage) AddTo(iri vocab.IRI, item ...vocab.Item) error {
+
+	return (*conformance.MemStorage)(r).AddTo(iri, item...)
+}
+
+func (r *RemoteStorage) RemoveFrom(iri vocab.IRI, item ...vocab.Item) error {
+	ms := (*conformance.MemStorage)(r)
+	return ms.RemoveFrom(iri, item...)
+}
+
+var _ processing.Store = new(LocalStorage)
+var _ processing.Store = new(RemoteStorage)
 
 func (mp *MockPlumbing) InitP(fns ...InitFn) *processing.P {
 	initFns := make([]processing.OptionFn, 0, len(fns))
-	storage := new(MockStorage)
+	localStorage := new(LocalStorage)
+	remoteStorage := new(RemoteStorage)
 
 	for _, fn := range fns {
 		switch initFn := fn.(type) {
-		case StorageInitFn:
-			initFn(storage)
+		case LocalStorageInitFn:
+			initFn(localStorage)
+		case RemoteStorageInitFn:
+			initFn(remoteStorage)
 		case processing.OptionFn:
 			initFns = append(initFns, initFn)
 		}
 	}
 
-	initFns = append(initFns, processing.WithStorage(storage))
+	initFns = append(initFns, processing.WithStorage(localStorage))
 	initFns = append(initFns, processing.WithIDGenerator(mp.GenerateID))
 	initFns = append(initFns, processing.WithLocalIRIChecker(mp.LocalIRI))
 	initFns = append(initFns, processing.WithTimeFn(mp.Now))
+	initFns = append(initFns, processing.WithClient(mockClient(remoteStorage)))
 
-	return processing.New(initFns...)
+	pp := processing.New(initFns...)
+	return pp
 }
 
-func WithMocks(it ...vocab.Item) StorageInitFn {
-	return func(storage *MockStorage) {
-		p := processing.New(processing.WithStorage(storage))
-		for _, i := range it {
-			if _, err := storage.Save(i); err != nil {
-				panic(fmt.Errorf("failed saving item %s: %w", i.GetID(), err))
-			}
-			if err := p.CreateCollectionsForObject(i); err != nil {
-				panic(fmt.Errorf("failed saving item %s: %w", i.GetID(), err))
-			}
+func saveItemsToStorage(storage processing.Store, it ...vocab.Item) {
+	p := processing.New(processing.WithStorage(storage))
+	for _, i := range it {
+		if _, err := storage.Save(i); err != nil {
+			panic(fmt.Errorf("failed saving item %s: %w", i.GetID(), err))
 		}
+		if err := p.CreateCollectionsForObject(i); err != nil {
+			panic(fmt.Errorf("failed saving item %s: %w", i.GetID(), err))
+		}
+	}
+}
+
+func WithRemoteMocks(it ...vocab.Item) RemoteStorageInitFn {
+	return func(storage *RemoteStorage) {
+		saveItemsToStorage(storage, it...)
+	}
+}
+
+func WithLocalMocks(it ...vocab.Item) LocalStorageInitFn {
+	return func(storage *LocalStorage) {
+		saveItemsToStorage(storage, it...)
 	}
 }
 
@@ -131,4 +199,23 @@ func (mp *MockPlumbing) PopTime() time.Time {
 	tt := mp.times[len(mp.times)-1]
 	mp.times = mp.times[:len(mp.times)-1]
 	return tt
+}
+
+func mockClient(cl *RemoteStorage) *client.C {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		iri := vocab.IRI("http://" + req.Host + req.RequestURI)
+		it, err := cl.Load(iri)
+		if err != nil {
+			errors.HandleError(err).ServeHTTP(w, req)
+			return
+		}
+		raw, err := vocab.MarshalJSON(it)
+		if err != nil {
+			errors.HandleError(err).ServeHTTP(w, req)
+			return
+		}
+		w.Write(raw)
+	}))
+
+	return client.New(client.WithHTTPClient(srv.Client()))
 }
