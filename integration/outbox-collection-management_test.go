@@ -5,6 +5,7 @@ import (
 
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/activitypub/build"
+	"github.com/go-ap/processing"
 )
 
 func Test_Outbox_Add(t *testing.T) {
@@ -23,7 +24,8 @@ func Test_Outbox_Add(t *testing.T) {
 			build.WithTo(vocab.ItemCollection{vocab.PublicNS}),
 		)
 
-		p := mp.InitP(WithLocalMocks(Author, toAdd, target))
+		st := Storage(WithLocalMocks(Author, toAdd, target))
+		p := mp.InitP(processing.WithStorage(st))
 		tests := TestSuite{
 			Name: "Add",
 			Tests: []RunnableTest{
@@ -40,7 +42,7 @@ func Test_Outbox_Add(t *testing.T) {
 						HasID(mp.ShiftIRI),
 						HasType(vocab.AddType),
 						WasPublished(mp.PopTime),
-						HasObject(HasID(noteID)),
+						RequestObject(HasID(noteID)),
 					},
 				},
 			},
@@ -54,7 +56,9 @@ func Test_Outbox_Move(t *testing.T) {
 	t.Run("Move", func(t *testing.T) {
 		t.Skipf("TODO")
 		mp := MockPlumbing{}
-		P := mp.InitP(WithLocalMocks(Author))
+
+		st := Storage(WithLocalMocks(Author))
+		P := mp.InitP(processing.WithStorage(st))
 
 		tests := TestSuite{}
 		t.Run(tests.Label(), tests.TestFn(P))
@@ -65,7 +69,8 @@ func Test_Outbox_Remove(t *testing.T) {
 	t.Run("Remove", func(t *testing.T) {
 		t.Skipf("TODO")
 		mp := MockPlumbing{}
-		P := mp.InitP(WithLocalMocks(Author))
+		st := Storage(WithLocalMocks(Author))
+		P := mp.InitP(processing.WithStorage(st))
 
 		tests := TestSuite{}
 		t.Run(tests.Label(), tests.TestFn(P))

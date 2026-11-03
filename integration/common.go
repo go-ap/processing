@@ -19,11 +19,6 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
-var (
-	outbox bool = true
-	inbox  bool = true
-)
-
 type TestPair struct {
 	Name       string
 	Author     vocab.Actor
@@ -184,7 +179,7 @@ func HasError(wantErr error) errCheckFn {
 func HasID(maybeIRI any) itemCheckFn {
 	return func(t *testing.T, it vocab.Item) {
 		want := iriArg(maybeIRI)
-		t.Run("ID", func(t *testing.T) {
+		t.Run(lbl("ID", want), func(t *testing.T) {
 			var got vocab.ID
 			switch {
 			case vocab.IsIRI(it):
@@ -217,7 +212,7 @@ func HasID(maybeIRI any) itemCheckFn {
 
 func HasInbox(want vocab.IRI) itemCheckFn {
 	return func(t *testing.T, it vocab.Item) {
-		t.Run("Inbox", func(t *testing.T) {
+		t.Run(lbl("Inbox", want), func(t *testing.T) {
 			if got := vocab.Inbox.IRI(it); !got.Equal(want) {
 				t.Errorf("Received %s, expected %s", got, want)
 			}
@@ -227,7 +222,7 @@ func HasInbox(want vocab.IRI) itemCheckFn {
 
 func HasOutbox(want vocab.IRI) itemCheckFn {
 	return func(t *testing.T, it vocab.Item) {
-		t.Run("Outbox", func(t *testing.T) {
+		t.Run(lbl("Outbox", want), func(t *testing.T) {
 			if got := vocab.Outbox.IRI(it); !got.Equal(want) {
 				t.Errorf("Received %s, expected %s", got, want)
 			}
@@ -253,7 +248,7 @@ func iriArg(maybeIRI any) vocab.IRI {
 func HasReplies(maybeIRI any) itemCheckFn {
 	return func(t *testing.T, it vocab.Item) {
 		want := iriArg(maybeIRI)
-		t.Run("Replies", func(t *testing.T) {
+		t.Run(lbl("Replies", want), func(t *testing.T) {
 			if got := vocab.Replies.IRI(it); !got.Equal(want) {
 				t.Errorf("Received %s, expected %s", got, want)
 			}
@@ -263,7 +258,7 @@ func HasReplies(maybeIRI any) itemCheckFn {
 
 func HasType(typ vocab.Typer) itemCheckFn {
 	return func(t *testing.T, it vocab.Item) {
-		t.Run("Type", func(t *testing.T) {
+		t.Run(lbl("Type", typ), func(t *testing.T) {
 			var got vocab.Typer
 			switch {
 			case vocab.IsLink(it):
@@ -294,7 +289,7 @@ func HasType(typ vocab.Typer) itemCheckFn {
 
 func HasFormerType(typ vocab.Typer) itemCheckFn {
 	return func(t *testing.T, it vocab.Item) {
-		t.Run("FormerType", func(*testing.T) {
+		t.Run(lbl("FormerType", typ), func(*testing.T) {
 			err := vocab.OnTombstone(it, func(ts *vocab.Tombstone) error {
 				if !vocab.TypesEqual(ts.FormerType, typ) {
 					t.Errorf("Received %s, expected %s", ts.FormerType, typ)
@@ -324,7 +319,7 @@ func nlv[T ~string | vocab.NaturalLanguageValues](c T) vocab.NaturalLanguageValu
 func HasPreferredUsername[T ~string | vocab.NaturalLanguageValues](name T) itemCheckFn {
 	v := nlv(name)
 	return func(t *testing.T, it vocab.Item) {
-		t.Run("PreferredUsername", func(t *testing.T) {
+		t.Run(lbl("PreferredUsername", v), func(t *testing.T) {
 			err := vocab.OnActor(it, func(act *vocab.Actor) error {
 				if !cmp.Equal(v, act.PreferredUsername) {
 					t.Errorf("Diff %s", cmp.Diff(v, act.PreferredUsername))
@@ -358,7 +353,7 @@ func HasSummary[T ~string | vocab.NaturalLanguageValues](cont T) itemCheckFn {
 func HasName[T ~string | vocab.NaturalLanguageValues](cont T) itemCheckFn {
 	v := nlv(cont)
 	return func(t *testing.T, it vocab.Item) {
-		t.Run("Name", func(t *testing.T) {
+		t.Run(lbl("Name", v), func(t *testing.T) {
 			err := vocab.OnObject(it, func(ob *vocab.Object) error {
 				if !cmp.Equal(v, ob.Name) {
 					t.Errorf("Diff %s", cmp.Diff(v, ob.Name))
@@ -391,7 +386,7 @@ func HasContent[T ~string | vocab.NaturalLanguageValues](cont T) itemCheckFn {
 
 func HasMediaType(mt vocab.MimeType) itemCheckFn {
 	return func(t *testing.T, it vocab.Item) {
-		t.Run("MediaType", func(t *testing.T) {
+		t.Run(lbl("MediaType", mt), func(t *testing.T) {
 			err := vocab.OnObject(it, func(ob *vocab.Object) error {
 				if !cmp.Equal(mt, ob.MediaType) {
 					t.Errorf("Diff %s", cmp.Diff(mt, ob.MediaType))
@@ -436,7 +431,7 @@ func toNormalizedItemCol(it vocab.Item) vocab.ItemCollection {
 func HasTo(to ...vocab.Item) itemCheckFn {
 	ti := toNormalizedItemCol(vocab.ItemCollection(to))
 	return func(t *testing.T, it vocab.Item) {
-		t.Run("To", func(t *testing.T) {
+		t.Run(lbl("To", ti), func(t *testing.T) {
 			err := vocab.OnObject(it, func(ob *vocab.Object) error {
 				if tt := toNormalizedItemCol(ob.To); !cmp.Equal(ti, tt) {
 					t.Errorf("Received %s", cmp.Diff(ti, tt))
@@ -453,7 +448,7 @@ func HasTo(to ...vocab.Item) itemCheckFn {
 func HasCC(cc ...vocab.Item) itemCheckFn {
 	ci := toNormalizedItemCol(vocab.ItemCollection(cc))
 	return func(t *testing.T, it vocab.Item) {
-		t.Run("CC", func(t *testing.T) {
+		t.Run(lbl("CC", ci), func(t *testing.T) {
 			err := vocab.OnObject(it, func(ob *vocab.Object) error {
 				if ccc := toNormalizedItemCol(ob.CC); !cmp.Equal(ci, ccc) {
 					t.Errorf("Received %s", cmp.Diff(ci, ccc))
@@ -470,7 +465,7 @@ func HasCC(cc ...vocab.Item) itemCheckFn {
 func HasBto(to ...vocab.Item) itemCheckFn {
 	ti := toNormalizedItemCol(vocab.ItemCollection(to))
 	return func(t *testing.T, it vocab.Item) {
-		t.Run("Bto", func(t *testing.T) {
+		t.Run(lbl("Bto", ti), func(t *testing.T) {
 			err := vocab.OnObject(it, func(ob *vocab.Object) error {
 				if tt := toNormalizedItemCol(ob.Bto); !cmp.Equal(ti, tt) {
 					t.Errorf("Received %s", cmp.Diff(ti, tt))
@@ -487,7 +482,7 @@ func HasBto(to ...vocab.Item) itemCheckFn {
 func HasBCC(to ...vocab.Item) itemCheckFn {
 	ti := toNormalizedItemCol(vocab.ItemCollection(to))
 	return func(t *testing.T, it vocab.Item) {
-		t.Run("BCC", func(t *testing.T) {
+		t.Run(lbl("BCC", ti), func(t *testing.T) {
 			err := vocab.OnObject(it, func(ob *vocab.Object) error {
 				if tt := toNormalizedItemCol(ob.BCC); !cmp.Equal(ti, tt) {
 					t.Errorf("Received %s", cmp.Diff(ti, tt))
@@ -504,7 +499,7 @@ func HasBCC(to ...vocab.Item) itemCheckFn {
 func WasUpdated(maybeTime any) itemCheckFn {
 	return func(t *testing.T, it vocab.Item) {
 		want := timeArg(maybeTime)
-		t.Run("Updated", func(t *testing.T) {
+		t.Run(lbl("Updated", want), func(t *testing.T) {
 			err := vocab.OnObject(it, func(ob *vocab.Object) error {
 				if !cmp.Equal(want, ob.Updated, cmpopts.EquateApproxTime(fudgeDuration)) {
 					t.Errorf("Failed Updated date check for %s, received %s, expected %s", ob.ID, ob.Updated, want)
@@ -536,7 +531,7 @@ func timeArg(maybeTime any) time.Time {
 func WasPublished(maybeTime any) itemCheckFn {
 	return func(t *testing.T, it vocab.Item) {
 		want := timeArg(maybeTime)
-		t.Run("Published", func(t *testing.T) {
+		t.Run(lbl("Published", want), func(t *testing.T) {
 			err := vocab.OnObject(it, func(ob *vocab.Object) error {
 				if !cmp.Equal(want, ob.Published, cmpopts.EquateApproxTime(fudgeDuration)) {
 					t.Errorf("Received %s, expected %s", ob.Published, want)
@@ -553,7 +548,7 @@ func WasPublished(maybeTime any) itemCheckFn {
 func WasDeleted(maybeTime any) itemCheckFn {
 	return func(t *testing.T, it vocab.Item) {
 		want := timeArg(maybeTime)
-		t.Run("Deleted", func(*testing.T) {
+		t.Run(lbl("Deleted", want), func(*testing.T) {
 			err := vocab.OnTombstone(it, func(ts *vocab.Tombstone) error {
 				if !cmp.Equal(want, ts.Deleted, cmpopts.EquateApproxTime(fudgeDuration)) {
 					t.Errorf("Received %s, expected %s", ts.Deleted, want)
@@ -570,7 +565,7 @@ func WasDeleted(maybeTime any) itemCheckFn {
 func HasAudience(u ...vocab.Item) itemCheckFn {
 	ui := toNormalizedItemCol(vocab.ItemCollection(u))
 	return func(t *testing.T, it vocab.Item) {
-		t.Run("Audience", func(t *testing.T) {
+		t.Run(lbl("Audience", ui), func(t *testing.T) {
 			err := vocab.OnObject(it, func(ob *vocab.Object) error {
 				if aud := toNormalizedItemCol(ob.Audience); !cmp.Equal(aud, ui) {
 					t.Errorf("%s", cmp.Diff(ui, aud))
@@ -584,10 +579,57 @@ func HasAudience(u ...vocab.Item) itemCheckFn {
 	}
 }
 
+func lbl(name string, val any) string {
+	if val == nil {
+		return name
+	}
+
+	vLbl := "IsNil"
+	switch v := val.(type) {
+	case vocab.IRI:
+		if len(v) == 0 {
+			return name
+		}
+		vLbl = fmt.Sprintf("%q", v)
+	case vocab.IRIs:
+		if len(v) == 0 {
+			return name
+		}
+		vLbl = fmt.Sprintf("%v", v)
+	case vocab.Item:
+		if vocab.IsNil(v) {
+			return name
+		}
+		vLbl = fmt.Sprintf("%v", v)
+	case vocab.ItemCollection:
+		if len(v) == 0 {
+			return name
+		}
+		vLbl = fmt.Sprintf("%v", v)
+	case vocab.NaturalLanguageValues:
+		if len(v) == 0 {
+			return name
+		}
+		vLbl = fmt.Sprintf("%v", v)
+		vLbl = vLbl[:min(16, len(vLbl))]
+	case time.Time:
+		if v.IsZero() {
+			return name
+		}
+		vLbl = fmt.Sprintf("%v", v)
+	case string:
+		if len(v) == 0 {
+			return name
+		}
+		vLbl = fmt.Sprintf("%v", v)
+	}
+	return name + ":" + vLbl
+}
+
 func HasInReplyTo(u ...vocab.Item) itemCheckFn {
 	ui := toNormalizedItemCol(vocab.ItemCollection(u))
 	return func(t *testing.T, it vocab.Item) {
-		t.Run("InReplyTo", func(t *testing.T) {
+		t.Run(lbl("InReplyTo", ui), func(t *testing.T) {
 			err := vocab.OnObject(it, func(ob *vocab.Object) error {
 				if ir := toNormalizedItemCol(ob.InReplyTo); !cmp.Equal(ir, ui) {
 					t.Errorf("%s", cmp.Diff(ui, ir))
@@ -816,7 +858,7 @@ func equalFlattened(w vocab.Item) itemCheckFn {
 	}
 }
 
-func HasObject(maybeItems ...any) itemCheckFn {
+func RequestObject(maybeItems ...any) itemCheckFn {
 	return func(t *testing.T, it vocab.Item) {
 		checks := itemCheckArgs(maybeItems...)
 		t.Run("Object", func(t *testing.T) {
@@ -984,6 +1026,22 @@ func HasExactItems(items ...vocab.Item) itemCheckFn {
 			})
 			if err != nil {
 				t.Errorf("Invalid Collection: %+v", err)
+			}
+		})
+	}
+}
+
+func (l *LocalStorage) CheckObject(iri vocab.IRI, maybeItems ...any) itemCheckFn {
+	return func(t *testing.T, _ vocab.Item) {
+		checks := itemCheckArgs(maybeItems...)
+		t.Run("StorageObject", func(t *testing.T) {
+			it, err := l.Load(iri)
+			if err != nil {
+				t.Errorf("received error trying to load local storage object: %v", err)
+				return
+			}
+			for _, check := range checks {
+				check(t, it)
 			}
 		})
 	}

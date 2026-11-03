@@ -6,6 +6,7 @@ import (
 
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/activitypub/build"
+	"github.com/go-ap/processing"
 )
 
 func Test_Inbox_Update(t *testing.T) {
@@ -36,12 +37,9 @@ func Test_Inbox_Update(t *testing.T) {
 		build.WithActor(RemoteAuthorID),
 		build.WithObject(updated),
 	)
-
+	st := Storage(WithLocalMocks(Author, original))
 	ms := Remote(WithRemoteMocks(RemoteAuthor, update))
-	P := mp.InitP(
-		WithLocalMocks(Author, original),
-		WithRemote(ms),
-	)
+	P := mp.InitP(processing.WithStorage(st), WithRemote(ms))
 
 	tests := TestSuite{
 		Name: "Update",
@@ -55,7 +53,7 @@ func Test_Inbox_Update(t *testing.T) {
 					HasID(updateID),
 					HasType(vocab.UpdateType),
 					WasPublished(mp.PopTime),
-					HasObject(
+					RequestObject(
 						HasID(original.ID),
 						HasType(nil),
 						WasUpdated(mp.PopTime),

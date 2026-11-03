@@ -6,11 +6,13 @@ import (
 
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/activitypub/build"
+	"github.com/go-ap/processing"
 )
 
 func Test_Outbox_Create(t *testing.T) {
 	mp := MockPlumbing{}
-	P := mp.InitP(WithLocalMocks(Author))
+	st := Storage(WithLocalMocks(Author))
+	P := mp.InitP(processing.WithStorage(st))
 
 	tests := TestSuite{
 		Name: "Create",
@@ -25,7 +27,7 @@ func Test_Outbox_Create(t *testing.T) {
 				),
 				TestFns: TestAssertions{
 					HasActor(HasID(Author.ID)),
-					HasObject(HasAttributedTo(Author.ID)),
+					RequestObject(HasAttributedTo(Author.ID)),
 				},
 			},
 			TestPair{
@@ -54,7 +56,7 @@ func Test_Outbox_Create(t *testing.T) {
 					HasBto(vocab.IRIs{"http://example.com/bto/a1", "http://example.com/bto/o1"}),
 					HasCC(vocab.IRIs{"http://example.com/cc/a1", "http://example.com/cc/o1"}),
 					HasBCC(vocab.IRIs{"http://example.com/bcc/a1", "http://example.com/bcc/o1"}),
-					HasObject(
+					RequestObject(
 						HasTo(vocab.IRIs{"http://example.com/to/a1", "http://example.com/to/o1"}),
 						HasBto(vocab.IRIs{"http://example.com/bto/a1", "http://example.com/bto/o1"}),
 						HasCC(vocab.IRIs{"http://example.com/cc/a1", "http://example.com/cc/o1"}),
@@ -86,7 +88,8 @@ func Test_Outbox_Update(t *testing.T) {
 		build.WithSourceMediaType("text/markdown"),
 	)
 
-	P := mp.InitP(WithLocalMocks(Author, toUpdate))
+	st := Storage(WithLocalMocks(Author, toUpdate))
+	P := mp.InitP(processing.WithStorage(st))
 
 	updated1 := toUpdate
 	updated1.Content = vocab.DefaultLangValue("<p>Content</p>")
@@ -103,7 +106,7 @@ func Test_Outbox_Update(t *testing.T) {
 					HasID(mp.ShiftIRI),
 					HasType(vocab.UpdateType),
 					WasPublished(mp.PopTime),
-					HasObject(
+					RequestObject(
 						WasUpdated(mp.PopTime),
 						// Original name
 						HasName(vocab.DefaultLangValue("Lipsum name")),
@@ -136,7 +139,9 @@ func Test_Outbox_Delete(t *testing.T) {
 		build.WithSourceContent("Lorem ipsum dolor sic amet"),
 		build.WithSourceMediaType("text/markdown"),
 	)
-	P := mp.InitP(WithLocalMocks(Author, toDelete))
+
+	st := Storage(WithLocalMocks(Author, toDelete))
+	P := mp.InitP(processing.WithStorage(st))
 
 	tests := TestSuite{
 		Name: "Delete",
@@ -151,13 +156,14 @@ func Test_Outbox_Delete(t *testing.T) {
 					HasType(vocab.DeleteType),
 					HasActor(HasID(Author.ID)),
 					WasPublished(mp.PopTime),
-					HasObject(
+					RequestObject(
 						HasID(toDelete.ID),
 						HasType(vocab.TombstoneType),
 						HasFormerType(toDelete.Type),
 						HasTo(toDelete.To),
 						WasDeleted(mp.PopTime),
 					),
+					st.CheckObject(toDelete.ID, HasType(vocab.TombstoneType)),
 				},
 			},
 		},

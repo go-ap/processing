@@ -81,18 +81,14 @@ var _ processing.Store = new(RemoteStorage)
 
 func (mp *MockPlumbing) InitP(fns ...InitFn) *processing.P {
 	initFns := make([]processing.OptionFn, 0, len(fns))
-	localStorage := new(LocalStorage)
 
 	for _, fn := range fns {
 		switch initFn := fn.(type) {
-		case LocalStorageInitFn:
-			initFn(localStorage)
 		case processing.OptionFn:
 			initFns = append(initFns, initFn)
 		}
 	}
 
-	initFns = append(initFns, processing.WithStorage(localStorage))
 	initFns = append(initFns, processing.WithIDGenerator(mp.GenerateID))
 	initFns = append(initFns, processing.WithLocalIRIChecker(mp.LocalIRI))
 	initFns = append(initFns, processing.WithTimeFn(mp.Now))
@@ -270,6 +266,19 @@ func (mr *MockRemote) WillReceive(initFns ...RemoteInitFn) TestAssertion {
 		fn(mr)
 	}
 	return mr
+}
+
+func Storage(fns ...InitFn) *LocalStorage {
+	localStorage := new(LocalStorage)
+
+	for _, fn := range fns {
+		switch initFn := fn.(type) {
+		case LocalStorageInitFn:
+			initFn(localStorage)
+		}
+	}
+
+	return localStorage
 }
 
 func Remote(fns ...InitFn) *MockRemote {
