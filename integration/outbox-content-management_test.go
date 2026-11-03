@@ -8,15 +8,7 @@ import (
 	"github.com/go-ap/activitypub/build"
 )
 
-func RunOutboxContentManagementTests(t *testing.T) {
-	t.Run("Content Management", func(t *testing.T) {
-		RunOutboxCreateTests(t)
-		RunOutboxUpdateTests(t)
-		RunOutboxDeleteTests(t)
-	})
-}
-
-func RunOutboxCreateTests(t *testing.T) {
+func Test_Outbox_Create(t *testing.T) {
 	mp := MockPlumbing{}
 	P := mp.InitP(WithLocalMocks(Author))
 
@@ -76,7 +68,7 @@ func RunOutboxCreateTests(t *testing.T) {
 	t.Run(tests.Label(), tests.TestFn(P))
 }
 
-func RunOutboxUpdateTests(t *testing.T) {
+func Test_Outbox_Update(t *testing.T) {
 	mp := MockPlumbing{}
 
 	noteID := RootID.AddPath("to-update")
@@ -103,7 +95,7 @@ func RunOutboxUpdateTests(t *testing.T) {
 		Name: "Update",
 		Tests: []RunnableTest{
 			TestPair{
-				Name:       "Partial update",
+				Name:       "Partial",
 				Author:     *Author,
 				ReceivedIn: vocab.Outbox.IRI(Author),
 				Activity:   build.Update(build.WithActor(Author.ID), build.WithObject(updated1)),
@@ -128,7 +120,7 @@ func RunOutboxUpdateTests(t *testing.T) {
 	t.Run(tests.Label(), tests.TestFn(P))
 }
 
-func RunOutboxDeleteTests(t *testing.T) {
+func Test_Outbox_Delete(t *testing.T) {
 	mp := MockPlumbing{}
 
 	toDelete := build.Article(

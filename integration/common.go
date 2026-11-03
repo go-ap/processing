@@ -51,6 +51,7 @@ func (tt TestPair) Label() string {
 
 func (tt TestPair) TestFn(P *processing.P) func(*testing.T) {
 	return func(t *testing.T) {
+		t.Helper()
 		act, err := P.ProcessActivity(tt.Activity, tt.Author, tt.ReceivedIn)
 		for _, testFn := range tt.TestFns {
 			testFn.Run(t, act, err)
@@ -64,6 +65,7 @@ func (ts TestSuite) Label() string {
 
 func (ts TestSuite) TestFn(P *processing.P) func(t *testing.T) {
 	return func(t *testing.T) {
+		t.Helper()
 		for _, tt := range ts.Tests {
 			t.Run(tt.Label(), tt.TestFn(P))
 		}
@@ -71,6 +73,7 @@ func (ts TestSuite) TestFn(P *processing.P) func(t *testing.T) {
 }
 
 func (ts TestSuite) Run(t *testing.T, P *processing.P) {
+	t.Helper()
 	for _, tt := range ts.Tests {
 		t.Run(tt.Label(), tt.TestFn(P))
 	}

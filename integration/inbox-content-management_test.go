@@ -8,13 +8,7 @@ import (
 	"github.com/go-ap/activitypub/build"
 )
 
-func RunInboxContentManagementTests(t *testing.T) {
-	t.Run("Content Management", func(t *testing.T) {
-		RunInboxUpdateTests(t)
-	})
-}
-
-func RunInboxUpdateTests(t *testing.T) {
+func Test_Inbox_Update(t *testing.T) {
 	mp := MockPlumbing{}
 
 	original := build.Note(
@@ -53,7 +47,7 @@ func RunInboxUpdateTests(t *testing.T) {
 		Name: "Update",
 		Tests: []RunnableTest{
 			TestPair{
-				Name:       "Completely replace object",
+				Name:       "Completely-Replace",
 				Author:     *RemoteAuthor,
 				ReceivedIn: vocab.Inbox.IRI(Author),
 				Activity:   update,

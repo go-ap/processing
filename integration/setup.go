@@ -218,6 +218,7 @@ type MockRemote struct {
 }
 
 func (mr *MockRemote) Run(t *testing.T, _ vocab.Item, _ error) {
+	t.Helper()
 	if !cmp.Equal(mr.asserts, mr.received) {
 		t.Fatalf("invalid requests received %s", cmp.Diff(mr.asserts, mr.received))
 	}

@@ -7,15 +7,7 @@ import (
 	"github.com/go-ap/activitypub/build"
 )
 
-func RunOutboxCollectionManagementTests(t *testing.T) {
-	t.Run("Collection Management", func(t *testing.T) {
-		RunOutboxAddTests(t)
-		RunOutboxMoveTests(t)
-		RunOutboxRemoveTests(t)
-	})
-}
-
-func RunOutboxAddTests(t *testing.T) {
+func Test_Outbox_Add(t *testing.T) {
 	t.Run("Add", func(t *testing.T) {
 		mp := MockPlumbing{}
 
@@ -58,7 +50,7 @@ func RunOutboxAddTests(t *testing.T) {
 	})
 }
 
-func RunOutboxMoveTests(t *testing.T) {
+func Test_Outbox_Move(t *testing.T) {
 	t.Run("Move", func(t *testing.T) {
 		t.Skipf("TODO")
 		mp := MockPlumbing{}
@@ -69,7 +61,7 @@ func RunOutboxMoveTests(t *testing.T) {
 	})
 }
 
-func RunOutboxRemoveTests(t *testing.T) {
+func Test_Outbox_Remove(t *testing.T) {
 	t.Run("Remove", func(t *testing.T) {
 		t.Skipf("TODO")
 		mp := MockPlumbing{}

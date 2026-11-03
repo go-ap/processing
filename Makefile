@@ -18,7 +18,7 @@ go.sum: go.mod
 
 test: TEST_FLAGS += -json -cover -coverpkg github.com/go-ap/processing -covermode=count
 test: go.sum
-	$(TEST) $(TEST_FLAGS) $(TEST_TARGET) | go tool tparse -all
+	$(TEST) $(TEST_FLAGS) $(TEST_TARGET) | go tool tparse -all -trimpath github.com/go-ap/processing/
 
 $(GOCOVERDIR):
 	mkdir -p $(GOCOVERDIR)

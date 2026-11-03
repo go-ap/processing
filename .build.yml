@@ -14,7 +14,10 @@ tasks:
       test -z $(gofmt -l .)
   - tests: |
       cd processing
-      make test
+      make TEST_TARGET=. test
+  - integration: |
+      cd processing
+      make TEST_TARGET=./integration test
   - coverage: |
       cd processing
       git switch -C master origin/master
