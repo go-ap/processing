@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"math/rand"
@@ -12,10 +13,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/carlmjohnson/requests"
 	vocab "github.com/go-ap/activitypub"
-	"github.com/go-ap/client"
 	"github.com/go-ap/errors"
 	"github.com/go-ap/filters"
+	"github.com/go-ap/jsonld"
 	"github.com/go-ap/processing"
 	conformance "github.com/go-ap/storage-conformance-suite"
 	"github.com/google/go-cmp/cmp"
@@ -212,7 +214,7 @@ type MockRemote struct {
 	received map[vocab.IRI]vocab.ItemCollection
 
 	S *RemoteStorage
-	C *client.C
+	C processing.ActivityPubClient
 }
 
 func (mr *MockRemote) Run(t *testing.T, _ vocab.Item, _ error) {
@@ -235,6 +237,7 @@ func (mr *MockRemote) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 		w.Write(raw)
+		return
 	}
 
 	raw, err := io.ReadAll(req.Body)
@@ -282,6 +285,73 @@ func Remote(fns ...InitFn) *MockRemote {
 	}
 
 	srv := httptest.NewServer(&mr)
-	mr.C = client.New(client.WithHTTPClient(srv.Client()))
+	mr.C = mockClient(*srv.Client())
 	return &mr
 }
+
+type mockClient http.Client
+
+func (m mockClient) CtxToCollection(ctx context.Context, it vocab.Item, iris ...vocab.IRI) (vocab.IRI, vocab.Item, error) {
+	cont, err := jsonld.WithContext(jsonld.IRI(vocab.ActivityBaseURI), jsonld.IRI(vocab.SecurityContextURI)).Marshal(it)
+	if err != nil {
+		return "", nil, errors.Errorf("unable to marshal activity")
+	}
+
+	results := make(vocab.ItemCollection, 0, len(iris))
+	errs := make([]error, 0, len(iris))
+
+	for _, iri := range iris {
+		rb := requests.URL(string(iri)).Method(http.MethodPost)
+		// NOTE(marius): these are required when signing requests with our draft HTTP-Signatures
+		rb.Header("Accept", "application/activity+json")
+		if u, err := rb.URL(); err == nil {
+			rb.Header("Host", u.Host)
+		}
+		rb.Header("Date", time.Now().UTC().Format(http.TimeFormat))
+
+		rb.ContentType(jsonld.ContentType)
+		rb.BodyBytes(cont)
+
+		if it, err = m.do(ctx, rb); err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		_ = results.Append(it)
+	}
+
+	return "", results.Normalize(), errors.Join(errs...)
+}
+
+func (m mockClient) do(ctx context.Context, rb *requests.Builder) (vocab.Item, error) {
+	req, err := rb.Request(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	cl := http.Client(m)
+
+	resp, err := cl.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	return vocab.UnmarshalJSON(raw)
+}
+
+func (m mockClient) CtxLoadIRI(ctx context.Context, iri vocab.IRI) (vocab.Item, error) {
+	rb := requests.URL(string(iri)).Method(http.MethodGet)
+	// NOTE(marius): these are required when signing requests with our draft HTTP-Signatures
+	rb.Header("Accept", "application/activity+json")
+	if u, err := rb.URL(); err == nil {
+		rb.Header("Host", u.Host)
+	}
+	rb.Header("Date", time.Now().UTC().Format(http.TimeFormat))
+
+	return m.do(ctx, rb)
+}
+
+var _ processing.ActivityPubClient = mockClient{}

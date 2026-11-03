@@ -7,7 +7,6 @@ import (
 	"git.sr.ht/~mariusor/lw"
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/activitypub/build"
-	"github.com/go-ap/client"
 	conformance "github.com/go-ap/storage-conformance-suite"
 )
 
@@ -104,19 +103,6 @@ func TestGenericValidator_ValidateTarget(t *testing.T) {
 	t.Skipf("TODO")
 }
 
-var (
-	tInfFn = func(t *testing.T) client.LogFn {
-		return func(s string, el ...any) {
-			t.Logf(s, el...)
-		}
-	}
-	tErrFn = func(t *testing.T) client.LogFn {
-		return func(s string, el ...any) {
-			t.Errorf(s, el...)
-		}
-	}
-)
-
 type tLogger struct {
 	*testing.T
 }
@@ -130,27 +116,27 @@ func (t tLogger) New(c ...lw.Ctx) lw.Logger {
 }
 
 func (t tLogger) Tracef(s string, a ...any) {
-	tInfFn(t.T)(s, a...)
+	t.T.Logf(s, a...)
 }
 
 func (t tLogger) Debugf(s string, a ...any) {
-	tInfFn(t.T)(s, a...)
+	t.T.Logf(s, a...)
 }
 
 func (t tLogger) Infof(s string, a ...any) {
-	tInfFn(t.T)(s, a...)
+	t.T.Logf(s, a...)
 }
 
 func (t tLogger) Warnf(s string, a ...any) {
-	tErrFn(t.T)(s, a...)
+	t.T.Errorf(s, a...)
 }
 
 func (t tLogger) Errorf(s string, a ...any) {
-	tErrFn(t.T)(s, a...)
+	t.T.Errorf(s, a...)
 }
 
 func (t tLogger) Critf(s string, a ...any) {
-	tErrFn(t.T)(s, a...)
+	t.T.Errorf(s, a...)
 }
 
 var _ lw.Logger = tLogger{}

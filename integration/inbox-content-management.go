@@ -72,7 +72,6 @@ func RunInboxUpdateTests(t *testing.T) {
 						// Content was updated
 						HasContent(vocab.DefaultLangValue("<p>Content</p>")),
 					),
-					//ms.WillReceive(Request(vocab.Inbox.IRI(RemoteAuthorID), update)),
 				},
 			},
 		},

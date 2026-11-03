@@ -1,18 +1,23 @@
 package processing
 
 import (
+	"context"
 	"crypto"
 	"time"
 
 	"git.sr.ht/~mariusor/lw"
 	vocab "github.com/go-ap/activitypub"
-	c "github.com/go-ap/client"
 	"github.com/go-ap/errors"
 )
 
+type ActivityPubClient interface {
+	CtxToCollection(context.Context, vocab.Item, ...vocab.IRI) (vocab.IRI, vocab.Item, error)
+	CtxLoadIRI(context.Context, vocab.IRI) (vocab.Item, error)
+}
+
 type P struct {
 	baseIRI vocab.IRIs
-	c       c.Basic
+	c       ActivityPubClient
 	s       Store
 	l       lw.Logger
 
@@ -38,11 +43,25 @@ type P struct {
 	timeNowFn TimeNow
 }
 
-var nilLogger = lw.Nil()
+type emptyClient struct{}
+
+func (d emptyClient) CtxToCollection(ctx context.Context, item vocab.Item, iri ...vocab.IRI) (vocab.IRI, vocab.Item, error) {
+	return "", nil, errors.NotImplementedf("invalid http.client set on the processor")
+}
+
+func (d emptyClient) CtxLoadIRI(ctx context.Context, iri vocab.IRI) (vocab.Item, error) {
+	return nil, errors.NotImplementedf("invalid http.client set on the processor")
+}
+
+var (
+	nilLogger = lw.Nil()
+	nilClient = emptyClient{}
+)
 
 func New(o ...OptionFn) *P {
 	p := P{
 		l:               nilLogger,
+		c:               nilClient,
 		retries:         DefaultRetryCount,
 		createIDFn:      emptyIDGenerator,
 		localIRICheckFn: defaultLocalIRICheck,
@@ -109,7 +128,7 @@ func WithLogger(l lw.Logger) OptionFn {
 // Activities to other servers.
 // In order to be able to perform the later it needs to be configured with a valid HTTP-Signatures authorization
 // mechanism.
-func WithClient(c c.Basic) OptionFn {
+func WithClient(c ActivityPubClient) OptionFn {
 	return func(p *P) {
 		p.c = c
 	}

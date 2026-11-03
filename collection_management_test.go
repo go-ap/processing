@@ -6,7 +6,6 @@ import (
 	"git.sr.ht/~mariusor/lw"
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/activitypub/build"
-	c "github.com/go-ap/client"
 	conformance "github.com/go-ap/storage-conformance-suite"
 	"github.com/google/go-cmp/cmp"
 )
@@ -33,8 +32,8 @@ func mockStorage(t *testing.T, l lw.Logger) Store {
 	return store
 }
 
-func mockClient(t *testing.T, l lw.Logger) c.Basic {
-	return c.New(c.WithLogger(l), c.SkipTLSValidation(true))
+func mockClient(t *testing.T, l lw.Logger) ActivityPubClient {
+	return emptyClient{}
 }
 
 func mockProcessor(t *testing.T, base vocab.IRI) *P {
