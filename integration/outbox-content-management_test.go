@@ -142,7 +142,7 @@ func Test_Outbox_Delete(t *testing.T) {
 		Name: "Delete",
 		Tests: []RunnableTest{
 			TestPair{
-				Name:       "Delete simple Article",
+				Name:       "Article",
 				Author:     *Author,
 				ReceivedIn: vocab.Outbox.IRI(Author),
 				Activity:   build.Delete(build.WithActor(Author.ID), build.WithObject(toDelete.ID)),

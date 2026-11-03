@@ -28,7 +28,7 @@ func Test_Outbox_Add(t *testing.T) {
 			Name: "Add",
 			Tests: []RunnableTest{
 				TestPair{
-					Name:       "note to target",
+					Name:       "Object to Target",
 					Author:     *Author,
 					ReceivedIn: vocab.Outbox.IRI(Author),
 					Activity: build.Add(
