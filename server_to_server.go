@@ -62,7 +62,7 @@ func (p P) ProcessServerActivity(it vocab.Item, author vocab.Actor, receivedIn v
 		return it, err
 	}
 
-	if err := p.ValidateServerActivity(it, author, receivedIn); err != nil {
+	if err = p.ValidateServerActivity(it, author, receivedIn); err != nil {
 		return it, err
 	}
 

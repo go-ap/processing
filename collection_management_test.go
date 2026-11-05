@@ -32,7 +32,7 @@ func mockStorage(t *testing.T, l lw.Logger) Store {
 	return store
 }
 
-func mockClient(t *testing.T, l lw.Logger) ActivityPubClient {
+func mockClient() ActivityPubClient {
 	return emptyClient{}
 }
 
@@ -40,7 +40,7 @@ func mockProcessor(t *testing.T, base vocab.IRI) *P {
 	l := lw.Dev(lw.SetOutput(t.Output()))
 	return &P{
 		baseIRI:         vocab.IRIs{base},
-		c:               mockClient(t, l),
+		c:               mockClient(),
 		s:               mockStorage(t, l),
 		l:               l,
 		localIRICheckFn: defaultLocalIRICheck,

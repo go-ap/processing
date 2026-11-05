@@ -161,7 +161,7 @@ func (eFn errCheckFn) Run(t *testing.T, _ vocab.Item, err error) {
 }
 
 type TestAssertion interface {
-	Run(t *testing.T, _ vocab.Item, err error)
+	Run(*testing.T, vocab.Item, error)
 }
 
 type TestAssertions []TestAssertion
