@@ -101,21 +101,20 @@ func ExampleP_ProcessActivity_in_outbox() {
 
 func ExampleP_ProcessActivity_in_inbox() {
 	noIRIsAreLocal := func(_ vocab.IRI) bool { return false }
-	storage := new(conformance.MemStorage)
 
-	// The client is used when it's required to dereference properties of the
-	// incoming that are referred only by their IDs into full ActivityPub
-	// objects. Some instances require that remote fetching is done using
-	// requests containing valid HTTP-Signatures, so take that into
-	// consideration. See the go-ap/client module for how to initialize it for
-	// such cases.
-	client := mockClient()
+	storage := new(conformance.MemStorage)
 
 	p := New(
 		WithStorage(storage),
 		// No IRIs are local for this example.
 		WithLocalIRIChecker(noIRIsAreLocal),
-		WithClient(client),
+		// The client is used when it's required to dereference properties of the
+		// incoming that are referred only by their IDs into full ActivityPub
+		// objects. Some instances require that remote fetching is done using
+		// requests containing valid HTTP-Signatures, so take that into
+		// consideration. See the go-ap/client module for how to initialize it for
+		// such cases.
+		WithClient(mockClient()),
 	)
 
 	local := build.Person(

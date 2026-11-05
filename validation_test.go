@@ -12,27 +12,62 @@ import (
 
 func ExampleP_ValidateActivity_in_inbox() {
 	allIRIsAreLocal := func(_ vocab.IRI) bool { return true }
+
 	storage := new(conformance.MemStorage)
-	p := New(
+
+	v := New(
 		WithStorage(storage),
+		// No IRIs are local for this example.
 		WithLocalIRIChecker(allIRIsAreLocal),
 		WithIDGenerator(testIDGenerator()),
+		// The client is used when it's required to dereference properties of the
+		// incoming that are referred only by their IDs into full ActivityPub
+		// objects. Some instances require that remote fetching is done using
+		// requests containing valid HTTP-Signatures, so take that into
+		// consideration. See the go-ap/client module for how to initialize it for
+		// such cases.
+		WithClient(mockClient()),
 	)
 
-	actor := build.Person(
+	local := build.Person(
+		build.WithID("http://social.example.com/alice"),
+		build.WithInbox(vocab.IRI("http://social.example.com/alice/inbox")),
+		build.WithOutbox(vocab.IRI("http://social.example.com/alice/outbox")),
+	)
+	// We save the receiving actor and its collections locally
+	inbox := build.OrderedCollection(build.WithID(vocab.Inbox.IRI(local)))
+	outbox := build.OrderedCollection(build.WithID(vocab.Outbox.IRI(local)))
+	_, _ = storage.Save(local)
+	_, _ = storage.Save(inbox)
+	_, _ = storage.Save(outbox)
+
+	// This is an actor extracted from the HTTP request authorization
+	// headers.
+	// For how to do that see the go-ap/authorize module, which can extract
+	// HTTP-Signatures, and OAuth2 bearer tokens.
+	authorized := build.Person(
 		build.WithID("http://example.com/~jdoe"),
 		build.WithInbox(vocab.IRI("http://example.com/~jdoe/inbox")),
 		build.WithOutbox(vocab.IRI("http://example.com/~jdoe/outbox")),
 	)
-	inbox := build.OrderedCollection(build.WithID(vocab.Inbox.IRI(actor)))
-	outbox := build.OrderedCollection(build.WithID(vocab.Outbox.IRI(actor)))
-	_, _ = storage.Save(actor)
-	_, _ = storage.Save(inbox)
-	_, _ = storage.Save(outbox)
 
-	act := build.Create(build.WithActor(actor))
+	// The authorized actor should be available locally to avoid an
+	// outbound fetch request for it.
+	_, _ = storage.Save(authorized)
 
-	err := p.ValidateActivity(act, *actor, vocab.Inbox.IRI(actor))
+	// The incoming activity doesn't have an ID nor an Object,
+	// so it will fail validation.
+	activity := build.Create(
+		build.WithActor(authorized),
+	)
+
+	// The processor needs to know the URL on which the current request has
+	// been operated on.
+	// As this is a Social API request, it needs to correspond to the
+	// authorized actor's /outbox.
+	receivedIn := vocab.Inbox.IRI(authorized)
+
+	err := v.ValidateActivity(activity, *authorized, receivedIn)
 	fmt.Printf("error: %v\n", err)
 
 	// Output:
@@ -41,30 +76,45 @@ func ExampleP_ValidateActivity_in_inbox() {
 
 func ExampleP_ValidateActivity_in_outbox() {
 	allIRIsAreLocal := func(_ vocab.IRI) bool { return true }
+
 	storage := new(conformance.MemStorage)
 	p := New(
 		WithStorage(storage),
+		// We know that all relevant IRIs are local.
 		WithLocalIRIChecker(allIRIsAreLocal),
 		WithIDGenerator(testIDGenerator()),
 	)
 
+	// This is an actor extracted from the HTTP request authorization
+	// headers.
+	// For how to do that see the go-ap/authorize module, which can extract
+	// HTTP-Signatures, and OAuth2 bearer tokens.
 	actor := build.Person(
 		build.WithID("http://example.com/~jdoe"),
 		build.WithOutbox(vocab.IRI("http://example.com/~jdoe/outbox")),
 	)
 	outbox := build.OrderedCollection(build.WithID(vocab.Outbox.IRI(actor)))
 	inbox := build.OrderedCollection(build.WithID(vocab.Inbox.IRI(actor)))
+	// We save the relevant actor and its collections locally
 	_, _ = storage.Save(actor)
 	_, _ = storage.Save(outbox)
 	_, _ = storage.Save(inbox)
 
-	note := build.Note(build.WithID("http://example.com/~jdoe/notes/1"))
-	act := build.Create(
+	// The incoming activity is valid as a client to server activity.
+	activity := build.Create(
 		build.WithActor(actor),
-		build.WithObject(note),
+		build.WithObject(
+			build.Note(build.WithID("http://example.com/~jdoe/notes/1")),
+		),
 	)
 
-	err := p.ValidateActivity(act, *actor, vocab.Outbox.IRI(actor))
+	// The processor needs to know the URL on which the current request has
+	// been operated on.
+	// As this is a Social API request, it needs to correspond to the
+	// authorized actor's /outbox.
+	receivedIn := vocab.Outbox.IRI(actor)
+
+	err := p.ValidateActivity(activity, *actor, receivedIn)
 	fmt.Printf("error: %v\n", err)
 
 	// Output:
