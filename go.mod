@@ -6,10 +6,10 @@ require (
 	git.sr.ht/~mariusor/lw v0.0.0-20260917101519-2e0b081e156c
 	git.sr.ht/~mariusor/ssm v0.0.0-20261028091439-cc04caf574c4
 	github.com/carlmjohnson/requests v0.26.2
-	github.com/go-ap/activitypub v0.0.0-20261101142956-a76d71dd72b0
-	github.com/go-ap/errors v0.0.0-20260701132509-92e5e4fd6394
-	github.com/go-ap/filters v0.0.0-20261101144638-4754d87b7869
-	github.com/go-ap/jsonld v0.0.0-20260607140920-737b40e0ca38
+	github.com/go-ap/activitypub v0.0.0-20261107170531-73ce953a88f6
+	github.com/go-ap/errors v0.0.0-20261107170344-5391268d9d2c
+	github.com/go-ap/filters v0.0.0-20261107170746-b873ae37c70e
+	github.com/go-ap/jsonld v0.0.0-20261107170435-a7bb5ba3f894
 	github.com/go-ap/storage-conformance-suite v0.0.0-20261101145434-f950c6192791
 	github.com/google/go-cmp v0.7.0
 )

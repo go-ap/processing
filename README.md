@@ -14,7 +14,11 @@ section of the ActivityStreams vocabulary specification for logic separation bet
 For the actual processing it uses the [6. Client to Server Interactions](https://www.w3.org/TR/activitypub/#client-to-server-interactions)
 and [7. Server to Server Interactions](https://www.w3.org/TR/activitypub/#server-to-server-interactions) sections of the ActivityPub specification.
 
-You can find an expanded documentation about the whole library [on SourceHut](https://man.sr.ht/~mariusor/go-activitypub/go-ap/index.md).
+## Extended documentation
+
+For more information about how the module works in the scope of the
+GoActivityPub library, see the [expanded
+documentation](https://go-activitypub.federated.id/lib/modules/#processing).
 
 For discussions about the projects you can write to the discussions mailing list: [~mariusor/go-activitypub-discuss@lists.sr.ht](mailto:~mariusor/go-activitypub-discuss@lists.sr.ht)
 
