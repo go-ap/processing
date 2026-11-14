@@ -17,7 +17,7 @@ tasks:
       make TEST_TARGET=. test
   - integration: |
       cd processing
-      make TEST_TARGET=./integration test
+      go test  ./integration -test.v=true --godog.format=pretty --godog.no-colors=false
   - coverage: |
       cd processing
       git switch -C master origin/master

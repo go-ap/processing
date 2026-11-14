@@ -223,7 +223,7 @@ func (p P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab
 	if !IsOutbox(outbox) {
 		return errors.BadRequestf("trying to validate a non outbox IRI %s", outbox)
 	}
-	if vocab.PublicNS.Equal(author.ID) {
+	if author.ID == "" || vocab.PublicNS.Equal(author.ID) {
 		// NOTE(marius): Should we use 403 Forbidden here?
 		return errors.Unauthorizedf("missing actor: not allowed to post to outbox %s", outbox)
 	}
@@ -254,6 +254,10 @@ func (p P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab
 	}
 
 	err = vocab.OnIntransitiveActivity(a, func(act *vocab.IntransitiveActivity) error {
+		if act.ID != "" {
+			act.ID = ""
+			p.l.Debugf("activity has an ID, resetting it.")
+		}
 		// NOTE(marius): validate the local actor
 		if act.Actor, err = p.ValidateClientActor(act.Actor, author); err != nil {
 			if errors.IsBadRequest(err) {
@@ -295,7 +299,7 @@ func (p P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab
 			}
 
 			switch {
-			case vocab.ContentManagementActivityTypes.Match(typ) && vocab.RelationshipType.Match(act.Object.GetType()):
+			case vocab.ContentManagementActivityTypes.Match(typ) && !vocab.RelationshipType.Match(act.Object.GetType()):
 				err = ValidateClientContentManagementActivity(p.s, act)
 			case vocab.CollectionManagementActivityTypes.Match(typ):
 				err = ValidateClientCollectionManagementActivity(p.s, act)
@@ -330,31 +334,44 @@ func ValidateClientContentManagementActivity(l ReadStore, act *vocab.Activity) e
 		return errors.BadRequestf("nil object for %v activity", act.Type)
 	}
 
+	validateObjectForUpdate := func(ob vocab.Item) error {
+		if len(ob.GetLink()) == 0 {
+			return errors.BadRequestf("empty object id for %v activity", act.Type)
+		}
+		if !vocab.IsObject(ob) {
+			return nil
+		}
+
+		found, err := l.Load(ob.GetLink())
+		if err != nil {
+			return errors.Annotatef(err, "failed to load object from storage")
+		}
+		if vocab.IsNil(found) {
+			return errors.NotFoundf("found nil object in storage")
+		}
+		// NOTE(marius): check activity's actor matches object's attributedTo
+		return vocab.OnObject(found, func(ob *vocab.Object) error {
+			if !vocab.IsNil(ob.AttributedTo) {
+				if !ob.AttributedTo.GetLink().Equal(act.Actor.GetLink()) {
+					return errors.Unauthorizedf("actor does not own the object being updated")
+				}
+			}
+			return nil
+		})
+	}
+
 	return vocab.OnItem(act.Object, func(ob vocab.Item) error {
 		switch {
 		case vocab.UpdateType.Match(act.Type):
 			if vocab.ActivityTypes.Match(ob.GetType()) {
 				return errors.BadRequestf("trying to update an immutable activity")
 			}
-			fallthrough
+			if err := validateObjectForUpdate(ob); err != nil {
+				return err
+			}
 		case vocab.DeleteType.Match(act.Type):
-			if len(ob.GetLink()) == 0 {
-				return errors.BadRequestf("empty object id for %v activity", act.Type)
-			}
-			if !vocab.IsObject(ob) {
-				return nil
-			}
-			var (
-				found vocab.Item
-				err   error
-			)
-
-			found, err = l.Load(ob.GetLink())
-			if err != nil {
-				return errors.Annotatef(err, "failed to load object from storage")
-			}
-			if found == nil {
-				return errors.NotFoundf("found nil object in storage")
+			if err := validateObjectForUpdate(ob); err != nil {
+				return err
 			}
 		case vocab.CreateType.Match(act.Type):
 		default:
