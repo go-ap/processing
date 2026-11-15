@@ -1,3 +1,4 @@
+@conformance
 Feature: Client to server interactions: Actor object's outbox
   Scenario: Accepts Activity Objects (outbox:accepts-activities) MUST
     Given an Activity Object

@@ -1,3 +1,4 @@
+@conformance
 Feature: Client to server interactions: Update
 
   Scenario: Server takes care to be sure that the Update is authorized to modify its object before modifying the server's stored copy (outbox:update:check-authorized) MUST

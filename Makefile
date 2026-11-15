@@ -9,7 +9,7 @@ ifeq ($(origin GOCOVERDIR),undefined)
 GOCOVERDIR := $(shell pwd)/_coverage
 endif
 
-.PHONY: test coverage clean download
+.PHONY: test coverage integration clean download
 
 download: go.sum
 
@@ -20,12 +20,17 @@ test: TEST_FLAGS += -json -cover -coverpkg github.com/go-ap/processing -covermod
 test: go.sum
 	$(TEST) $(TEST_FLAGS) $(TEST_TARGET) | go tool tparse -all -trimpath github.com/go-ap/processing/
 
+integration: $(GOCOVERDIR)
+integration: GODOG_FLAGS += -test.gocoverdir=$(GOCOVERDIR) --godog.format=pretty --godog.no-colors=false --godog.tags=conformance
+integration: TEST_FLAGS += -coverpkg github.com/go-ap/processing -covermode=count
+integration: TEST_TARGET = ./integration
+integration:
+	$(TEST) $(TEST_FLAGS) $(TEST_TARGET) $(GODOG_FLAGS)
+
 $(GOCOVERDIR):
 	mkdir -p $(GOCOVERDIR)
 
-coverage: TEST_FLAGS += -coverpkg github.com/go-ap/processing -covermode=count -args -test.gocoverdir=$(GOCOVERDIR)
 coverage: $(GOCOVERDIR)
-	$(TEST) $(TEST_FLAGS) $(TEST_TARGET)
 	$(GO) tool covdata percent -i=$(GOCOVERDIR) -o $(PROJECT).coverprofile
 	$(MAKE) clean
 

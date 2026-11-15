@@ -11,7 +11,7 @@ require (
 	github.com/go-ap/errors v0.0.0-20261107170344-5391268d9d2c
 	github.com/go-ap/filters v0.0.0-20261114095223-5acde6d8785c
 	github.com/go-ap/jsonld v0.0.0-20261107170435-a7bb5ba3f894
-	github.com/go-ap/storage-conformance-suite v0.0.0-20261101145434-f950c6192791
+	github.com/go-ap/storage-conformance-suite v0.0.0-20261114103239-6393ae1058ed
 	github.com/google/go-cmp v0.7.0
 	github.com/spf13/pflag v1.0.10
 )

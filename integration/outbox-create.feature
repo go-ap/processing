@@ -1,3 +1,4 @@
+@conformance
 Feature: Client to server interactions: Create
 
   Scenario: Merges audience properties ('to', 'bto', 'cc', 'bcc', 'audience') with the Create's object's audience properties (outbox:create:merges-audience-properties) SHOULD
