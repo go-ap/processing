@@ -1,12 +1,167 @@
 package integration
 
 import (
+	"context"
+	"fmt"
 	"testing"
 
+	"github.com/cucumber/godog"
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/activitypub/build"
 	"github.com/go-ap/processing"
 )
+
+type outboxCollectionManagementTests struct {
+	// NOTE(marius): elements needed to initialize the processor.P
+	mp MockPlumbing
+	st *LocalStorage
+
+	// NOTE(marius): test to be run
+	Activity   vocab.Item
+	Author     vocab.Actor
+	ReceivedIn vocab.IRI
+}
+
+func (o *outboxCollectionManagementTests) initScenario(ctx *godog.ScenarioContext) {
+	ctx.Before(func(ctx context.Context, sc *godog.Scenario) (context.Context, error) {
+		o.mp = MockPlumbing{}
+		o.st = nil
+		return ctx, nil
+	})
+
+	ctx.Step(`^nothing$`, nothing)
+	ctx.Step(`^Skip$`, skip)
+
+	// NOTE(marius): Add
+	ctx.Step(`^an Object and a Target collection$`, o.anObjectAndATargetCollection)
+	ctx.Step(`^the object will exist in the Target$`, o.theObjectWillExistInTheTarget)
+
+	// NOTE(marius): Remove
+	ctx.Step(`^an Object and an Origin collection$`, o.anObjectAndAnOriginCollection)
+	ctx.Step(`^the object will not exist in the Origin$`, o.theObjectWillNotExistInTheOrigin)
+}
+
+func (o *outboxCollectionManagementTests) anObjectAndATargetCollection() error {
+	targetID := RootID.AddPath("target")
+	target := build.OrderedCollection(build.WithID(targetID))
+
+	noteID := RootID.AddPath("to-move")
+	toAdd := build.Note(
+		build.WithID(noteID),
+		build.WithName("Lipsum name"),
+		build.WithAttributedTo(AuthorID),
+		build.WithReplies(),
+		build.WithTo(vocab.ItemCollection{vocab.PublicNS}),
+	)
+	o.st = Storage(WithLocalMocks(Author, target, toAdd))
+
+	o.Author = *Author
+	o.ReceivedIn = vocab.Outbox.IRI(Author)
+	o.Activity = build.Add(
+		build.WithActor(Author.ID),
+		build.WithObject(noteID),
+		build.WithTarget(targetID),
+	)
+
+	return nil
+}
+
+func (o *outboxCollectionManagementTests) theObjectWillExistInTheTarget() error {
+	p := o.mp.InitP(processing.WithStorage(o.st))
+	_, err := p.ProcessActivity(o.Activity, o.Author, o.ReceivedIn)
+	if err != nil {
+		return fmt.Errorf("received error: %w", err)
+	}
+
+	targetID := RootID.AddPath("target")
+	noteID := RootID.AddPath("to-move")
+
+	targetCol, err := o.st.Load(targetID)
+	if err != nil {
+		return fmt.Errorf("unable to load collection %s: %w", targetID, err)
+	}
+	err = vocab.OnOrderedCollection(targetCol, func(collection *vocab.OrderedCollection) error {
+		if !collection.OrderedItems.IRIs().Contains(noteID) {
+			return fmt.Errorf("unable to find note %s in collection %s", noteID, targetID)
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("target %s wasn't a collection %w", targetID, err)
+	}
+	return nil
+}
+
+func (o *outboxCollectionManagementTests) anObjectAndAnOriginCollection() error {
+	noteID := RootID.AddPath("to-move")
+	toRemove := build.Note(
+		build.WithID(noteID),
+		build.WithName("Lipsum name"),
+		build.WithAttributedTo(AuthorID),
+		build.WithReplies(),
+		build.WithTo(vocab.ItemCollection{vocab.PublicNS}),
+	)
+
+	originID := RootID.AddPath("origin")
+	origin := build.OrderedCollection(
+		build.WithID(originID),
+		build.WithTotalItems(1),
+		build.WithItems(toRemove),
+	)
+
+	o.st = Storage(WithLocalMocks(Author, origin, toRemove))
+
+	o.Author = *Author
+	o.ReceivedIn = vocab.Outbox.IRI(Author)
+	o.Activity = build.Remove(
+		build.WithActor(Author.ID),
+		build.WithObject(noteID),
+		build.WithOrigin(originID),
+	)
+
+	return nil
+}
+
+func (o *outboxCollectionManagementTests) theObjectWillNotExistInTheOrigin() error {
+	p := o.mp.InitP(processing.WithStorage(o.st))
+	_, err := p.ProcessActivity(o.Activity, o.Author, o.ReceivedIn)
+	if err != nil {
+		return fmt.Errorf("received error: %w", err)
+	}
+
+	originID := RootID.AddPath("origin")
+	noteID := RootID.AddPath("to-move")
+
+	targetCol, err := o.st.Load(originID)
+	if err != nil {
+		return fmt.Errorf("unable to load collection %s: %w", originID, err)
+	}
+	err = vocab.OnOrderedCollection(targetCol, func(collection *vocab.OrderedCollection) error {
+		if collection.TotalItems != 0 {
+			return fmt.Errorf("total items for collection %s should have been %d, received %d", originID, 0, collection.TotalItems)
+		}
+		if collection.OrderedItems.IRIs().Contains(noteID) {
+			return fmt.Errorf("note %s still exists in collection %s", noteID, originID)
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("origin %s wasn't a collection %w", originID, err)
+	}
+	return nil
+}
+
+func Test_Outbox_CollectionManagement(t *testing.T) {
+	opts.TestingT = t
+	opts.Paths = []string{"outbox-collection-management.feature"}
+
+	c := new(outboxCollectionManagementTests)
+	_ = godog.TestSuite{
+		Name:                "ActivityPub Outbox Add",
+		ScenarioInitializer: c.initScenario,
+		Options:             &opts,
+	}.Run()
+}
 
 func Test_Outbox_Add(t *testing.T) {
 	t.Run("Add", func(t *testing.T) {
