@@ -156,79 +156,6 @@ func (o *outboxContentManagementTests) theObjectHasTheAttributedToAsTheActivityA
 	})
 }
 
-func Test_Outbox_Create(t *testing.T) {
-	opts.TestingT = t
-	opts.Paths = []string{"outbox-create.feature"}
-
-	c := new(outboxContentManagementTests)
-	_ = godog.TestSuite{
-		Name:                "ActivityPub Outbox Create",
-		ScenarioInitializer: c.initScenario,
-		Options:             &opts,
-	}.Run()
-}
-
-func Test_Outbox_Create_Old(t *testing.T) {
-	mp := MockPlumbing{}
-	st := Storage(WithLocalMocks(Author))
-	P := mp.InitP(processing.WithStorage(st))
-
-	tests := TestSuite{
-		Name: "Create",
-		Tests: []RunnableTest{
-			TestPair{
-				Name:       "Actor gets copied to Object.AttributedTo",
-				Author:     *Author,
-				ReceivedIn: vocab.Outbox.IRI(Author),
-				Activity: build.Create(
-					build.WithActor(Author.ID),
-					build.WithObject(build.Note(build.WithName("Lorem Ipsum"))),
-				),
-				TestFns: TestAssertions{
-					HasActor(HasID(Author.ID)),
-					RequestObject(HasAttributedTo(Author.ID)),
-				},
-			},
-			TestPair{
-				Name:       "Merge Recipients To/CC/Bto/BCC",
-				Author:     *Author,
-				ReceivedIn: vocab.Outbox.IRI(Author),
-				Activity: build.Create(
-					build.WithType(vocab.CreateType),
-					build.WithActor(Author.ID),
-					build.WithTo(vocab.IRI("http://example.com/to/a1")),
-					build.WithCC(vocab.IRI("http://example.com/cc/a1")),
-					build.WithBto(vocab.IRI("http://example.com/bto/a1")),
-					build.WithBCC(vocab.IRI("http://example.com/bcc/a1")),
-					build.WithObject(build.Group(
-						build.WithType(vocab.GroupType),
-						build.WithName("Lorem"),
-						build.WithTo(vocab.IRI("http://example.com/to/o1")),
-						build.WithCC(vocab.IRI("http://example.com/cc/o1")),
-						build.WithBto(vocab.IRI("http://example.com/bto/o1")),
-						build.WithBCC(vocab.IRI("http://example.com/bcc/o1")),
-						build.WithPreferredUsername("lipsum"),
-					)),
-				),
-				TestFns: TestAssertions{
-					HasTo(vocab.IRIs{"http://example.com/to/a1", "http://example.com/to/o1"}),
-					HasBto(vocab.IRIs{"http://example.com/bto/a1", "http://example.com/bto/o1"}),
-					HasCC(vocab.IRIs{"http://example.com/cc/a1", "http://example.com/cc/o1"}),
-					HasBCC(vocab.IRIs{"http://example.com/bcc/a1", "http://example.com/bcc/o1"}),
-					RequestObject(
-						HasTo(vocab.IRIs{"http://example.com/to/a1", "http://example.com/to/o1"}),
-						HasBto(vocab.IRIs{"http://example.com/bto/a1", "http://example.com/bto/o1"}),
-						HasCC(vocab.IRIs{"http://example.com/cc/a1", "http://example.com/cc/o1"}),
-						HasBCC(vocab.IRIs{"http://example.com/bcc/a1", "http://example.com/bcc/o1"}),
-					),
-				},
-			},
-		},
-	}
-
-	t.Run(tests.Label(), tests.TestFn(P))
-}
-
 func (o *outboxContentManagementTests) anUpdateWithAnObjectContainingOnlyPartialData() error {
 	noteID := RootID.AddPath("to-update")
 	willBeUpdated := build.Note(
@@ -316,19 +243,80 @@ func (o *outboxContentManagementTests) thereIsAValidationError() error {
 	return fmt.Errorf("unexpected error received: %w", err)
 }
 
-func Test_Outbox_Update(t *testing.T) {
+func Test_Outbox_ContentManagement(t *testing.T) {
 	opts.TestingT = t
-	opts.Paths = []string{"outbox-update.feature"}
+	opts.Paths = []string{"outbox-content-management.feature"}
 
 	c := new(outboxContentManagementTests)
 	_ = godog.TestSuite{
-		Name:                "ActivityPub Outbox Update",
+		Name:                "ActivityPub Outbox Content Management Activities",
 		ScenarioInitializer: c.initScenario,
 		Options:             &opts,
 	}.Run()
 }
 
-func Test_Outbox_Update_Old(t *testing.T) {
+func Test_Outbox_Create(t *testing.T) {
+	mp := MockPlumbing{}
+	st := Storage(WithLocalMocks(Author))
+	P := mp.InitP(processing.WithStorage(st))
+
+	tests := TestSuite{
+		Name: "Create",
+		Tests: []RunnableTest{
+			TestPair{
+				Name:       "Actor gets copied to Object.AttributedTo",
+				Author:     *Author,
+				ReceivedIn: vocab.Outbox.IRI(Author),
+				Activity: build.Create(
+					build.WithActor(Author.ID),
+					build.WithObject(build.Note(build.WithName("Lorem Ipsum"))),
+				),
+				TestFns: TestAssertions{
+					HasActor(HasID(Author.ID)),
+					RequestObject(HasAttributedTo(Author.ID)),
+				},
+			},
+			TestPair{
+				Name:       "Merge Recipients To/CC/Bto/BCC",
+				Author:     *Author,
+				ReceivedIn: vocab.Outbox.IRI(Author),
+				Activity: build.Create(
+					build.WithType(vocab.CreateType),
+					build.WithActor(Author.ID),
+					build.WithTo(vocab.IRI("http://example.com/to/a1")),
+					build.WithCC(vocab.IRI("http://example.com/cc/a1")),
+					build.WithBto(vocab.IRI("http://example.com/bto/a1")),
+					build.WithBCC(vocab.IRI("http://example.com/bcc/a1")),
+					build.WithObject(build.Group(
+						build.WithType(vocab.GroupType),
+						build.WithName("Lorem"),
+						build.WithTo(vocab.IRI("http://example.com/to/o1")),
+						build.WithCC(vocab.IRI("http://example.com/cc/o1")),
+						build.WithBto(vocab.IRI("http://example.com/bto/o1")),
+						build.WithBCC(vocab.IRI("http://example.com/bcc/o1")),
+						build.WithPreferredUsername("lipsum"),
+					)),
+				),
+				TestFns: TestAssertions{
+					HasTo(vocab.IRIs{"http://example.com/to/a1", "http://example.com/to/o1"}),
+					HasBto(vocab.IRIs{"http://example.com/bto/a1", "http://example.com/bto/o1"}),
+					HasCC(vocab.IRIs{"http://example.com/cc/a1", "http://example.com/cc/o1"}),
+					HasBCC(vocab.IRIs{"http://example.com/bcc/a1", "http://example.com/bcc/o1"}),
+					RequestObject(
+						HasTo(vocab.IRIs{"http://example.com/to/a1", "http://example.com/to/o1"}),
+						HasBto(vocab.IRIs{"http://example.com/bto/a1", "http://example.com/bto/o1"}),
+						HasCC(vocab.IRIs{"http://example.com/cc/a1", "http://example.com/cc/o1"}),
+						HasBCC(vocab.IRIs{"http://example.com/bcc/a1", "http://example.com/bcc/o1"}),
+					),
+				},
+			},
+		},
+	}
+
+	t.Run(tests.Label(), tests.TestFn(P))
+}
+
+func Test_Outbox_Update(t *testing.T) {
 	mp := MockPlumbing{}
 
 	toUpdate := build.Note(
