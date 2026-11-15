@@ -16,12 +16,13 @@ download: go.sum
 go.sum: go.mod
 	$(GO) mod tidy
 
-test: TEST_FLAGS += -json -cover -coverpkg github.com/go-ap/processing -covermode=count
+test: $(GOCOVERDIR)
+test: TEST_FLAGS += -json -cover -coverpkg github.com/go-ap/processing -covermode=count -args -test.gocoverdir="$(GOCOVERDIR)"
 test: go.sum
 	$(TEST) $(TEST_FLAGS) $(TEST_TARGET) | go tool tparse -all -trimpath github.com/go-ap/processing/
 
 integration: $(GOCOVERDIR)
-integration: GODOG_FLAGS += -test.gocoverdir=$(GOCOVERDIR) --godog.format=pretty --godog.no-colors=false --godog.tags=conformance
+integration: GODOG_FLAGS += -test.gocoverdir=$(GOCOVERDIR) --godog.format=pretty --godog.no-colors=false --godog.tags=conformance -test.gocoverdir="$(GOCOVERDIR)"
 integration: TEST_FLAGS += -coverpkg github.com/go-ap/processing -covermode=count
 integration: TEST_TARGET = ./integration
 integration:

@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"flag"
 	"io"
 	"os"
 	"testing"
@@ -23,6 +24,8 @@ var opts = godog.Options{
 
 func TestMain(m *testing.M) {
 	pflag.BoolVarP(&quiet, "godog.quiet", "q", false, "Quiet all godog output.")
+	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
+	pflag.ParseSkippedFlags(os.Args[1:], flag.CommandLine)
 	pflag.Parse()
 
 	if quiet {
