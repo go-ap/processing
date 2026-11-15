@@ -50,7 +50,7 @@ func (o *outboxContentManagementTests) initScenario(ctx *godog.ScenarioContext) 
 	ctx.Step(`^there is a validation error$`, o.thereIsAValidationError)
 }
 
-func (o *outboxContentManagementTests) aCreateAndObjectPairWithToBtoCcBccAndAudience() error {
+func (o *outboxContentManagementTests) aCreateAndObjectPairWithToBtoCcBccAndAudience(ctx context.Context) error {
 	o.st = Storage(WithLocalMocks(Author))
 
 	o.Author = *Author
@@ -76,7 +76,7 @@ func (o *outboxContentManagementTests) aCreateAndObjectPairWithToBtoCcBccAndAudi
 	return nil
 }
 
-func (o *outboxContentManagementTests) objectAndActivityHaveMergedToBtoCcBccAndAudience() error {
+func (o *outboxContentManagementTests) objectAndActivityHaveMergedToBtoCcBccAndAudience(ctx context.Context) error {
 	p := o.mp.InitP(processing.WithStorage(o.st))
 	got, err := p.ProcessActivity(o.Activity, o.Author, o.ReceivedIn)
 	if err != nil {
@@ -122,7 +122,7 @@ func (o *outboxContentManagementTests) objectAndActivityHaveMergedToBtoCcBccAndA
 	})
 }
 
-func (o *outboxContentManagementTests) aCreateForAnObjectWithoutAttributedTo() error {
+func (o *outboxContentManagementTests) aCreateForAnObjectWithoutAttributedTo(ctx context.Context) error {
 	o.st = Storage(WithLocalMocks(Author))
 
 	o.Author = *Author
@@ -138,7 +138,7 @@ func (o *outboxContentManagementTests) aCreateForAnObjectWithoutAttributedTo() e
 	return nil
 }
 
-func (o *outboxContentManagementTests) theObjectHasTheAttributedToAsTheActivityActor() error {
+func (o *outboxContentManagementTests) theObjectHasTheAttributedToAsTheActivityActor(ctx context.Context) error {
 	p := o.mp.InitP(processing.WithStorage(o.st))
 	got, err := p.ProcessActivity(o.Activity, o.Author, o.ReceivedIn)
 	if err != nil {
@@ -156,7 +156,7 @@ func (o *outboxContentManagementTests) theObjectHasTheAttributedToAsTheActivityA
 	})
 }
 
-func (o *outboxContentManagementTests) anUpdateWithAnObjectContainingOnlyPartialData() error {
+func (o *outboxContentManagementTests) anUpdateWithAnObjectContainingOnlyPartialData(ctx context.Context) error {
 	noteID := RootID.AddPath("to-update")
 	willBeUpdated := build.Note(
 		build.WithID(noteID),
@@ -182,7 +182,7 @@ func (o *outboxContentManagementTests) anUpdateWithAnObjectContainingOnlyPartial
 	return nil
 }
 
-func (o *outboxContentManagementTests) noPropertiesOfTheObjectAreUnset() error {
+func (o *outboxContentManagementTests) noPropertiesOfTheObjectAreUnset(ctx context.Context) error {
 	p := o.mp.InitP(processing.WithStorage(o.st))
 	got, err := p.ProcessActivity(o.Activity, o.Author, o.ReceivedIn)
 	if err != nil {
@@ -212,7 +212,7 @@ func (o *outboxContentManagementTests) noPropertiesOfTheObjectAreUnset() error {
 	})
 }
 
-func (o *outboxContentManagementTests) anUpdateWithAnUnauthorizedActor() error {
+func (o *outboxContentManagementTests) anUpdateWithAnUnauthorizedActor(ctx context.Context) error {
 	localAuthor := vocab.IRI("http://example.com/~notDoe")
 	noteID := localAuthor.AddPath("to-update")
 	willBeUpdated := build.Note(
@@ -233,7 +233,7 @@ func (o *outboxContentManagementTests) anUpdateWithAnUnauthorizedActor() error {
 	return nil
 }
 
-func (o *outboxContentManagementTests) thereIsAValidationError() error {
+func (o *outboxContentManagementTests) thereIsAValidationError(ctx context.Context) error {
 	expectedErr := errors.Unauthorizedf("actor does not own the object being updated")
 	p := o.mp.InitP(processing.WithStorage(o.st))
 	_, err := p.ProcessActivity(o.Activity, o.Author, o.ReceivedIn)

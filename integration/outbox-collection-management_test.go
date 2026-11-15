@@ -41,7 +41,7 @@ func (o *outboxCollectionManagementTests) initScenario(ctx *godog.ScenarioContex
 	ctx.Step(`^the object will not exist in the Origin$`, o.theObjectWillNotExistInTheOrigin)
 }
 
-func (o *outboxCollectionManagementTests) anObjectAndATargetCollection() error {
+func (o *outboxCollectionManagementTests) anObjectAndATargetCollection(ctx context.Context) error {
 	targetID := RootID.AddPath("target")
 	target := build.OrderedCollection(build.WithID(targetID))
 
@@ -66,7 +66,7 @@ func (o *outboxCollectionManagementTests) anObjectAndATargetCollection() error {
 	return nil
 }
 
-func (o *outboxCollectionManagementTests) theObjectWillExistInTheTarget() error {
+func (o *outboxCollectionManagementTests) theObjectWillExistInTheTarget(ctx context.Context) error {
 	p := o.mp.InitP(processing.WithStorage(o.st))
 	_, err := p.ProcessActivity(o.Activity, o.Author, o.ReceivedIn)
 	if err != nil {
@@ -92,7 +92,7 @@ func (o *outboxCollectionManagementTests) theObjectWillExistInTheTarget() error 
 	return nil
 }
 
-func (o *outboxCollectionManagementTests) anObjectAndAnOriginCollection() error {
+func (o *outboxCollectionManagementTests) anObjectAndAnOriginCollection(ctx context.Context) error {
 	noteID := RootID.AddPath("to-move")
 	toRemove := build.Note(
 		build.WithID(noteID),
@@ -122,7 +122,7 @@ func (o *outboxCollectionManagementTests) anObjectAndAnOriginCollection() error 
 	return nil
 }
 
-func (o *outboxCollectionManagementTests) theObjectWillNotExistInTheOrigin() error {
+func (o *outboxCollectionManagementTests) theObjectWillNotExistInTheOrigin(ctx context.Context) error {
 	p := o.mp.InitP(processing.WithStorage(o.st))
 	_, err := p.ProcessActivity(o.Activity, o.Author, o.ReceivedIn)
 	if err != nil {
@@ -157,7 +157,7 @@ func Test_Outbox_CollectionManagement(t *testing.T) {
 
 	c := new(outboxCollectionManagementTests)
 	_ = godog.TestSuite{
-		Name:                "ActivityPub Outbox Add",
+		Name:                "ActivityPub Outbox Collection Management",
 		ScenarioInitializer: c.initScenario,
 		Options:             &opts,
 	}.Run()

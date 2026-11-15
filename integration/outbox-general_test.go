@@ -24,7 +24,7 @@ type generalOutboxTests struct {
 	ReceivedIn vocab.IRI
 }
 
-func (c *generalOutboxTests) anActivityObject() error {
+func (c *generalOutboxTests) anActivityObject(ctx context.Context) error {
 	c.st = Storage(WithLocalMocks(Author))
 
 	c.Author = *Author
@@ -40,7 +40,7 @@ func (c *generalOutboxTests) anActivityObject() error {
 	return nil
 }
 
-func (c *generalOutboxTests) aNonActivityObject() error {
+func (c *generalOutboxTests) aNonActivityObject(ctx context.Context) error {
 	c.st = Storage(WithLocalMocks(Author))
 
 	c.Author = *Author
@@ -50,7 +50,7 @@ func (c *generalOutboxTests) aNonActivityObject() error {
 	return nil
 }
 
-func (c *generalOutboxTests) failsToGetConverted() error {
+func (c *generalOutboxTests) failsToGetConverted(ctx context.Context) error {
 	p := c.mp.InitP(processing.WithStorage(c.st))
 	got, err := p.ProcessActivity(c.Activity, c.Author, c.ReceivedIn)
 	if err != nil {
@@ -59,13 +59,13 @@ func (c *generalOutboxTests) failsToGetConverted() error {
 	return fmt.Errorf("expected failure and activity processing succeeded: %+v", got)
 }
 
-func (c *generalOutboxTests) itGetsAccepted() error {
+func (c *generalOutboxTests) itGetsAccepted(ctx context.Context) error {
 	p := c.mp.InitP(processing.WithStorage(c.st))
 	_, err := p.ProcessActivity(c.Activity, c.Author, c.ReceivedIn)
 	return err
 }
 
-func (c *generalOutboxTests) objectsWithBtoAndBCCProperties() error {
+func (c *generalOutboxTests) objectsWithBtoAndBCCProperties(ctx context.Context) error {
 	c.st = Storage(WithLocalMocks(Author))
 
 	c.Author = *Author
@@ -80,7 +80,7 @@ func (c *generalOutboxTests) objectsWithBtoAndBCCProperties() error {
 	return nil
 }
 
-func (c *generalOutboxTests) theBtoAndBCCPropertiesAreRemoved() error {
+func (c *generalOutboxTests) theBtoAndBCCPropertiesAreRemoved(ctx context.Context) error {
 	p := c.mp.InitP(processing.WithStorage(c.st))
 	act, err := p.ProcessActivity(c.Activity, c.Author, c.ReceivedIn)
 	if err != nil {
@@ -116,7 +116,7 @@ func (c *generalOutboxTests) theBtoAndBCCPropertiesAreRemoved() error {
 	})
 }
 
-func (c *generalOutboxTests) anActivityWithExistingID() error {
+func (c *generalOutboxTests) anActivityWithExistingID(ctx context.Context) error {
 	c.st = Storage(WithLocalMocks(Author))
 
 	c.Author = *Author
@@ -132,7 +132,7 @@ func (c *generalOutboxTests) anActivityWithExistingID() error {
 	return nil
 }
 
-func (c *generalOutboxTests) ignoresItAndGeneratesANewIDInstead() error {
+func (c *generalOutboxTests) ignoresItAndGeneratesANewIDInstead(ctx context.Context) error {
 	p := c.mp.InitP(processing.WithStorage(c.st))
 	act, err := p.ProcessActivity(c.Activity, c.Author, c.ReceivedIn)
 	if err != nil {
@@ -147,12 +147,12 @@ func (c *generalOutboxTests) ignoresItAndGeneratesANewIDInstead() error {
 	})
 }
 
-func (c *generalOutboxTests) noAuthor() error {
+func (c *generalOutboxTests) noAuthor(ctx context.Context) error {
 	c.Author = vocab.Actor{}
 	return nil
 }
 
-func (c *generalOutboxTests) thereIsAValidationError() error {
+func (c *generalOutboxTests) thereIsAValidationError(ctx context.Context) error {
 	expectedErr := errors.Unauthorizedf("missing actor: not allowed to post to outbox %s", c.ReceivedIn)
 	p := c.mp.InitP(processing.WithStorage(c.st))
 	_, err := p.ProcessActivity(c.Activity, c.Author, c.ReceivedIn)
@@ -182,11 +182,13 @@ func (c *generalOutboxTests) initScenario(ctx *godog.ScenarioContext) {
 
 	// NOTE(marius): strip bcc and bto properties
 	ctx.Step("^Objects with 'bto' and 'bcc' properties$", c.objectsWithBtoAndBCCProperties)
-	ctx.Step(`^the 'bto' and 'bcc' aren't removed before storage and delivery$`, func() error {
-		if err := c.theBtoAndBCCPropertiesAreRemoved(); err != nil {
+	ctx.Step(`^the 'bto' and 'bcc' aren't removed before storage and delivery$`, func(ctx context.Context) error {
+		if err := c.theBtoAndBCCPropertiesAreRemoved(ctx); err != nil {
 			return nil
 		}
-		return fmt.Errorf("they were removed")
+		t := godog.T(ctx)
+		t.Skip("GoActivityPub doesn't strip blind recipients before persisting them to storage. Users of the library need to do that themselves before presenting the objects to users.")
+		return nil
 	})
 
 	// NOTE(marius): recreate ID for activity

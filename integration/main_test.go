@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/cucumber/godog"
+	"github.com/cucumber/godog/colors"
 	"github.com/spf13/pflag"
 )
 
@@ -20,6 +21,7 @@ var opts = godog.Options{
 	NoColors:      true,
 	Format:        "progress",
 	StopOnFailure: false,
+	Output:        colors.Colored(os.Stdout),
 }
 
 func TestMain(m *testing.M) {

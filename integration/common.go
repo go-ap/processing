@@ -166,6 +166,12 @@ type TestAssertion interface {
 
 type TestAssertions []TestAssertion
 
+func (tt TestAssertions) Run(t *testing.T, it vocab.Item, err error) {
+	for _, ts := range tt {
+		ts.Run(t, it, err)
+	}
+}
+
 func HasError(wantErr error) errCheckFn {
 	return func(t *testing.T, err error) {
 		t.Run("Error", func(t *testing.T) {
