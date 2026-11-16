@@ -10,7 +10,7 @@ Feature: Client to server interactions: Actor object's outbox
 
   # GoActivityPub encourages downstream users to strip Bto and BCC in the handlers for **remote fetch**
   # We store the objects with them because all recipients form the object's ACL
-  Scenario: Removes the bto and bcc properties from Objects before storage and delivery (outbox:removes-bto-and-bcc) MUST
+  Scenario: Removes the `bto` and `bcc` properties from Objects before storage and delivery (outbox:removes-bto-and-bcc) MUST
     Given Objects with 'bto' and 'bcc' properties
     Then Skip
     But the 'bto' and 'bcc' aren't removed before storage and delivery

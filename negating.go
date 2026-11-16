@@ -11,7 +11,10 @@ var ValidUndoActivityTypes = append(UndoableRelationshipActivityTypes, vocab.Cre
 // ValidateClientNegatingActivity
 func (p P) ValidateClientNegatingActivity(act *vocab.Activity) error {
 	if vocab.IsNil(act.Object) {
-		return InvalidActivityObject("is nil")
+		return errMissingObject(act.Type)
+	}
+	if vocab.IsNil(act.Actor) {
+		return errMissingActor(act.Type)
 	}
 
 	if ob, err := p.DereferenceItem(act.Object); err != nil {
@@ -19,12 +22,15 @@ func (p P) ValidateClientNegatingActivity(act *vocab.Activity) error {
 	} else {
 		act.Object = ob
 	}
-	return vocab.OnActivity(act.Object, func(objAct *vocab.Activity) error {
-		if !act.Actor.GetLink().Equals(objAct.Actor.GetLink(), false) {
-			return errors.BadRequestf("The %s activity has a different actor than its object: %s, expected %s", act.Type, act.Actor.GetLink(), objAct.Actor.GetLink())
+	return vocab.OnActivity(act.Object, func(toUndo *vocab.Activity) error {
+		if vocab.IsNil(toUndo.Actor) {
+			return errors.BadRequestf("unable to Undo activity with nil Actor")
 		}
-		if !ValidUndoActivityTypes.Match(objAct.Type) {
-			return errors.BadRequestf("Object Activity has wrong type %s, expected one of %v", objAct.Type, ValidUndoActivityTypes)
+		if !act.Actor.GetLink().Equal(toUndo.Actor.GetLink()) {
+			return errors.BadRequestf("the %s activity has a different actor than its object: %s, expected %s", act.Type, act.Actor.GetLink(), toUndo.Actor.GetLink())
+		}
+		if !ValidUndoActivityTypes.Match(toUndo.Type) {
+			return errors.BadRequestf("Object Activity has wrong type %s, expected one of %v", toUndo.Type, ValidUndoActivityTypes)
 		}
 		return nil
 	})
@@ -39,10 +45,10 @@ func (p P) ValidateClientNegatingActivity(act *vocab.Activity) error {
 // https://www.w3.org/TR/activitystreams-vocabulary/#inverse
 func (p *P) NegatingActivity(undo *vocab.Undo) (*vocab.Activity, error) {
 	if vocab.IsNil(undo.Object) {
-		return undo, errors.BadRequestf("Missing object for %s Activity", undo.Type)
+		return undo, errMissingObject(undo.Type)
 	}
 	if vocab.IsNil(undo.Actor) {
-		return undo, errors.BadRequestf("Missing actor for %s Activity", undo.Type)
+		return undo, errMissingActor(undo.Type)
 	}
 	if !vocab.UndoType.Match(undo.Type) {
 		return undo, errors.BadRequestf("Activity has wrong type %s, expected %s", undo.Type, vocab.UndoType)

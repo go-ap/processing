@@ -59,24 +59,24 @@ type ActorValidator interface {
 
 var ValidationError = errors.BadRequestf
 
-var InvalidActivity = func(s string, p ...interface{}) error {
+var InvalidActivity = func(s string, p ...any) error {
 	return ValidationError(fmt.Sprintf("Activity is not valid: %s", s), p...)
 }
-var MissingActivityActor = func(s string, p ...interface{}) error {
-	return ValidationError(fmt.Sprintf("Missing actor %s", s), p...)
-}
-var InvalidActivityActor = func(s string, p ...interface{}) error {
+var InvalidActivityActor = func(s string, p ...any) error {
 	return ValidationError(fmt.Sprintf("Actor is not valid: %s", s), p...)
 }
-var InvalidActivityObject = func(s string, p ...interface{}) error {
+var InvalidActivityObject = func(s string, p ...any) error {
 	return ValidationError(fmt.Sprintf("Object is not valid: %s", s), p...)
 }
-var InvalidIRI = func(s string, p ...interface{}) error {
+var InvalidIRI = func(s string, p ...any) error {
 	return ValidationError(fmt.Sprintf("IRI is not valid: %s", s), p...)
 }
 
-var InvalidTarget = func(s string, p ...interface{}) error {
-	return ValidationError(fmt.Sprintf("Target is not valid: %s", s), p...)
+var errMissingObject = func(typ vocab.Typer) error {
+	return ValidationError("missing object for %v Activity", typ)
+}
+var errMissingActor = func(typ vocab.Typer) error {
+	return ValidationError("missing object for %v Activity", typ)
 }
 
 var validActivityTypes = append(vocab.ActivityTypes, vocab.IntransitiveActivityTypes...)
