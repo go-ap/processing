@@ -229,7 +229,7 @@ func (p P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab
 	}
 	if !IRIBelongsToActor(outbox, author) {
 		// NOTE(marius): Should we use 403 Forbidden here?
-		return errors.Unauthorizedf("actor %q does not own the current outbox %s", name(&author), outbox)
+		return errors.Unauthorizedf("actor %s does not own the current outbox %s", name(&author), outbox)
 	}
 	if vocab.IsNil(a) {
 		return InvalidActivity("is nil")

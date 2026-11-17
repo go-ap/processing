@@ -11,3 +11,7 @@ Feature: Client to server interactions: Reactions
     When receiving a Like activity
     Then the object is added to the actor's Liked collection
     And the activity is added to the object's Likes collection
+
+  Scenario: Prevent the blocked object from interacting with any object posted by the actor (outbox:block:prevent-interaction-with-actor) SHOULD
+    When a receiving an Activity from a blocked Actor
+    Then there is a validation error

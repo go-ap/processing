@@ -8,7 +8,9 @@ import (
 	"github.com/cucumber/godog"
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/activitypub/build"
+	"github.com/go-ap/errors"
 	"github.com/go-ap/processing"
+	"github.com/google/go-cmp/cmp"
 )
 
 type outboxReactionsTests struct {
@@ -40,6 +42,10 @@ func (o *outboxReactionsTests) initScenario(ctx *godog.ScenarioContext) {
 	ctx.Step(`^receiving a Like activity$`, o.receivingALikeActivity)
 	ctx.Step(`^the activity is added to the object's Likes collection$`, o.theActivityIsAddedToTheObjectsLikesCollection)
 	ctx.Step(`^the object is added to the actor's Liked collection$`, o.theObjectIsAddedToTheActorsLikedCollection)
+
+	// NOTE(marius): Block
+	ctx.Step(`^a receiving an Activity from a blocked Actor$`, o.aReceivingAnActivityFromABlockedActor)
+	ctx.Step(`^there is a validation error$`, o.thereIsAValidationError)
 }
 
 func (o *outboxReactionsTests) aFollowActivityBetweenTwoLocalActors(ctx context.Context) error {
@@ -157,6 +163,34 @@ func (o *outboxReactionsTests) theObjectIsAddedToTheActorsLikedCollection(ctx co
 		return err
 	}
 
+	return nil
+}
+
+func (o *outboxReactionsTests) aReceivingAnActivityFromABlockedActor(ctx context.Context) error {
+	blockedActor := build.Person(build.WithID("http://example.localdomain/~blocked"))
+	blocked := build.OrderedCollection(
+		build.WithID(vocab.CollectionPath("blocked").IRI(Author)),
+		build.WithTotalItems(1),
+		build.WithItems(vocab.IRI("http://example.localdomain/~blocked")),
+	)
+
+	o.st = Storage(WithLocalMocks(Author, blocked, blockedActor))
+
+	toLikeID := Author.ID.AddPath("to-like")
+	o.Author = *blockedActor
+	o.ReceivedIn = vocab.Outbox.IRI(Author)
+	o.Activity = build.Like(build.WithActor(blockedActor.ID), build.WithObject(toLikeID))
+
+	return nil
+}
+
+func (o *outboxReactionsTests) thereIsAValidationError(ctx context.Context) error {
+	expectedErr := errors.Unauthorizedf("actor %s does not own the current outbox %s", "~blocked", Author.Outbox.GetLink())
+	p := o.mp.InitP(processing.WithStorage(o.st))
+	_, err := p.ProcessActivity(o.Activity, o.Author, o.ReceivedIn)
+	if !cmp.Equal(err, expectedErr, EquateWeakErrors) {
+		return fmt.Errorf("unexpected error received: %s", cmp.Diff(expectedErr, err, EquateWeakErrors))
+	}
 	return nil
 }
 
