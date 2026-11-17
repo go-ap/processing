@@ -22,7 +22,7 @@ type P struct {
 	l       lw.Logger
 
 	retries int
-	sync    bool
+	async   bool
 
 	// skipValidationOnInboundCollections determines if the validation functionality checks that the collection
 	// which received the activity actually exists.
@@ -79,7 +79,7 @@ type OptionFn func(s *P)
 // WithSynchronousProcessing configures the processor to not execute any of the potential asynchronous processing steps
 // in an asynchronous manner.
 func WithSynchronousProcessing(p *P) {
-	p.sync = true
+	p.async = false
 }
 
 // WithInboundCollectionValidationSkip configures the processor to skip checking that the collection in which the

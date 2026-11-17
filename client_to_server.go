@@ -141,7 +141,7 @@ func (p *P) processClientIntransitiveActivity(act vocab.Item, receivedIn vocab.I
 		return act, err
 	}
 
-	if !p.sync {
+	if p.async {
 		go sync()
 	} else {
 		sync()
@@ -215,7 +215,7 @@ func (p *P) processClientActivity(act *vocab.Activity, receivedIn vocab.IRI) (vo
 		return act, err
 	}
 
-	if !p.sync {
+	if p.async {
 		// TODO(marius): Find another mechanism for running this asynchronously.
 		go sync()
 	} else {
