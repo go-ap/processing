@@ -36,21 +36,21 @@ func (o *outboxContentManagementTests) initScenario(ctx *godog.ScenarioContext) 
 	ctx.Step(`^Skip$`, skip)
 
 	// NOTE(marius): create merges recipients for activity and object
-	ctx.Step(`^a Create and Object pair with to, bto, cc, bcc and audience$`, o.aCreateAndObjectPairWithToBtoCcBccAndAudience)
+	ctx.Step(`^a Create and Object pair with to, bto, cc, bcc and audience is received$`, o.aCreateAndObjectPairWithToBtoCcBccAndAudienceIsReceived)
 	ctx.Step(`^Object and Activity have merged to, bto, cc, bcc and audience$`, o.objectAndActivityHaveMergedToBtoCcBccAndAudience)
 
 	// NOTE(marius): create adds activity actor to object's attributedTo if missing
-	ctx.Step(`^a Create for an Object without AttributedTo$`, o.aCreateForAnObjectWithoutAttributedTo)
+	ctx.Step(`^a Create for an Object without AttributedTo is received$`, o.aCreateForAnObjectWithoutAttributedToIsReceived)
 	ctx.Step(`^the Object has the AttributedTo as the Activity Actor$`, o.theObjectHasTheAttributedToAsTheActivityActor)
 
 	// NOTE(marius): Update
-	ctx.Step(`^an Update with an Object containing only partial data$`, o.anUpdateWithAnObjectContainingOnlyPartialData)
-	ctx.Step(`^an Update with an unauthorized Actor$`, o.anUpdateWithAnUnauthorizedActor)
+	ctx.Step(`^an Update with an Object containing only partial data is received$`, o.anUpdateWithAnObjectContainingOnlyPartialDataIsReceived)
+	ctx.Step(`^an Update with an unauthorized Actor is received$`, o.anUpdateWithAnUnauthorizedActorIsReceived)
 	ctx.Step(`^no properties of the Object are unset$`, o.noPropertiesOfTheObjectAreUnset)
 	ctx.Step(`^there is a validation error$`, o.thereIsAValidationError)
 }
 
-func (o *outboxContentManagementTests) aCreateAndObjectPairWithToBtoCcBccAndAudience(ctx context.Context) error {
+func (o *outboxContentManagementTests) aCreateAndObjectPairWithToBtoCcBccAndAudienceIsReceived(ctx context.Context) error {
 	o.st = Storage(WithLocalMocks(Author))
 
 	o.Author = *Author
@@ -122,7 +122,7 @@ func (o *outboxContentManagementTests) objectAndActivityHaveMergedToBtoCcBccAndA
 	})
 }
 
-func (o *outboxContentManagementTests) aCreateForAnObjectWithoutAttributedTo(ctx context.Context) error {
+func (o *outboxContentManagementTests) aCreateForAnObjectWithoutAttributedToIsReceived(ctx context.Context) error {
 	o.st = Storage(WithLocalMocks(Author))
 
 	o.Author = *Author
@@ -156,7 +156,7 @@ func (o *outboxContentManagementTests) theObjectHasTheAttributedToAsTheActivityA
 	})
 }
 
-func (o *outboxContentManagementTests) anUpdateWithAnObjectContainingOnlyPartialData(ctx context.Context) error {
+func (o *outboxContentManagementTests) anUpdateWithAnObjectContainingOnlyPartialDataIsReceived(ctx context.Context) error {
 	noteID := RootID.AddPath("to-update")
 	willBeUpdated := build.Note(
 		build.WithID(noteID),
@@ -212,7 +212,7 @@ func (o *outboxContentManagementTests) noPropertiesOfTheObjectAreUnset(ctx conte
 	})
 }
 
-func (o *outboxContentManagementTests) anUpdateWithAnUnauthorizedActor(ctx context.Context) error {
+func (o *outboxContentManagementTests) anUpdateWithAnUnauthorizedActorIsReceived(ctx context.Context) error {
 	localAuthor := vocab.IRI("http://example.com/~notDoe")
 	noteID := localAuthor.AddPath("to-update")
 	willBeUpdated := build.Note(

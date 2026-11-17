@@ -24,7 +24,7 @@ type outboxNegateTests struct {
 	ReceivedIn vocab.IRI
 }
 
-func (o *outboxNegateTests) anUndoActivity() error {
+func (o *outboxNegateTests) anUndoActivityIsReceived() error {
 	toUndoID := RootID.AddPath("to-undo")
 	toUndo := build.Create(
 		build.WithID(toUndoID),
@@ -42,7 +42,7 @@ func (o *outboxNegateTests) anUndoActivity() error {
 	return nil
 }
 
-func (o *outboxNegateTests) anUndoActivityWithDifferentActorThanTheOneOfItsObject() error {
+func (o *outboxNegateTests) anUndoActivityWithDifferentActorThanTheOneOfItsObjectIsReceived() error {
 	toUndoID := RootID.AddPath("to-undo")
 	toUndo := build.Create(
 		build.WithID(toUndoID),
@@ -92,10 +92,10 @@ func (o *outboxNegateTests) initScenario(ctx *godog.ScenarioContext) {
 	ctx.Step(`^nothing$`, nothing)
 	ctx.Step(`^Skip$`, skip)
 
-	ctx.Step(`^an Undo activity$`, o.anUndoActivity)
+	ctx.Step(`^an Undo activity is received$`, o.anUndoActivityIsReceived)
 	ctx.Step(`^it gets accepted$`, o.itGetsAccepted)
 
-	ctx.Step(`^an Undo activity with different Actor than the one of it\'s Object$`, o.anUndoActivityWithDifferentActorThanTheOneOfItsObject)
+	ctx.Step(`^an Undo activity with different Actor than the one of it\'s Object is received$`, o.anUndoActivityWithDifferentActorThanTheOneOfItsObjectIsReceived)
 	ctx.Step(`^there is a validation error$`, o.thereIsAValidationError)
 }
 

@@ -33,15 +33,15 @@ func (o *outboxCollectionManagementTests) initScenario(ctx *godog.ScenarioContex
 	ctx.Step(`^Skip$`, skip)
 
 	// NOTE(marius): Add
-	ctx.Step(`^an Object and a Target collection$`, o.anObjectAndATargetCollection)
+	ctx.Step(`^an Activity with an Object and a Target collection is received$`, o.anActivityWithObjectAndATargetCollectionIsReceived)
 	ctx.Step(`^the object will exist in the Target$`, o.theObjectWillExistInTheTarget)
 
 	// NOTE(marius): Remove
-	ctx.Step(`^an Object and an Origin collection$`, o.anObjectAndAnOriginCollection)
+	ctx.Step(`^an Activity with an Object and an Origin collection is received$`, o.anActivityWithAnObjectAndAnOriginCollectionIsReceived)
 	ctx.Step(`^the object will not exist in the Origin$`, o.theObjectWillNotExistInTheOrigin)
 }
 
-func (o *outboxCollectionManagementTests) anObjectAndATargetCollection(ctx context.Context) error {
+func (o *outboxCollectionManagementTests) anActivityWithObjectAndATargetCollectionIsReceived(ctx context.Context) error {
 	targetID := RootID.AddPath("target")
 	target := build.OrderedCollection(build.WithID(targetID))
 
@@ -92,7 +92,7 @@ func (o *outboxCollectionManagementTests) theObjectWillExistInTheTarget(ctx cont
 	return nil
 }
 
-func (o *outboxCollectionManagementTests) anObjectAndAnOriginCollection(ctx context.Context) error {
+func (o *outboxCollectionManagementTests) anActivityWithAnObjectAndAnOriginCollectionIsReceived(ctx context.Context) error {
 	noteID := RootID.AddPath("to-move")
 	toRemove := build.Note(
 		build.WithID(noteID),

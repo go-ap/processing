@@ -24,7 +24,7 @@ type generalOutboxTests struct {
 	ReceivedIn vocab.IRI
 }
 
-func (c *generalOutboxTests) anActivityObject(ctx context.Context) error {
+func (c *generalOutboxTests) anActivityIsReceived(ctx context.Context) error {
 	c.st = Storage(WithLocalMocks(Author))
 
 	c.Author = *Author
@@ -40,7 +40,7 @@ func (c *generalOutboxTests) anActivityObject(ctx context.Context) error {
 	return nil
 }
 
-func (c *generalOutboxTests) aNonActivityObject(ctx context.Context) error {
+func (c *generalOutboxTests) aNonActivityObjectIsReceived(ctx context.Context) error {
 	c.st = Storage(WithLocalMocks(Author))
 
 	c.Author = *Author
@@ -50,13 +50,13 @@ func (c *generalOutboxTests) aNonActivityObject(ctx context.Context) error {
 	return nil
 }
 
-func (c *generalOutboxTests) failsToGetConverted(ctx context.Context) error {
+func (c *generalOutboxTests) itGetsWrappedIntoACreateActivity(ctx context.Context) error {
 	p := c.mp.InitP(processing.WithStorage(c.st))
-	got, err := p.ProcessActivity(c.Activity, c.Author, c.ReceivedIn)
+	_, err := p.ProcessActivity(c.Activity, c.Author, c.ReceivedIn)
 	if err != nil {
-		return nil //fmt.Errorf("%w received error: %w", godog.ErrSkip, err)
+		return fmt.Errorf("received unexpected error: %w", err)
 	}
-	return fmt.Errorf("expected failure and activity processing succeeded: %+v", got)
+	return nil
 }
 
 func (c *generalOutboxTests) itGetsAccepted(ctx context.Context) error {
@@ -116,7 +116,7 @@ func (c *generalOutboxTests) theBtoAndBCCPropertiesAreRemoved(ctx context.Contex
 	})
 }
 
-func (c *generalOutboxTests) anActivityWithExistingID(ctx context.Context) error {
+func (c *generalOutboxTests) anActivityWithExistingIDIsReceived(ctx context.Context) error {
 	c.st = Storage(WithLocalMocks(Author))
 
 	c.Author = *Author
@@ -173,26 +173,19 @@ func (c *generalOutboxTests) initScenario(ctx *godog.ScenarioContext) {
 	ctx.Step(`^Skip$`, skip)
 
 	// NOTE(marius): success on activity
-	ctx.Step(`^an Activity Object$`, c.anActivityObject)
+	ctx.Step(`^an Activity is received$`, c.anActivityIsReceived)
 	ctx.Step(`^it gets accepted$`, c.itGetsAccepted)
 
 	// NOTE(marius): failing on non activities
-	ctx.Step(`^a non-Activity Object$`, c.aNonActivityObject)
-	ctx.Step(`^it Fails to get converted to Create Activity$`, c.failsToGetConverted)
+	ctx.Step(`^a non-Activity Object is received$`, c.aNonActivityObjectIsReceived)
+	ctx.Step(`^it gets wrapped into a Create Activity$`, c.itGetsWrappedIntoACreateActivity)
 
 	// NOTE(marius): strip bcc and bto properties
-	ctx.Step("^Objects with 'bto' and 'bcc' properties$", c.objectsWithBtoAndBCCProperties)
-	ctx.Step(`^the 'bto' and 'bcc' aren't removed before storage and delivery$`, func(ctx context.Context) error {
-		if err := c.theBtoAndBCCPropertiesAreRemoved(ctx); err != nil {
-			return nil
-		}
-		t := godog.T(ctx)
-		t.Skip("GoActivityPub doesn't strip blind recipients before persisting them to storage. Users of the library need to do that themselves before presenting the objects to users.")
-		return nil
-	})
+	ctx.Step("^an Activity with an Object having 'bto' and 'bcc' properties is received$", c.objectsWithBtoAndBCCProperties)
+	ctx.Step(`^the 'bto' and 'bcc' aren't removed before storage and delivery$`, c.theBtoAndBCCPropertiesAreRemoved)
 
 	// NOTE(marius): recreate ID for activity
-	ctx.Step(`^an Activity with existing ID$`, c.anActivityWithExistingID)
+	ctx.Step(`^an Activity with existing ID is received$`, c.anActivityWithExistingIDIsReceived)
 	ctx.Step(`^ignores it and generates a new ID instead$`, c.ignoresItAndGeneratesANewIDInstead)
 
 	// NOTE(marius): no author activity
