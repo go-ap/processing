@@ -8,11 +8,11 @@ require (
 	github.com/carlmjohnson/requests v0.26.3
 	github.com/cucumber/godog v0.16.0
 	github.com/dadrus/httpsig v0.12.0
-	github.com/go-ap/activitypub v0.0.0-20261114094942-b164c2575fd9
+	github.com/go-ap/activitypub v0.0.0-20261117194752-b4a120cb2bc7
 	github.com/go-ap/errors v0.0.0-20261107170344-5391268d9d2c
-	github.com/go-ap/filters v0.0.0-20261114095223-5acde6d8785c
+	github.com/go-ap/filters v0.0.0-20261117194910-bc6cc5b6d82d
 	github.com/go-ap/jsonld v0.0.0-20261107170435-a7bb5ba3f894
-	github.com/go-ap/storage-conformance-suite v0.0.0-20261114103239-6393ae1058ed
+	github.com/go-ap/storage-conformance-suite v0.0.0-20261117195745-20d379e0402b
 	github.com/google/go-cmp v0.7.0
 	github.com/spf13/pflag v1.0.10
 )
@@ -53,12 +53,12 @@ require (
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fastjson v1.6.10 // indirect
-	github.com/xo/terminfo v1.3.0 // indirect
+	github.com/xo/terminfo v1.3.1 // indirect
 	go.opentelemetry.io/otel v1.47.0 // indirect
 	go.opentelemetry.io/otel/trace v1.47.0 // indirect
 	golang.org/x/crypto v0.59.0 // indirect
-	golang.org/x/mod v0.42.0 // indirect
-	golang.org/x/net v0.62.0 // indirect
+	golang.org/x/mod v0.43.0 // indirect
+	golang.org/x/net v0.63.0 // indirect
 	golang.org/x/sys v0.50.0 // indirect
 	golang.org/x/term v0.48.0 // indirect
 	golang.org/x/text v0.44.0 // indirect
