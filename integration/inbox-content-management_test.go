@@ -38,7 +38,7 @@ func Test_Inbox_Update(t *testing.T) {
 		build.WithObject(updated),
 	)
 	st := Storage(WithLocalMocks(Author, original))
-	ms := Remote(WithRemoteMocks(RemoteAuthor, update))
+	ms := Remote(WithHandlers(Handler(RemoteAuthorID, ServeItemHandler(t, nil, RemoteAuthor))))
 	P := mp.InitP(processing.WithStorage(st), WithRemote(ms))
 
 	tests := TestSuite{

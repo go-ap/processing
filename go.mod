@@ -7,6 +7,7 @@ require (
 	git.sr.ht/~mariusor/ssm v0.0.0-20261028091439-cc04caf574c4
 	github.com/carlmjohnson/requests v0.26.3
 	github.com/cucumber/godog v0.16.0
+	github.com/dadrus/httpsig v0.12.0
 	github.com/go-ap/activitypub v0.0.0-20261114094942-b164c2575fd9
 	github.com/go-ap/errors v0.0.0-20261107170344-5391268d9d2c
 	github.com/go-ap/filters v0.0.0-20261114095223-5acde6d8785c
@@ -31,6 +32,7 @@ require (
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/cucumber/gherkin/go/v42 v42.0.0 // indirect
 	github.com/cucumber/messages/go/v34 v34.2.0 // indirect
+	github.com/dunglas/httpsfv v1.1.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/go-immutable-radix v1.3.1 // indirect
 	github.com/hashicorp/go-memdb v1.3.5 // indirect

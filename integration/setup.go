@@ -2,6 +2,9 @@ package integration
 
 import (
 	"context"
+	"crypto"
+	"crypto/ed25519"
+	"crypto/rsa"
 	"fmt"
 	"io"
 	"math/rand"
@@ -10,10 +13,10 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"testing"
 	"time"
 
 	"github.com/carlmjohnson/requests"
+	rfc "github.com/dadrus/httpsig"
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
 	"github.com/go-ap/filters"
@@ -28,9 +31,10 @@ type (
 
 	RemoteStorage conformance.MemStorage
 
-	LocalStorageInitFn  func(storage *LocalStorage)
-	RemoteStorageInitFn func(storage *RemoteStorage)
-	RemoteInitFn        func(storage *MockRemote)
+	LocalStorageInitFn  func(*LocalStorage)
+	RemoteStorageInitFn func(*RemoteStorage)
+	RemoteInitFn        func(*MockRemote)
+	ClientInitFn        func(*MockClient)
 	InitFn              any
 )
 
@@ -89,6 +93,8 @@ func (mp *MockPlumbing) InitP(fns ...InitFn) *processing.P {
 		}
 	}
 
+	// NOTE(marius): we usually want the processing to be done synchronously
+	initFns = append(initFns, processing.WithSynchronousProcessing)
 	initFns = append(initFns, processing.WithIDGenerator(mp.GenerateID))
 	initFns = append(initFns, processing.WithLocalIRIChecker(mp.LocalIRI))
 	initFns = append(initFns, processing.WithTimeFn(mp.Now))
@@ -115,9 +121,10 @@ func WithRemote(mr *MockRemote) processing.OptionFn {
 	}
 }
 
-func WithRemoteMocks(it ...vocab.Item) RemoteStorageInitFn {
-	return func(storage *RemoteStorage) {
-		saveItemsToStorage(storage, it...)
+func WithClientActorKey(act *vocab.Actor, key crypto.PublicKey) ClientInitFn {
+	return func(cl *MockClient) {
+		cl.Actor = act
+		cl.Key = key
 	}
 }
 
@@ -205,67 +212,213 @@ func (mp *MockPlumbing) PopTime() time.Time {
 	return tt
 }
 
-type MockRemote struct {
-	asserts  map[vocab.IRI]vocab.ItemCollection
-	received map[vocab.IRI]vocab.ItemCollection
-
-	S *RemoteStorage
-	C processing.ActivityPubClient
+type AuthorizedMap map[vocab.IRI]struct {
+	Actor *vocab.Actor
+	Key   crypto.PrivateKey
 }
 
-func (mr *MockRemote) Run(t *testing.T, _ vocab.Item, _ error) {
-	t.Helper()
-	if !cmp.Equal(mr.asserts, mr.received) {
-		t.Fatalf("invalid requests received %s", cmp.Diff(mr.asserts, mr.received))
+func Auth(act *vocab.Actor, key crypto.PrivateKey) AuthorizedMap {
+	return AuthorizedMap{
+		act.PublicKey.ID: {Actor: act, Key: key},
+	}
+}
+
+func (am AuthorizedMap) Find(id string) (*vocab.Actor, crypto.PrivateKey, error) {
+	pair, ok := am[vocab.IRI(id)]
+	if !ok {
+		return nil, nil, fmt.Errorf("keyId %s not found", id)
+	}
+	return pair.Actor, pair.Key, nil
+}
+
+func (am AuthorizedMap) ResolveKey(ctx context.Context, info rfc.SignatureInfo) (rfc.KeyInfo, error) {
+	key := rfc.KeyInfo{}
+	keyID, _ := info.Parameters.KeyID()
+	act, prv, err := am.Find(keyID)
+	if err != nil {
+		return key, err
+	}
+	pub, err := act.PublicKey.CryptoValue()
+	if err != nil {
+		return key, err
+	}
+
+	switch pk := prv.(type) {
+	case *rsa.PrivateKey:
+		switch pk.Size() {
+		case 256, 384:
+			key.Key.Algorithm = rfc.RsaPkcs1v15Sha384
+		case 512:
+			key.Key.Algorithm = rfc.RsaPkcs1v15Sha512
+		}
+	case ed25519.PrivateKey:
+		key.Key.Algorithm = rfc.Ed25519
+	}
+	if alg, ok := info.Parameters.Alg(); ok && alg != key.Key.Algorithm {
+		return key, fmt.Errorf("mismatched algorithm parameter")
+	}
+	key.Key.Material = pub
+	return key, nil
+}
+
+func (am AuthorizedMap) VerifySignature(req *http.Request) error {
+	verifier, err := rfc.NewVerifier(
+		am,
+		rfc.WithValidityTolerance(time.Hour),
+		rfc.WithMaxAge(time.Hour),
+		rfc.WithCreatedTimestamp(false),
+		rfc.WithExpiresTimestamp(false),
+		rfc.WithValidateAllSignatures(),
+	)
+	if err != nil {
+		return err
+	}
+	valid, err := verifier.Verify(rfc.MessageFromRequest(req))
+	if err != nil {
+		return err
+	}
+	for _, v := range valid {
+		keyID, _ := v.Parameters.KeyID()
+		if act, _, _ := am.Find(keyID); act != nil {
+			return nil
+		}
+	}
+	return fmt.Errorf("no authorized actor found in signatures %v", valid)
+}
+
+type TestingT interface {
+	Name() string
+	Log(args ...interface{})
+	Logf(format string, args ...interface{})
+	Error(args ...interface{})
+	Errorf(format string, args ...interface{})
+	Fail()
+	FailNow()
+	Fatal(args ...interface{})
+	Fatalf(format string, args ...interface{})
+	Skip(args ...interface{})
+	Skipf(format string, args ...interface{})
+	SkipNow()
+	Skipped() bool
+}
+
+type MockRemote struct {
+	assertions map[vocab.IRI][]http.Handler
+	m          sync.Mutex
+
+	//S *RemoteStorage
+	C *MockClient
+}
+
+func (mr *MockRemote) Success() error {
+	if len(mr.assertions) != 0 {
+		return fmt.Errorf("request assertions weren't fully called: %d", len(mr.assertions))
+	}
+	return nil
+}
+
+func ServeItemHandler(t TestingT, authMap AuthorizedMap, it vocab.Item) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.Method != http.MethodGet {
+			fmt.Fprintf(w, "invalid method for assertion handler")
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			t.Errorf("invalid method %s, expected %s", req.Method, http.MethodGet)
+			return
+		}
+
+		isPublic := true
+		if hasRecipients, ok := it.(vocab.HasRecipients); ok {
+			recipients := hasRecipients.Recipients()
+			isPublic = recipients.Contains(vocab.PublicNS)
+		}
+		if !isPublic {
+			if authMap == nil {
+				fmt.Fprintf(w, "item is not public and there's no valid authentication mechanism")
+				w.WriteHeader(http.StatusForbidden)
+				t.Errorf("item is not public and no authentication map was provided")
+				return
+			}
+			if err := authMap.VerifySignature(req); err != nil {
+				fmt.Fprintf(w, "%v", err)
+				w.WriteHeader(http.StatusForbidden)
+				t.Errorf("failed to verify HTTP Signature against the authorization map: %v", err)
+				return
+			}
+		}
+
+		raw, err := vocab.MarshalJSON(it)
+		if err != nil {
+			errors.HandleError(err).ServeHTTP(w, req)
+			t.Errorf("failed to marshal item: %v", err)
+			return
+		}
+		w.Write(raw)
+		w.WriteHeader(http.StatusOK)
+	})
+}
+
+func HandleReceivedActivityMatches(t TestingT, expected vocab.Item) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		raw, err := io.ReadAll(req.Body)
+		if err != nil {
+			errors.HandleError(err).ServeHTTP(w, req)
+			t.Errorf("unable to read request body: %v", err)
+			return
+		}
+		got, err := vocab.UnmarshalJSON(raw)
+		if err != nil {
+			errors.HandleError(err).ServeHTTP(w, req)
+			t.Errorf("unable to unmarshal activity from request %v", err)
+			return
+		}
+
+		if !cmp.Equal(expected, got) {
+			t.Errorf("received item is different than expected: %s", cmp.Diff(expected, got))
+		}
 	}
 }
 
 func (mr *MockRemote) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	mr.m.Lock()
+	defer mr.m.Unlock()
+
+	if len(mr.assertions) == 0 {
+		errors.HandleError(fmt.Errorf("no assertions left to run")).ServeHTTP(w, req)
+		return
+	}
+
 	iri := vocab.IRI("http://" + req.Host + req.RequestURI)
-	if req.Method == http.MethodGet {
-		it, err := mr.S.Load(iri)
-		if err != nil {
-			errors.HandleError(err).ServeHTTP(w, req)
-			return
-		}
-		raw, err := vocab.MarshalJSON(it)
-		if err != nil {
-			errors.HandleError(err).ServeHTTP(w, req)
-			return
-		}
-		w.Write(raw)
+	currentAsserts, ok := mr.assertions[iri]
+	if !ok {
+		errors.HandleError(fmt.Errorf("no assertion for iri %s", iri)).ServeHTTP(w, req)
 		return
 	}
-
-	raw, err := io.ReadAll(req.Body)
-	if err != nil {
-		errors.HandleError(err).ServeHTTP(w, req)
-		return
+	for _, currentAssert := range currentAsserts {
+		currentAssert.ServeHTTP(w, req)
 	}
-	it, err := vocab.UnmarshalJSON(raw)
-	if err != nil {
-		errors.HandleError(err).ServeHTTP(w, req)
-		return
-	}
-	colIts, exists := mr.received[iri]
-	if !exists {
-		colIts = make(vocab.ItemCollection, 0)
-	}
-	colIts = append(colIts, it)
-	mr.received[iri] = colIts
+	delete(mr.assertions, iri)
 }
 
-func Request(iri vocab.IRI, items ...vocab.Item) RemoteInitFn {
+type AssertFn map[vocab.IRI]http.Handler
+
+func Handler(iri vocab.IRI, fn http.Handler) AssertFn {
+	return AssertFn{iri: fn}
+}
+
+func WithHandlers(assertFns ...AssertFn) RemoteInitFn {
 	return func(mr *MockRemote) {
-		mr.asserts[iri] = items
+		for _, mapPairs := range assertFns {
+			for iri, hFn := range mapPairs {
+				fns, ok := mr.assertions[iri]
+				if !ok {
+					fns = []http.Handler{hFn}
+				} else {
+					fns = append(fns, hFn)
+				}
+				mr.assertions[iri] = fns
+			}
+		}
 	}
-}
-
-func (mr *MockRemote) WillReceive(initFns ...RemoteInitFn) TestAssertion {
-	for _, fn := range initFns {
-		fn(mr)
-	}
-	return mr
 }
 
 func Storage(fns ...InitFn) *LocalStorage {
@@ -283,25 +436,33 @@ func Storage(fns ...InitFn) *LocalStorage {
 
 func Remote(fns ...InitFn) *MockRemote {
 	mr := MockRemote{
-		asserts:  make(map[vocab.IRI]vocab.ItemCollection),
-		received: make(map[vocab.IRI]vocab.ItemCollection),
-		S:        new(RemoteStorage),
-	}
-	for _, fn := range fns {
-		switch initFn := fn.(type) {
-		case RemoteStorageInitFn:
-			initFn(mr.S)
-		}
+		assertions: make(map[vocab.IRI][]http.Handler),
 	}
 
 	srv := httptest.NewServer(&mr)
-	mr.C = mockClient(*srv.Client())
+	mr.C = &MockClient{
+		Client: *srv.Client(),
+	}
+
+	for _, fn := range fns {
+		switch initFn := fn.(type) {
+		case ClientInitFn:
+			initFn(mr.C)
+		case RemoteInitFn:
+			initFn(&mr)
+		}
+	}
+
 	return &mr
 }
 
-type mockClient http.Client
+type MockClient struct {
+	http.Client
+	Actor *vocab.Actor
+	Key   crypto.PrivateKey
+}
 
-func (m mockClient) CtxToCollection(ctx context.Context, it vocab.Item, iris ...vocab.IRI) (vocab.IRI, vocab.Item, error) {
+func (m MockClient) CtxToCollection(ctx context.Context, it vocab.Item, iris ...vocab.IRI) (vocab.IRI, vocab.Item, error) {
 	cont, err := jsonld.WithContext(jsonld.IRI(vocab.ActivityBaseURI), jsonld.IRI(vocab.SecurityContextURI)).Marshal(it)
 	if err != nil {
 		return "", nil, errors.Errorf("unable to marshal activity")
@@ -332,13 +493,17 @@ func (m mockClient) CtxToCollection(ctx context.Context, it vocab.Item, iris ...
 	return "", results.Normalize(), errors.Join(errs...)
 }
 
-func (m mockClient) do(ctx context.Context, rb *requests.Builder) (vocab.Item, error) {
+func (m MockClient) do(ctx context.Context, rb *requests.Builder) (vocab.Item, error) {
 	req, err := rb.Request(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	cl := http.Client(m)
+	cl := m.Client
+
+	if err = m.Sign(req); err != nil {
+		return nil, err
+	}
 
 	resp, err := cl.Do(req)
 	if err != nil {
@@ -352,7 +517,59 @@ func (m mockClient) do(ctx context.Context, rb *requests.Builder) (vocab.Item, e
 	return vocab.UnmarshalJSON(raw)
 }
 
-func (m mockClient) CtxLoadIRI(ctx context.Context, iri vocab.IRI) (vocab.Item, error) {
+func rfcAlgorithmFromPrivateKey(key crypto.PrivateKey) rfc.SignatureAlgorithm {
+	// NOTE(marius): I'm not sure what purpose it serves to validate the public key of the actor
+	// against the private key
+	switch pk := key.(type) {
+	case *rsa.PrivateKey:
+		switch pk.Size() {
+		case 128, 256:
+			return rfc.RsaPkcs1v15Sha256
+		case 384:
+			return rfc.RsaPkcs1v15Sha384
+		case 512:
+			return rfc.RsaPkcs1v15Sha512
+		}
+	case ed25519.PrivateKey:
+		return rfc.Ed25519
+	default:
+	}
+	return "unknown"
+}
+
+func (m MockClient) Sign(req *http.Request) error {
+	if m.Actor == nil || m.Key == nil {
+		return nil
+	}
+	key := rfc.Key{
+		Algorithm: rfcAlgorithmFromPrivateKey(m.Key),
+		Material:  m.Key,
+	}
+	initFns := []rfc.SignerOption{
+		rfc.WithKeyID(string(m.Actor.PublicKey.ID)),
+		rfc.WithAlg(),
+		rfc.WithTTL(time.Hour),
+	}
+
+	coveredComponents := []string{`"@method"`, `"@path"`}
+	if coveredComponents != nil {
+		initFns = append(initFns, rfc.WithComponents(coveredComponents...))
+	}
+	signer, err := rfc.NewSigner(key, initFns...)
+	if err != nil {
+		return err
+	}
+	signFns := make([]rfc.SignOption, 0)
+	msg := rfc.MessageFromRequest(req)
+	headersWithSignature, err := signer.Sign(msg, signFns...)
+	if err != nil {
+		return err
+	}
+	req.Header = headersWithSignature
+	return nil
+}
+
+func (m MockClient) CtxLoadIRI(ctx context.Context, iri vocab.IRI) (vocab.Item, error) {
 	rb := requests.URL(string(iri)).Method(http.MethodGet)
 	// NOTE(marius): these are required when signing requests with our draft HTTP-Signatures
 	rb.Header("Accept", "application/activity+json")
@@ -364,4 +581,4 @@ func (m mockClient) CtxLoadIRI(ctx context.Context, iri vocab.IRI) (vocab.Item, 
 	return m.do(ctx, rb)
 }
 
-var _ processing.ActivityPubClient = mockClient{}
+var _ processing.ActivityPubClient = MockClient{}
