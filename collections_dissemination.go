@@ -78,7 +78,8 @@ func (p P) disseminateToRemoteCollections(it vocab.Item, iris ...vocab.IRI) erro
 				delay = time.Since(start)
 			}()
 			ll := p.l.WithContext(lw.Ctx{"to": col, "retry": currentRetry, "delay": delay.String()})
-			if _, _, err := p.c.CtxToCollection(context.TODO(), it, col); err != nil {
+			obIRI, act, err := p.c.CtxToCollection(context.TODO(), it, col)
+			if err != nil {
 				ll.WithContext(lw.Ctx{"err": err}).Warnf("Unable to disseminate activity")
 				switch {
 				case errors.IsConflict(err):
@@ -100,13 +101,21 @@ func (p P) disseminateToRemoteCollections(it vocab.Item, iris ...vocab.IRI) erro
 					return ssm.ErrorEnd(err)
 				}
 			} else {
-				ll.Debugf("Pushed to remote actor's collection")
+				ltx := lw.Ctx{"iri": obIRI}
+				if !vocab.IsNil(act) {
+					ltx["act"] = act.GetLink()
+				}
+				ll.WithContext(ltx).Debugf("Pushed to remote actor's collection")
 			}
 			return ssm.End
 		})
 		states = append(states, state)
 	}
-	return ssm.RunParallel(context.Background(), states...)
+	runStates := ssm.Run
+	if p.async {
+		runStates = ssm.RunParallel
+	}
+	return runStates(context.Background(), states...)
 }
 
 type filterFn func(vocab.Item) bool

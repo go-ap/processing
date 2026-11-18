@@ -43,8 +43,7 @@ Feature: Client to server interactions: Activities Delivery
 
   Scenario: Delivers to sharedInbox endpoints to reduce the number of receiving actors delivered to by identifying all followers which share the same sharedInbox who would otherwise be individual recipients and instead deliver objects to said sharedInbox (outbox:delivery:sharedInbox) MAY
     When an Activity with recipients that have a sharedInbox is received
-    Then the Activity is disseminated to the sharedInbox
-    And not to the recipients inboxes
+    Then the Activity is disseminated to the sharedInbox, not to the recipients inboxes
 
   Scenario: Deliver to actor inboxes and collections otherwise addressed which do not have a sharedInbox (outbox:delivery:sharedInbox:deliver-to-inbox-if-no-sharedInbox) MUST
     When an Activity with recipients is received

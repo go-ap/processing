@@ -129,6 +129,12 @@ func WithClientActorKey(act *vocab.Actor, key crypto.PublicKey) ClientInitFn {
 	}
 }
 
+func WithClientTestingT(t TestingT) ClientInitFn {
+	return func(cl *MockClient) {
+		cl.T = t
+	}
+}
+
 func WithLocalMocks(it ...vocab.Item) LocalStorageInitFn {
 	return func(storage *LocalStorage) {
 		saveItemsToStorage(storage, it...)
@@ -310,9 +316,11 @@ type MockRemote struct {
 	m          sync.Mutex
 }
 
-func (mr *MockRemote) Success() error {
+func (mr *MockRemote) Success(t TestingT) error {
 	if len(mr.assertions) != 0 {
-		return fmt.Errorf("request assertions weren't fully called: %d", len(mr.assertions))
+		for iri := range mr.assertions {
+			t.Errorf("Request assertion handler wasn't called for iri: %s", iri)
+		}
 	}
 	return nil
 }
@@ -404,7 +412,7 @@ func (mr *MockRemote) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	defer mr.m.Unlock()
 
 	if len(mr.assertions) == 0 {
-		errors.HandleError(fmt.Errorf("no assertions left to run")).ServeHTTP(w, req)
+		errors.HandleError(fmt.Errorf("there are no assertions to run")).ServeHTTP(w, req)
 		return
 	}
 
@@ -481,6 +489,8 @@ type MockClient struct {
 	http.Client
 	Actor *vocab.Actor
 	Key   crypto.PrivateKey
+
+	T TestingT
 }
 
 func (m MockClient) CtxToCollection(ctx context.Context, it vocab.Item, iris ...vocab.IRI) (vocab.IRI, vocab.Item, error) {
@@ -506,6 +516,9 @@ func (m MockClient) CtxToCollection(ctx context.Context, it vocab.Item, iris ...
 
 		if it, err = m.do(ctx, rb); err != nil {
 			errs = append(errs, err)
+			if m.T != nil {
+				m.T.Errorf("Received unexpected error: %v", err)
+			}
 			continue
 		}
 		_ = results.Append(it)

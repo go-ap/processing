@@ -312,7 +312,7 @@ func aggregateRecipients(p *P, actor vocab.Item, activityIsPublic bool, activity
 	for _, rec := range activityRecipients {
 		recIRI := rec.GetLink()
 
-		if vocab.PublicNS.Equal(recIRI) {
+		if vocab.PublicNS.Equal(recIRI) || recIRI.Equal(actor.GetLink()) {
 			continue
 		}
 
