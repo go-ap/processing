@@ -496,7 +496,6 @@ func timeArg(maybeTime any) time.Time {
 	default:
 		return time.Time{}.Add(-time.Second)
 	}
-	panic(fmt.Errorf("%T argument can't be converted to an %T", maybeTime, time.Time{}))
 }
 
 func WasPublished(maybeTime any) ItemAssertFn {
@@ -542,53 +541,6 @@ func HasAudience(u ...vocab.Item) ItemAssertFn {
 			t.Errorf("Invalid Object: %+v", err)
 		}
 	}
-}
-
-func lbl(name string, val any) string {
-	if val == nil {
-		return name
-	}
-
-	vLbl := "IsNil"
-	switch v := val.(type) {
-	case vocab.IRI:
-		if len(v) == 0 {
-			return name
-		}
-		vLbl = fmt.Sprintf("%q", v)
-	case vocab.IRIs:
-		if len(v) == 0 {
-			return name
-		}
-		vLbl = fmt.Sprintf("%v", v)
-	case vocab.Item:
-		if vocab.IsNil(v) {
-			return name
-		}
-		vLbl = fmt.Sprintf("%v", v)
-	case vocab.ItemCollection:
-		if len(v) == 0 {
-			return name
-		}
-		vLbl = fmt.Sprintf("%v", v)
-	case vocab.NaturalLanguageValues:
-		if len(v) == 0 {
-			return name
-		}
-		vLbl = fmt.Sprintf("%v", v)
-		vLbl = vLbl[:min(16, len(vLbl))]
-	case time.Time:
-		if v.IsZero() {
-			return name
-		}
-		vLbl = fmt.Sprintf("%v", v)
-	case string:
-		if len(v) == 0 {
-			return name
-		}
-		vLbl = fmt.Sprintf("%v", v)
-	}
-	return name + ":" + vLbl
 }
 
 func HasInReplyTo(u ...vocab.Item) ItemAssertFn {
@@ -766,13 +718,13 @@ func itemCheckArgs(maybeItems ...any) []ItemAssertFn {
 		switch ii := maybeItem.(type) {
 		case []any:
 			items = append(items, itemCheckArgs(ii...)...)
-		case vocab.IRI:
-			items = append(items, equalFlattened(ii))
 		case vocab.IRIs:
 			items = append(items, equalFlattened(ii))
-		case vocab.Item:
+		case vocab.IRI:
 			items = append(items, equalFlattened(ii))
 		case vocab.ItemCollection:
+			items = append(items, equalFlattened(ii))
+		case vocab.Item:
 			items = append(items, equalFlattened(ii))
 		case func() vocab.Item:
 			items = append(items, equalFlattened(ii()))

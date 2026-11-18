@@ -166,19 +166,19 @@ func (t tLogger) New(c ...lw.Ctx) lw.Logger {
 }
 
 func (t tLogger) Tracef(s string, a ...any) {
-	t.T.Logf(s, a...)
+	t.Logf(s, a...)
 }
 
 func (t tLogger) Debugf(s string, a ...any) {
-	t.T.Logf(s, a...)
+	t.Logf(s, a...)
 }
 
 func (t tLogger) Infof(s string, a ...any) {
-	t.T.Logf(s, a...)
+	t.Logf(s, a...)
 }
 
 func (t tLogger) Warnf(s string, a ...any) {
-	t.T.Errorf(s, a...)
+	t.Errorf(s, a...)
 }
 
 func (t tLogger) Errorf(s string, a ...any) {
@@ -186,7 +186,7 @@ func (t tLogger) Errorf(s string, a ...any) {
 }
 
 func (t tLogger) Critf(s string, a ...any) {
-	t.T.Errorf(s, a...)
+	t.Errorf(s, a...)
 }
 
 var _ lw.Logger = tLogger{}

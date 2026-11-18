@@ -40,7 +40,7 @@ func parseGoFlags(osArgs []string, goFlagSet *flag.FlagSet) error {
 func TestMain(m *testing.M) {
 	pflag.BoolVarP(&quiet, "godog.quiet", "q", false, "Quiet all godog output.")
 	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
-	parseGoFlags(os.Args[1:], flag.CommandLine)
+	_ = parseGoFlags(os.Args[1:], flag.CommandLine)
 	pflag.Parse()
 
 	if quiet {

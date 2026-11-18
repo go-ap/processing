@@ -321,7 +321,7 @@ func ServeItemHandler(t TestingT, authMap AuthorizedMap, it vocab.Item) http.Han
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if req.Method != http.MethodGet {
 			w.WriteHeader(http.StatusMethodNotAllowed)
-			fmt.Fprintf(w, "invalid method for assertion handler")
+			_, _ = fmt.Fprintf(w, "invalid method for assertion handler")
 			t.Errorf("invalid method %s, expected %s", req.Method, http.MethodGet)
 			return
 		}
@@ -334,13 +334,13 @@ func ServeItemHandler(t TestingT, authMap AuthorizedMap, it vocab.Item) http.Han
 		if !isPublic {
 			if authMap == nil {
 				w.WriteHeader(http.StatusForbidden)
-				fmt.Fprintf(w, "item is not public and there's no valid authentication mechanism")
+				_, _ = fmt.Fprintf(w, "item is not public and there's no valid authentication mechanism")
 				t.Errorf("item is not public and no authentication map was provided")
 				return
 			}
 			if err := authMap.VerifySignature(req); err != nil {
 				w.WriteHeader(http.StatusForbidden)
-				fmt.Fprintf(w, "%v", err)
+				_, _ = fmt.Fprintf(w, "%v", err)
 				t.Errorf("failed to verify HTTP Signature against the authorization map: %v", err)
 				return
 			}
@@ -353,7 +353,7 @@ func ServeItemHandler(t TestingT, authMap AuthorizedMap, it vocab.Item) http.Han
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write(raw)
+		_, _ = w.Write(raw)
 	})
 }
 
@@ -575,10 +575,7 @@ func (m MockClient) Sign(req *http.Request) error {
 		rfc.WithTTL(time.Hour),
 	}
 
-	coveredComponents := []string{`"@method"`, `"@path"`}
-	if coveredComponents != nil {
-		initFns = append(initFns, rfc.WithComponents(coveredComponents...))
-	}
+	initFns = append(initFns, rfc.WithComponents(`"@method"`, `"@path"`))
 	signer, err := rfc.NewSigner(key, initFns...)
 	if err != nil {
 		return err
