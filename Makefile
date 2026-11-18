@@ -22,8 +22,8 @@ test: go.sum
 	$(TEST) $(TEST_FLAGS) $(TEST_TARGET) | go tool tparse -all -trimpath github.com/go-ap/processing/
 
 integration: $(GOCOVERDIR)
-integration: GODOG_FLAGS += -tags.gocoverdir="$(GOCOVERDIR)" --godog.format=pretty --godog.no-colors=false --godog.tags=conformance
-integration: TEST_FLAGS += -coverpkg github.com/go-ap/processing -covermode=count
+integration: GODOG_FLAGS += -test.gocoverdir="$(GOCOVERDIR)" --godog.format=pretty --godog.no-colors=false --godog.tags=conformance
+integration: TEST_FLAGS += -cover -coverpkg github.com/go-ap/processing -covermode=count
 integration: TEST_TARGET = ./integration
 integration:
 	$(TEST) $(TEST_FLAGS) $(TEST_TARGET) $(GODOG_FLAGS)
@@ -33,7 +33,7 @@ $(GOCOVERDIR):
 
 coverage: $(GOCOVERDIR)
 	$(GO) tool covdata percent -i=$(GOCOVERDIR) -o $(PROJECT).coverprofile
-	$(MAKE) clean
+	#$(MAKE) clean
 
 clean:
 	$(RM) -r $(GOCOVERDIR)
