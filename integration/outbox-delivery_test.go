@@ -46,10 +46,11 @@ func (o *deliveryOutboxTests) initScenario(ctx *godog.ScenarioContext) {
 	ctx.Step(`^an Activity with non-public remote recipient is received$`, o.anActivityWithNonpublicRemoteRecipientIsReceived)
 	ctx.Step(`^the recipient is dereferenced using the author's credentials$`, o.theRecipientIsDereferencedUsingTheAuthorsCredentials)
 
+	ctx.Step(`^an Activity with a recipient being a local collection is received$`, o.anActivityWithARecipientBeingALocalCollectionIsReceived)
+	ctx.Step(`^all the collection members receive the Activity$`, o.allTheCollectionMembersReceiveTheActivity)
+
 	ctx.Step(`^a Block Activity is received$`, o.aBlockActivityIsReceived)
 	ctx.Step(`^a Create Activity is received$`, o.aCreateActivityIsReceived)
-	ctx.Step(`^all the collection members receive the Activity$`, o.allTheCollectionMembersReceiveTheActivity)
-	ctx.Step(`^an Activity with a recipient being a local collection is received$`, o.anActivityWithARecipientBeingALocalCollectionIsReceived)
 	ctx.Step(`^an Activity with duplicate recipients is received$`, o.anActivityWithDuplicateRecipientsIsReceived)
 	ctx.Step(`^an Activity with its Actor as a recipient is received$`, o.anActivityWithItsActorAsARecipientIsReceived)
 	ctx.Step(`^an Activity with recipients is received$`, o.anActivityWithRecipientsIsReceived)
@@ -85,7 +86,6 @@ func (o *deliveryOutboxTests) itGetsDeliveredToRemoteRecipients(ctx context.Cont
 	t := godog.T(ctx)
 
 	o.mr = Remote(
-		//WithRemoteMocks(RemoteAuthor),
 		WithHandlers(
 			Handler(vocab.Inbox.IRI(RemoteAuthorID), ReceivedActivityIdenticalTo(t, o.Activity)),
 		),
@@ -181,7 +181,6 @@ func (o *deliveryOutboxTests) itGetsDeliveredWithAnID(ctx context.Context) error
 	t := godog.T(ctx)
 
 	o.mr = Remote(
-		//WithRemoteMocks(RemoteAuthor),
 		WithHandlers(Handler(vocab.Inbox.IRI(RemoteAuthorID), ReceivedActivityIdenticalTo(t, o.Activity))),
 	)
 
@@ -229,7 +228,57 @@ func (o *deliveryOutboxTests) theRecipientIsDereferencedUsingTheAuthorsCredentia
 	t := godog.T(ctx)
 	o.mr = Remote(
 		WithClientActorKey(Author, ed2559Key),
+		// NOTE(marius): the check is done in the ServeItemHandler, where the only authorized actor to access the
+		// nonPublicActor is the Author actor through an HTTP-Signature header.
 		WithHandlers(Handler(nonPublicActor.ID, ServeItemHandler(t, Auth(Author, ed2559Key), nonPublicActor))),
+	)
+
+	p := o.mp.InitP(processing.WithStorage(o.st), WithRemote(o.mr))
+	_, err := p.ProcessActivity(o.Activity, o.Author, o.ReceivedIn)
+	if err != nil {
+		return err
+	}
+
+	return o.mr.Success()
+}
+
+func (o *deliveryOutboxTests) anActivityWithARecipientBeingALocalCollectionIsReceived(ctx context.Context) error {
+
+	authorFollowers := build.OrderedCollection(
+		build.WithID(vocab.Followers.IRI(Author)),
+		build.WithTotalItems(2),
+		// NOTE(marius): the two actors are remote
+		build.WithItems(RemoteRootID.AddPath("actor1"), RemoteRootID.AddPath("actor2")),
+	)
+	o.st = Storage(WithLocalMocks(Author, authorFollowers))
+
+	o.Author = *Author
+	o.ReceivedIn = vocab.Outbox.IRI(Author)
+	o.Activity = build.Create(
+		build.WithActor(Author.ID),
+		build.WithCC(authorFollowers.ID),
+		build.WithObject(build.Note(
+			build.WithID("http://example.localdomain/note"),
+			build.WithContent("Lorem ipsum"),
+		)),
+	)
+
+	return nil
+}
+
+func (o *deliveryOutboxTests) allTheCollectionMembersReceiveTheActivity(ctx context.Context) error {
+	t := godog.T(ctx)
+
+	actor1 := makePerson(RemoteRootID.AddPath("actor1"), "Actor One")
+	actor2 := makePerson(RemoteRootID.AddPath("actor2"), "Actor Two")
+	o.mr = Remote(
+		WithClientActorKey(Author, ed2559Key),
+		// NOTE(marius): serve actors when being dereferenced in the followers collection
+		WithHandlers(Handler(actor1.ID, ServeItemHandler(t, nil, actor1))),
+		WithHandlers(Handler(actor2.ID, ServeItemHandler(t, nil, actor2))),
+		// NOTE(marius): disseminate to them the test activity
+		WithHandlers(Handler(vocab.Inbox.IRI(actor1), ReceivedActivityIdenticalTo(t, o.Activity))),
+		WithHandlers(Handler(vocab.Inbox.IRI(actor2), ReceivedActivityIdenticalTo(t, o.Activity))),
 	)
 
 	p := o.mp.InitP(processing.WithStorage(o.st), WithRemote(o.mr))
@@ -246,14 +295,6 @@ func (o *deliveryOutboxTests) aBlockActivityIsReceived(ctx context.Context) erro
 }
 
 func (o *deliveryOutboxTests) aCreateActivityIsReceived(ctx context.Context) error {
-	return godog.ErrPending
-}
-
-func (o *deliveryOutboxTests) allTheCollectionMembersReceiveTheActivity(ctx context.Context) error {
-	return godog.ErrPending
-}
-
-func (o *deliveryOutboxTests) anActivityWithARecipientBeingALocalCollectionIsReceived(ctx context.Context) error {
 	return godog.ErrPending
 }
 

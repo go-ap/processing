@@ -89,7 +89,8 @@ func WithInboundCollectionValidationSkip(p *P) {
 }
 
 // WithDisseminationRetryCount specifies the number of retries for failed remote activity dissemination.
-// The default value is 0 when building with -tags dev, and 5 otherwise.
+// The default value is 0 (meaning no retries past the original) when building with `-tags dev`,
+// and 5 otherwise.
 // If a negative value is passed as the retry count, we don't try to execute the dissemination at all.
 func WithDisseminationRetryCount(r int) OptionFn {
 	return func(p *P) {

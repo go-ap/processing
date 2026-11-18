@@ -100,7 +100,8 @@ var (
 		build.WithPublicKey(PublicKey(ed2559Key.Public(), AuthorID)),
 	)
 
-	RemoteAuthorID = vocab.IRI("http://example.com/~alice")
+	RemoteRootID   = vocab.IRI("http://example.com")
+	RemoteAuthorID = RemoteRootID.AddPath("~alice")
 	RemoteAuthor   = build.Person(
 		build.WithID(RemoteAuthorID),
 		build.WithName(vocab.DefaultLangValue("Alice L.")),

@@ -234,10 +234,17 @@ func (p *P) SharedInboxes() vocab.ItemCollection {
 	return result
 }
 
+var collectionObjectTypes = vocab.ActivityVocabularyTypes{
+	vocab.CollectionType, vocab.CollectionPageType,
+	vocab.OrderedCollectionType, vocab.OrderedCollectionPageType,
+}
+
 // BuildOutboxRecipientsList builds the recipients list to which the 'it' activity is addressed when received
 // in an Outbox:
 //   - the author's Outbox
 //   - the recipients' Inboxes
+//   - if the Activity is public, append shared inboxes attached to the processor
+//   - if a recipient is a collection, dereference it and append its' members Inboxes
 //
 // On public activities we group actors by sharedInbox if they have it.
 func (p *P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab.ItemCollection {
@@ -270,9 +277,29 @@ func (p *P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab
 	//  The previous step, would probably have added it anyway, but we do it again, just to be sure.
 	_ = allRecipients.Append(receivedIn)
 
-	actorHasBlocked := p.actorHasBlockedFn(actor)
+	hasRecipients, ok := it.(vocab.HasRecipients)
+	if !ok {
+		return allRecipients
+	}
 
-	activityIsPublic := false
+	activityRecipients := hasRecipients.Recipients()
+	activityIsPublic := activityRecipients.Contains(vocab.PublicNS)
+
+	if activityIsPublic {
+		// NOTE(marius): if the activity is Public, we store it in the local shared inboxes
+		//  See [disseminateToLocalCollections] for the part where we disseminate to the actors
+		//  that use them.
+		_ = allRecipients.Append(p.SharedInboxes()...)
+		// NOTE(marius): we use this to determine if we group actors by sharedInbox
+	}
+
+	_ = allRecipients.Append(aggregateRecipients(p, actor, activityIsPublic, activityRecipients)...)
+
+	return allRecipients
+}
+
+func aggregateRecipients(p *P, actor vocab.Item, activityIsPublic bool, activityRecipients vocab.ItemCollection) vocab.ItemCollection {
+	actorHasBlocked := p.actorHasBlockedFn(actor)
 	actorGetSharedInbox := func(act *vocab.Actor) (vocab.IRI, bool) {
 		if act == nil || act.Endpoints == nil || vocab.IsNil(act.Endpoints.SharedInbox) || p.IsLocalIRI(act.ID) {
 			return vocab.PublicNS, false
@@ -280,54 +307,60 @@ func (p *P) BuildOutboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab
 		return act.Endpoints.SharedInbox.GetLink(), true
 	}
 
-	if hasRecipients, ok := it.(vocab.HasRecipients); ok {
-		activityRecipients := hasRecipients.Recipients()
+	l := p.l.WithContext(lw.Ctx{"actor": actor.GetID()})
+	allRecipients := make(vocab.ItemCollection, 0, len(activityRecipients))
+	for _, rec := range activityRecipients {
+		recIRI := rec.GetLink()
 
-		activityIsPublic = activityRecipients.Contains(vocab.PublicNS)
+		if vocab.PublicNS.Equal(recIRI) {
+			continue
+		}
 
-		for _, rec := range activityRecipients {
-			recIRI := rec.GetLink()
+		if actorHasBlocked(recIRI) {
+			// NOTE(marius): if the activity actor has blocked the recipient, we skip
+			l.WithContext(lw.Ctx{"rec": recIRI}).Tracef("Skipping blocked recipient")
+			continue
+		}
 
-			if vocab.PublicNS.Equal(recIRI) {
-				// NOTE(marius): if the activity is Public, we store it in the local shared inboxes
-				//  See [disseminateToLocalCollections] for the part where we disseminate to the actors
-				//  that use them.
-				_ = allRecipients.Append(p.SharedInboxes()...)
-				// NOTE(marius): we use this to determine if we group actors by sharedInbox
-				continue
-			}
+		recipient, err := p.DereferenceItem(recIRI)
+		if err != nil || vocab.IsNil(recipient) {
+			continue
+		}
 
-			if actorHasBlocked(recIRI) {
-				// NOTE(marius): if the activity actor has blocked the recipient, we skip
-				p.l.WithContext(lw.Ctx{"actor": actor.GetID(), "rec": recIRI}).Tracef("Skipping blocked recipient")
-				continue
-			}
-
-			recipient, err := p.DereferenceItem(recIRI)
-			if err != nil || vocab.IsNil(recipient) {
-				continue
-			}
-
-			_ = vocab.OnItem(recipient, func(rec vocab.Item) error {
-				recipientHasBlocked := p.actorHasBlockedFn(rec)
-				if recipientHasBlocked(act.Actor) {
-					p.l.WithContext(lw.Ctx{"actor": act.Actor.GetID(), "rec": recIRI}).Tracef("Skipping blocked actor blocked by recipient")
-					return nil
-				}
-				if !vocab.ActorTypes.Match(rec.GetType()) {
-					return nil
-				}
-				return vocab.OnActor(rec, func(act *vocab.Actor) error {
-					if sharedInbox, exists := actorGetSharedInbox(act); exists && activityIsPublic {
-						_ = allRecipients.Append(sharedInbox)
-					} else {
-						_ = allRecipients.Append(vocab.Inbox.Of(rec))
-					}
-					return nil
-				})
+		if collectionObjectTypes.Match(recipient.GetType()) {
+			_ = vocab.OnCollectionIntf(recipient, func(col vocab.CollectionInterface) error {
+				recipient = col.Collection()
+				return nil
 			})
 		}
-	}
 
+		_ = vocab.OnItem(recipient, func(rec vocab.Item) error {
+			recipientHasBlocked := p.actorHasBlockedFn(rec)
+			if recipientHasBlocked(actor) {
+				l.WithContext(lw.Ctx{"rec": rec.GetLink()}).Tracef("Skipping blocked actor blocked by recipient")
+				return nil
+			}
+			if vocab.IsIRI(rec) {
+				rec, err = p.DereferenceItem(rec.GetLink())
+				if err != nil || vocab.IsNil(rec) {
+					l.WithContext(lw.Ctx{"rec": rec.GetLink()}).Tracef("Unable to dereference recipient IRI")
+					return nil
+				}
+			}
+
+			if !vocab.ActorTypes.Match(rec.GetType()) {
+				return nil
+			}
+
+			return vocab.OnActor(rec, func(act *vocab.Actor) error {
+				if sharedInbox, exists := actorGetSharedInbox(act); exists && activityIsPublic {
+					_ = allRecipients.Append(sharedInbox)
+				} else {
+					_ = allRecipients.Append(vocab.Inbox.Of(rec))
+				}
+				return nil
+			})
+		})
+	}
 	return allRecipients
 }

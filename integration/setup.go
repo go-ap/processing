@@ -95,6 +95,7 @@ func (mp *MockPlumbing) InitP(fns ...InitFn) *processing.P {
 
 	// NOTE(marius): we usually want the processing to be done synchronously
 	initFns = append(initFns, processing.WithSynchronousProcessing)
+	initFns = append(initFns, processing.WithDisseminationRetryCount(0))
 	initFns = append(initFns, processing.WithIDGenerator(mp.GenerateID))
 	initFns = append(initFns, processing.WithLocalIRIChecker(mp.LocalIRI))
 	initFns = append(initFns, processing.WithTimeFn(mp.Now))
@@ -303,11 +304,10 @@ type TestingT interface {
 }
 
 type MockRemote struct {
+	C *MockClient
+
 	assertions map[vocab.IRI][]http.Handler
 	m          sync.Mutex
-
-	//S *RemoteStorage
-	C *MockClient
 }
 
 func (mr *MockRemote) Success() error {
@@ -320,8 +320,8 @@ func (mr *MockRemote) Success() error {
 func ServeItemHandler(t TestingT, authMap AuthorizedMap, it vocab.Item) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if req.Method != http.MethodGet {
-			fmt.Fprintf(w, "invalid method for assertion handler")
 			w.WriteHeader(http.StatusMethodNotAllowed)
+			fmt.Fprintf(w, "invalid method for assertion handler")
 			t.Errorf("invalid method %s, expected %s", req.Method, http.MethodGet)
 			return
 		}
@@ -333,14 +333,14 @@ func ServeItemHandler(t TestingT, authMap AuthorizedMap, it vocab.Item) http.Han
 		}
 		if !isPublic {
 			if authMap == nil {
-				fmt.Fprintf(w, "item is not public and there's no valid authentication mechanism")
 				w.WriteHeader(http.StatusForbidden)
+				fmt.Fprintf(w, "item is not public and there's no valid authentication mechanism")
 				t.Errorf("item is not public and no authentication map was provided")
 				return
 			}
 			if err := authMap.VerifySignature(req); err != nil {
-				fmt.Fprintf(w, "%v", err)
 				w.WriteHeader(http.StatusForbidden)
+				fmt.Fprintf(w, "%v", err)
 				t.Errorf("failed to verify HTTP Signature against the authorization map: %v", err)
 				return
 			}
@@ -352,8 +352,8 @@ func ServeItemHandler(t TestingT, authMap AuthorizedMap, it vocab.Item) http.Han
 			t.Errorf("failed to marshal item: %v", err)
 			return
 		}
-		w.Write(raw)
 		w.WriteHeader(http.StatusOK)
+		w.Write(raw)
 	})
 }
 
@@ -529,6 +529,9 @@ func (m MockClient) do(ctx context.Context, rb *requests.Builder) (vocab.Item, e
 	resp, err := cl.Do(req)
 	if err != nil {
 		return nil, err
+	}
+	if resp.StatusCode >= http.StatusBadRequest {
+		return nil, errors.FromResponse(resp)
 	}
 
 	raw, err := io.ReadAll(resp.Body)
