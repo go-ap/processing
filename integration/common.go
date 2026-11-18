@@ -37,16 +37,15 @@ type TestSuite struct {
 type RunnableTest interface {
 	Label() string
 	// TestFn is one way to run the tests directly from a func(*testing.T)
-	TestFn(*processing.P) func(*testing.T)
+	TestFn(*processing.P) func(TestingT)
 }
 
 func (tt TestPair) Label() string {
 	return tt.Name
 }
 
-func (tt TestPair) TestFn(P *processing.P) func(*testing.T) {
-	return func(t *testing.T) {
-		t.Helper()
+func (tt TestPair) TestFn(P *processing.P) func(TestingT) {
+	return func(t TestingT) {
 		act, err := P.ProcessActivity(tt.Activity, tt.Author, tt.ReceivedIn)
 		for _, testFn := range tt.TestFns {
 			testFn.Run(t, act, err)
@@ -62,15 +61,16 @@ func (ts TestSuite) TestFn(P *processing.P) func(t *testing.T) {
 	return func(t *testing.T) {
 		t.Helper()
 		for _, tt := range ts.Tests {
-			t.Run(tt.Label(), tt.TestFn(P))
+			t.Run(tt.Label(), func(t *testing.T) {
+				tt.TestFn(P)(t)
+			})
 		}
 	}
 }
 
-func (ts TestSuite) Run(t *testing.T, P *processing.P) {
-	t.Helper()
+func (ts TestSuite) Run(t TestingT, P *processing.P) {
 	for _, tt := range ts.Tests {
-		t.Run(tt.Label(), tt.TestFn(P))
+		tt.TestFn(P)(t)
 	}
 }
 
@@ -145,23 +145,23 @@ func compareErrors(x, y any) bool {
 
 var EquateWeakErrors = cmp.FilterValues(areErrors, cmp.Comparer(compareErrors))
 
-type itemCheckFn func(*testing.T, vocab.Item)
+type ItemAssertFn func(TestingT, vocab.Item)
 
-func (icFn itemCheckFn) Run(t *testing.T, it vocab.Item, err error) {
+func (icFn ItemAssertFn) Run(t TestingT, it vocab.Item, err error) {
 	if err != nil {
 		t.Fatalf("no error expected, received: '%+v'", err)
 	}
 	icFn(t, it)
 }
 
-type errCheckFn func(*testing.T, error)
+type ErrorAssertFn func(TestingT, error)
 
-func (eFn errCheckFn) Run(t *testing.T, _ vocab.Item, err error) {
+func (eFn ErrorAssertFn) Run(t *testing.T, _ vocab.Item, err error) {
 	eFn(t, err)
 }
 
 type TestAssertion interface {
-	Run(*testing.T, vocab.Item, error)
+	Run(TestingT, vocab.Item, error)
 }
 
 type TestAssertions []TestAssertion
@@ -172,67 +172,59 @@ func (tt TestAssertions) Run(t *testing.T, it vocab.Item, err error) {
 	}
 }
 
-func HasError(wantErr error) errCheckFn {
-	return func(t *testing.T, err error) {
-		t.Run("Error", func(t *testing.T) {
-			if !cmp.Equal(err, wantErr, EquateWeakErrors) {
-				t.Errorf("Unexpected error = %s", cmp.Diff(wantErr, err, EquateWeakErrors))
-			}
-		})
+func HasError(wantErr error) ErrorAssertFn {
+	return func(t TestingT, err error) {
+		if !cmp.Equal(err, wantErr, EquateWeakErrors) {
+			t.Errorf("Unexpected error = %s", cmp.Diff(wantErr, err, EquateWeakErrors))
+		}
 	}
 }
 
-func HasID(maybeIRI any) itemCheckFn {
-	return func(t *testing.T, it vocab.Item) {
+func HasID(maybeIRI any) ItemAssertFn {
+	return func(t TestingT, it vocab.Item) {
 		want := iriArg(maybeIRI)
-		t.Run(lbl("ID", want), func(t *testing.T) {
-			var got vocab.ID
-			switch {
-			case vocab.IsIRI(it):
-				got = it.GetLink()
-			case vocab.IsLink(it):
-				err := vocab.OnLink(it, func(link *vocab.Link) error {
-					got = link.ID
-					return nil
-				})
-				if err != nil {
-					t.Errorf("failed to load ID from %T", it)
-					return
-				}
-			default:
-				err := vocab.OnObject(it, func(ob *vocab.Object) error {
-					got = ob.ID
-					return nil
-				})
-				if err != nil {
-					t.Errorf("failed to load ID from %T", it)
-					return
-				}
+		var got vocab.ID
+		switch {
+		case vocab.IsIRI(it):
+			got = it.GetLink()
+		case vocab.IsLink(it):
+			err := vocab.OnLink(it, func(link *vocab.Link) error {
+				got = link.ID
+				return nil
+			})
+			if err != nil {
+				t.Errorf("failed to load ID from %T", it)
+				return
 			}
-			if !want.Equal(got) {
-				t.Errorf("Received %s, expected %s", got, want)
+		default:
+			err := vocab.OnObject(it, func(ob *vocab.Object) error {
+				got = ob.ID
+				return nil
+			})
+			if err != nil {
+				t.Errorf("failed to load ID from %T", it)
+				return
 			}
-		})
+		}
+		if !want.Equal(got) {
+			t.Errorf("ID received %s, expected %s", got, want)
+		}
 	}
 }
 
-func HasInbox(want vocab.IRI) itemCheckFn {
-	return func(t *testing.T, it vocab.Item) {
-		t.Run(lbl("Inbox", want), func(t *testing.T) {
-			if got := vocab.Inbox.IRI(it); !got.Equal(want) {
-				t.Errorf("Received %s, expected %s", got, want)
-			}
-		})
+func HasInbox(want vocab.IRI) ItemAssertFn {
+	return func(t TestingT, it vocab.Item) {
+		if got := vocab.Inbox.IRI(it); !got.Equal(want) {
+			t.Errorf("Inbox received %s, expected %s", got, want)
+		}
 	}
 }
 
-func HasOutbox(want vocab.IRI) itemCheckFn {
-	return func(t *testing.T, it vocab.Item) {
-		t.Run(lbl("Outbox", want), func(t *testing.T) {
-			if got := vocab.Outbox.IRI(it); !got.Equal(want) {
-				t.Errorf("Received %s, expected %s", got, want)
-			}
-		})
+func HasOutbox(want vocab.IRI) ItemAssertFn {
+	return func(t TestingT, it vocab.Item) {
+		if got := vocab.Outbox.IRI(it); !got.Equal(want) {
+			t.Errorf("Outbox received %s, expected %s", got, want)
+		}
 	}
 }
 
@@ -251,61 +243,55 @@ func iriArg(maybeIRI any) vocab.IRI {
 	panic(fmt.Errorf("%T argument can't be converted to an %T", maybeIRI, vocab.IRI("")))
 }
 
-func HasReplies(maybeIRI any) itemCheckFn {
-	return func(t *testing.T, it vocab.Item) {
+func HasReplies(maybeIRI any) ItemAssertFn {
+	return func(t TestingT, it vocab.Item) {
 		want := iriArg(maybeIRI)
-		t.Run(lbl("Replies", want), func(t *testing.T) {
-			if got := vocab.Replies.IRI(it); !got.Equal(want) {
-				t.Errorf("Received %s, expected %s", got, want)
-			}
-		})
+		if got := vocab.Replies.IRI(it); !got.Equal(want) {
+			t.Errorf("Replies received %s, expected %s", got, want)
+		}
 	}
 }
 
-func HasType(typ vocab.Typer) itemCheckFn {
-	return func(t *testing.T, it vocab.Item) {
-		t.Run(lbl("Type", typ), func(t *testing.T) {
-			var got vocab.Typer
-			switch {
-			case vocab.IsLink(it):
-				err := vocab.OnLink(it, func(link *vocab.Link) error {
-					got = link.Type
-					return nil
-				})
-				if err != nil {
-					t.Errorf("failed to load Type from %T", it)
-					return
-				}
-			default:
-				err := vocab.OnObject(it, func(ob *vocab.Object) error {
-					got = ob.Type
-					return nil
-				})
-				if err != nil {
-					t.Errorf("failed to load Type from %T", it)
-					return
-				}
-			}
-			if !vocab.TypesEqual(got, typ) {
-				t.Errorf("Received %v, expected %v", got, typ)
-			}
-		})
-	}
-}
-
-func HasFormerType(typ vocab.Typer) itemCheckFn {
-	return func(t *testing.T, it vocab.Item) {
-		t.Run(lbl("FormerType", typ), func(*testing.T) {
-			err := vocab.OnTombstone(it, func(ts *vocab.Tombstone) error {
-				if !vocab.TypesEqual(ts.FormerType, typ) {
-					t.Errorf("Received %s, expected %s", ts.FormerType, typ)
-				}
+func HasType(typ vocab.Typer) ItemAssertFn {
+	return func(t TestingT, it vocab.Item) {
+		var got vocab.Typer
+		switch {
+		case vocab.IsLink(it):
+			err := vocab.OnLink(it, func(link *vocab.Link) error {
+				got = link.Type
 				return nil
 			})
 			if err != nil {
-				t.Errorf("Invalid Tombstone: %+v", err)
+				t.Errorf("failed to load Type from %T", it)
+				return
 			}
+		default:
+			err := vocab.OnObject(it, func(ob *vocab.Object) error {
+				got = ob.Type
+				return nil
+			})
+			if err != nil {
+				t.Errorf("failed to load Type from %T", it)
+				return
+			}
+		}
+		if !vocab.TypesEqual(got, typ) {
+			t.Errorf("Type received %v, expected %v", got, typ)
+		}
+	}
+}
+
+func HasFormerType(typ vocab.Typer) ItemAssertFn {
+	return func(t TestingT, it vocab.Item) {
+		err := vocab.OnTombstone(it, func(ts *vocab.Tombstone) error {
+			if !vocab.TypesEqual(ts.FormerType, typ) {
+				t.Errorf("FormerType received %s, expected %s", ts.FormerType, typ)
+			}
+			return nil
 		})
+		if err != nil {
+			t.Errorf("Invalid Tombstone object: %+v", err)
+		}
 	}
 }
 
@@ -322,107 +308,95 @@ func nlv[T ~string | vocab.NaturalLanguageValues](c T) vocab.NaturalLanguageValu
 	return result
 }
 
-func HasPreferredUsername[T ~string | vocab.NaturalLanguageValues](name T) itemCheckFn {
+func HasPreferredUsername[T ~string | vocab.NaturalLanguageValues](name T) ItemAssertFn {
 	v := nlv(name)
-	return func(t *testing.T, it vocab.Item) {
-		t.Run(lbl("PreferredUsername", v), func(t *testing.T) {
-			err := vocab.OnActor(it, func(act *vocab.Actor) error {
-				if !cmp.Equal(v, act.PreferredUsername) {
-					t.Errorf("Diff %s", cmp.Diff(v, act.PreferredUsername))
-				}
-				return nil
-			})
-			if err != nil {
-				t.Errorf("Failed Actor %s check: %v", it.GetID(), err)
+	return func(t TestingT, it vocab.Item) {
+		err := vocab.OnActor(it, func(act *vocab.Actor) error {
+			if !cmp.Equal(v, act.PreferredUsername) {
+				t.Errorf("Diff %s", cmp.Diff(v, act.PreferredUsername))
 			}
+			return nil
 		})
+		if err != nil {
+			t.Errorf("Failed Actor %s check: %v", it.GetID(), err)
+		}
 	}
 }
 
-func HasSummary[T ~string | vocab.NaturalLanguageValues](cont T) itemCheckFn {
+func HasSummary[T ~string | vocab.NaturalLanguageValues](cont T) ItemAssertFn {
 	v := nlv(cont)
-	return func(t *testing.T, it vocab.Item) {
-		t.Run("Summary", func(t *testing.T) {
-			err := vocab.OnObject(it, func(ob *vocab.Object) error {
-				if !cmp.Equal(v, ob.Summary) {
-					t.Errorf("Diff %s", cmp.Diff(v, ob.Summary))
-				}
-				return nil
-			})
-			if err != nil {
-				t.Errorf("Failed Object %s check: %v", it.GetID(), err)
+	return func(t TestingT, it vocab.Item) {
+		err := vocab.OnObject(it, func(ob *vocab.Object) error {
+			if !cmp.Equal(v, ob.Summary) {
+				t.Errorf("Diff %s", cmp.Diff(v, ob.Summary))
 			}
+			return nil
 		})
+		if err != nil {
+			t.Errorf("Failed Object %s check: %v", it.GetID(), err)
+		}
 	}
 }
 
-func HasName[T ~string | vocab.NaturalLanguageValues](cont T) itemCheckFn {
+func HasName[T ~string | vocab.NaturalLanguageValues](cont T) ItemAssertFn {
 	v := nlv(cont)
-	return func(t *testing.T, it vocab.Item) {
-		t.Run(lbl("Name", v), func(t *testing.T) {
-			err := vocab.OnObject(it, func(ob *vocab.Object) error {
-				if !cmp.Equal(v, ob.Name) {
-					t.Errorf("Diff %s", cmp.Diff(v, ob.Name))
-				}
-				return nil
-			})
-			if err != nil {
-				t.Errorf("Failed Object %s check: %v", it.GetID(), err)
+	return func(t TestingT, it vocab.Item) {
+		err := vocab.OnObject(it, func(ob *vocab.Object) error {
+			if !cmp.Equal(v, ob.Name) {
+				t.Errorf("Diff %s", cmp.Diff(v, ob.Name))
 			}
+			return nil
 		})
+		if err != nil {
+			t.Errorf("Failed Object %s check: %v", it.GetID(), err)
+		}
 	}
 }
 
-func HasContent[T ~string | vocab.NaturalLanguageValues](cont T) itemCheckFn {
+func HasContent[T ~string | vocab.NaturalLanguageValues](cont T) ItemAssertFn {
 	v := nlv(cont)
-	return func(t *testing.T, it vocab.Item) {
-		t.Run("Content", func(t *testing.T) {
-			err := vocab.OnObject(it, func(ob *vocab.Object) error {
-				if !cmp.Equal(v, ob.Content) {
-					t.Errorf("Diff %s", cmp.Diff(v, ob.Content))
-				}
-				return nil
-			})
-			if err != nil {
-				t.Errorf("Failed Object %s check: %v", it.GetID(), err)
+	return func(t TestingT, it vocab.Item) {
+		err := vocab.OnObject(it, func(ob *vocab.Object) error {
+			if !cmp.Equal(v, ob.Content) {
+				t.Errorf("Diff %s", cmp.Diff(v, ob.Content))
 			}
+			return nil
 		})
+		if err != nil {
+			t.Errorf("Failed Object %s check: %v", it.GetID(), err)
+		}
 	}
 }
 
-func HasMediaType(mt vocab.MimeType) itemCheckFn {
-	return func(t *testing.T, it vocab.Item) {
-		t.Run(lbl("MediaType", mt), func(t *testing.T) {
-			err := vocab.OnObject(it, func(ob *vocab.Object) error {
-				if !cmp.Equal(mt, ob.MediaType) {
-					t.Errorf("Diff %s", cmp.Diff(mt, ob.MediaType))
-				}
-				return nil
-			})
-			if err != nil {
-				t.Errorf("Failed Object %s check: %v", it.GetID(), err)
+func HasMediaType(mt vocab.MimeType) ItemAssertFn {
+	return func(t TestingT, it vocab.Item) {
+		err := vocab.OnObject(it, func(ob *vocab.Object) error {
+			if !cmp.Equal(mt, ob.MediaType) {
+				t.Errorf("Diff %s", cmp.Diff(mt, ob.MediaType))
 			}
+			return nil
 		})
+		if err != nil {
+			t.Errorf("Failed Object %s check: %v", it.GetID(), err)
+		}
 	}
 }
 
-func HasSource[T ~string | vocab.NaturalLanguageValues](cont T, mt vocab.MimeType) itemCheckFn {
+func HasSource[T ~string | vocab.NaturalLanguageValues](cont T, mt vocab.MimeType) ItemAssertFn {
 	v := nlv(cont)
-	return func(t *testing.T, it vocab.Item) {
-		t.Run("Source", func(t *testing.T) {
-			err := vocab.OnObject(it, func(ob *vocab.Object) error {
-				if !cmp.Equal(v, ob.Source.Content) {
-					t.Errorf("Content Diff %s", cmp.Diff(v, ob.Source.Content))
-				}
-				if !cmp.Equal(mt, ob.Source.MediaType) {
-					t.Errorf("MediaType Diff %s", cmp.Diff(mt, ob.Source.MediaType))
-				}
-				return nil
-			})
-			if err != nil {
-				t.Errorf("Failed Object %s check: %v", it.GetID(), err)
+	return func(t TestingT, it vocab.Item) {
+		err := vocab.OnObject(it, func(ob *vocab.Object) error {
+			if !cmp.Equal(v, ob.Source.Content) {
+				t.Errorf("Content Diff %s", cmp.Diff(v, ob.Source.Content))
 			}
+			if !cmp.Equal(mt, ob.Source.MediaType) {
+				t.Errorf("MediaType Diff %s", cmp.Diff(mt, ob.Source.MediaType))
+			}
+			return nil
 		})
+		if err != nil {
+			t.Errorf("Failed Object %s check: %v", it.GetID(), err)
+		}
 	}
 }
 
@@ -434,88 +408,78 @@ func toNormalizedItemCol(it vocab.Item) vocab.ItemCollection {
 	return col
 }
 
-func HasTo(to ...vocab.Item) itemCheckFn {
+func HasTo(to ...vocab.Item) ItemAssertFn {
 	ti := toNormalizedItemCol(vocab.ItemCollection(to))
-	return func(t *testing.T, it vocab.Item) {
-		t.Run(lbl("To", ti), func(t *testing.T) {
-			err := vocab.OnObject(it, func(ob *vocab.Object) error {
-				if tt := toNormalizedItemCol(ob.To); !cmp.Equal(ti, tt) {
-					t.Errorf("Received %s", cmp.Diff(ti, tt))
-				}
-				return nil
-			})
-			if err != nil {
-				t.Errorf("Invalid Object: %+v", err)
+	return func(t TestingT, it vocab.Item) {
+		err := vocab.OnObject(it, func(ob *vocab.Object) error {
+			if tt := toNormalizedItemCol(ob.To); !cmp.Equal(ti, tt) {
+				t.Errorf("To received %s", cmp.Diff(ti, tt))
 			}
+			return nil
 		})
+		if err != nil {
+			t.Errorf("Invalid Object: %+v", err)
+		}
 	}
 }
 
-func HasCC(cc ...vocab.Item) itemCheckFn {
+func HasCC(cc ...vocab.Item) ItemAssertFn {
 	ci := toNormalizedItemCol(vocab.ItemCollection(cc))
-	return func(t *testing.T, it vocab.Item) {
-		t.Run(lbl("CC", ci), func(t *testing.T) {
-			err := vocab.OnObject(it, func(ob *vocab.Object) error {
-				if ccc := toNormalizedItemCol(ob.CC); !cmp.Equal(ci, ccc) {
-					t.Errorf("Received %s", cmp.Diff(ci, ccc))
-				}
-				return nil
-			})
-			if err != nil {
-				t.Errorf("Invalid Object: %+v", err)
+	return func(t TestingT, it vocab.Item) {
+		err := vocab.OnObject(it, func(ob *vocab.Object) error {
+			if ccc := toNormalizedItemCol(ob.CC); !cmp.Equal(ci, ccc) {
+				t.Errorf("CC ceceived %s", cmp.Diff(ci, ccc))
 			}
+			return nil
 		})
+		if err != nil {
+			t.Errorf("Invalid Object: %+v", err)
+		}
 	}
 }
 
-func HasBto(to ...vocab.Item) itemCheckFn {
+func HasBto(to ...vocab.Item) ItemAssertFn {
 	ti := toNormalizedItemCol(vocab.ItemCollection(to))
-	return func(t *testing.T, it vocab.Item) {
-		t.Run(lbl("Bto", ti), func(t *testing.T) {
-			err := vocab.OnObject(it, func(ob *vocab.Object) error {
-				if tt := toNormalizedItemCol(ob.Bto); !cmp.Equal(ti, tt) {
-					t.Errorf("Received %s", cmp.Diff(ti, tt))
-				}
-				return nil
-			})
-			if err != nil {
-				t.Errorf("Invalid Object: %+v", err)
+	return func(t TestingT, it vocab.Item) {
+		err := vocab.OnObject(it, func(ob *vocab.Object) error {
+			if tt := toNormalizedItemCol(ob.Bto); !cmp.Equal(ti, tt) {
+				t.Errorf("Bto received %s", cmp.Diff(ti, tt))
 			}
+			return nil
 		})
+		if err != nil {
+			t.Errorf("Invalid Object: %+v", err)
+		}
 	}
 }
 
-func HasBCC(to ...vocab.Item) itemCheckFn {
+func HasBCC(to ...vocab.Item) ItemAssertFn {
 	ti := toNormalizedItemCol(vocab.ItemCollection(to))
-	return func(t *testing.T, it vocab.Item) {
-		t.Run(lbl("BCC", ti), func(t *testing.T) {
-			err := vocab.OnObject(it, func(ob *vocab.Object) error {
-				if tt := toNormalizedItemCol(ob.BCC); !cmp.Equal(ti, tt) {
-					t.Errorf("Received %s", cmp.Diff(ti, tt))
-				}
-				return nil
-			})
-			if err != nil {
-				t.Errorf("Invalid Object: %+v", err)
+	return func(t TestingT, it vocab.Item) {
+		err := vocab.OnObject(it, func(ob *vocab.Object) error {
+			if tt := toNormalizedItemCol(ob.BCC); !cmp.Equal(ti, tt) {
+				t.Errorf("BCC received %s", cmp.Diff(ti, tt))
 			}
+			return nil
 		})
+		if err != nil {
+			t.Errorf("Invalid Object: %+v", err)
+		}
 	}
 }
 
-func WasUpdated(maybeTime any) itemCheckFn {
-	return func(t *testing.T, it vocab.Item) {
+func WasUpdated(maybeTime any) ItemAssertFn {
+	return func(t TestingT, it vocab.Item) {
 		want := timeArg(maybeTime)
-		t.Run(lbl("Updated", want), func(t *testing.T) {
-			err := vocab.OnObject(it, func(ob *vocab.Object) error {
-				if !cmp.Equal(want, ob.Updated, cmpopts.EquateApproxTime(fudgeDuration)) {
-					t.Errorf("Failed Updated date check for %s, received %s, expected %s", ob.ID, ob.Updated, want)
-				}
-				return nil
-			})
-			if err != nil {
-				t.Errorf("Invalid Object: %+v", err)
+		err := vocab.OnObject(it, func(ob *vocab.Object) error {
+			if !cmp.Equal(want, ob.Updated, cmpopts.EquateApproxTime(fudgeDuration)) {
+				t.Errorf("Failed Updated date check for %s, received %s, expected %s", ob.ID, ob.Updated, want)
 			}
+			return nil
 		})
+		if err != nil {
+			t.Errorf("Invalid Object: %+v", err)
+		}
 	}
 }
 
@@ -534,54 +498,48 @@ func timeArg(maybeTime any) time.Time {
 	panic(fmt.Errorf("%T argument can't be converted to an %T", maybeTime, time.Time{}))
 }
 
-func WasPublished(maybeTime any) itemCheckFn {
-	return func(t *testing.T, it vocab.Item) {
+func WasPublished(maybeTime any) ItemAssertFn {
+	return func(t TestingT, it vocab.Item) {
 		want := timeArg(maybeTime)
-		t.Run(lbl("Published", want), func(t *testing.T) {
-			err := vocab.OnObject(it, func(ob *vocab.Object) error {
-				if !cmp.Equal(want, ob.Published, cmpopts.EquateApproxTime(fudgeDuration)) {
-					t.Errorf("Received %s, expected %s", ob.Published, want)
-				}
-				return nil
-			})
-			if err != nil {
-				t.Errorf("Invalid Object: %+v", err)
+		err := vocab.OnObject(it, func(ob *vocab.Object) error {
+			if !cmp.Equal(want, ob.Published, cmpopts.EquateApproxTime(fudgeDuration)) {
+				t.Errorf("Published received %s, expected %s", ob.Published, want)
 			}
+			return nil
 		})
+		if err != nil {
+			t.Errorf("Invalid Object: %+v", err)
+		}
 	}
 }
 
-func WasDeleted(maybeTime any) itemCheckFn {
-	return func(t *testing.T, it vocab.Item) {
+func WasDeleted(maybeTime any) ItemAssertFn {
+	return func(t TestingT, it vocab.Item) {
 		want := timeArg(maybeTime)
-		t.Run(lbl("Deleted", want), func(*testing.T) {
-			err := vocab.OnTombstone(it, func(ts *vocab.Tombstone) error {
-				if !cmp.Equal(want, ts.Deleted, cmpopts.EquateApproxTime(fudgeDuration)) {
-					t.Errorf("Received %s, expected %s", ts.Deleted, want)
-				}
-				return nil
-			})
-			if err != nil {
-				t.Errorf("Invalid Object: %+v", err)
+		err := vocab.OnTombstone(it, func(ts *vocab.Tombstone) error {
+			if !cmp.Equal(want, ts.Deleted, cmpopts.EquateApproxTime(fudgeDuration)) {
+				t.Errorf("Deleted received %s, expected %s", ts.Deleted, want)
 			}
+			return nil
 		})
+		if err != nil {
+			t.Errorf("Invalid Object: %+v", err)
+		}
 	}
 }
 
-func HasAudience(u ...vocab.Item) itemCheckFn {
+func HasAudience(u ...vocab.Item) ItemAssertFn {
 	ui := toNormalizedItemCol(vocab.ItemCollection(u))
-	return func(t *testing.T, it vocab.Item) {
-		t.Run(lbl("Audience", ui), func(t *testing.T) {
-			err := vocab.OnObject(it, func(ob *vocab.Object) error {
-				if aud := toNormalizedItemCol(ob.Audience); !cmp.Equal(aud, ui) {
-					t.Errorf("%s", cmp.Diff(ui, aud))
-				}
-				return nil
-			})
-			if err != nil {
-				t.Errorf("Invalid Object: %+v", err)
+	return func(t TestingT, it vocab.Item) {
+		err := vocab.OnObject(it, func(ob *vocab.Object) error {
+			if aud := toNormalizedItemCol(ob.Audience); !cmp.Equal(aud, ui) {
+				t.Errorf("%s", cmp.Diff(ui, aud))
 			}
+			return nil
 		})
+		if err != nil {
+			t.Errorf("Invalid Object: %+v", err)
+		}
 	}
 }
 
@@ -632,199 +590,177 @@ func lbl(name string, val any) string {
 	return name + ":" + vLbl
 }
 
-func HasInReplyTo(u ...vocab.Item) itemCheckFn {
+func HasInReplyTo(u ...vocab.Item) ItemAssertFn {
 	ui := toNormalizedItemCol(vocab.ItemCollection(u))
-	return func(t *testing.T, it vocab.Item) {
-		t.Run(lbl("InReplyTo", ui), func(t *testing.T) {
-			err := vocab.OnObject(it, func(ob *vocab.Object) error {
-				if ir := toNormalizedItemCol(ob.InReplyTo); !cmp.Equal(ir, ui) {
-					t.Errorf("%s", cmp.Diff(ui, ir))
-				}
-				return nil
-			})
-			if err != nil {
-				t.Errorf("Invalid Object: %+v", err)
+	return func(t TestingT, it vocab.Item) {
+		err := vocab.OnObject(it, func(ob *vocab.Object) error {
+			if ir := toNormalizedItemCol(ob.InReplyTo); !cmp.Equal(ir, ui) {
+				t.Errorf("%s", cmp.Diff(ui, ir))
 			}
+			return nil
 		})
+		if err != nil {
+			t.Errorf("Invalid Object: %+v", err)
+		}
 	}
 }
 
-func HasAttributedTo(maybeItems ...any) itemCheckFn {
-	return func(t *testing.T, it vocab.Item) {
+func HasAttributedTo(maybeItems ...any) ItemAssertFn {
+	return func(t TestingT, it vocab.Item) {
 		checks := itemCheckArgs(maybeItems...)
-		t.Run("AttributedTo", func(t *testing.T) {
-			err := vocab.OnObject(it, func(ob *vocab.Object) error {
-				for _, fn := range checks {
-					fn(t, ob.AttributedTo)
-				}
-				return nil
-			})
-			if err != nil {
-				t.Errorf("Invalid Object: %+v", err)
+		err := vocab.OnObject(it, func(ob *vocab.Object) error {
+			for _, fn := range checks {
+				fn(t, ob.AttributedTo)
 			}
+			return nil
 		})
+		if err != nil {
+			t.Errorf("Invalid Object: %+v", err)
+		}
 	}
 }
 
-func HasContext(u ...vocab.Item) itemCheckFn {
+func HasContext(u ...vocab.Item) ItemAssertFn {
 	ui := toNormalizedItemCol(vocab.ItemCollection(u))
-	return func(t *testing.T, it vocab.Item) {
-		t.Run("Context", func(t *testing.T) {
-			err := vocab.OnObject(it, func(ob *vocab.Object) error {
-				if at := toNormalizedItemCol(ob.Context); !cmp.Equal(at, ui) {
-					t.Errorf("%s", cmp.Diff(ui, at))
-				}
-				return nil
-			})
-			if err != nil {
-				t.Errorf("Invalid Object: %+v", err)
+	return func(t TestingT, it vocab.Item) {
+		err := vocab.OnObject(it, func(ob *vocab.Object) error {
+			if at := toNormalizedItemCol(ob.Context); !cmp.Equal(at, ui) {
+				t.Errorf("%s", cmp.Diff(ui, at))
 			}
+			return nil
 		})
+		if err != nil {
+			t.Errorf("Invalid Object: %+v", err)
+		}
 	}
 }
 
-func HasURL(u ...vocab.Item) itemCheckFn {
+func HasURL(u ...vocab.Item) ItemAssertFn {
 	ui := toNormalizedItemCol(vocab.ItemCollection(u))
-	return func(t *testing.T, it vocab.Item) {
-		t.Run("URL", func(t *testing.T) {
-			err := vocab.OnObject(it, func(ob *vocab.Object) error {
-				if uu := toNormalizedItemCol(ob.URL); !cmp.Equal(uu, ui) {
-					t.Errorf("%s", cmp.Diff(ui, uu))
-				}
-				return nil
-			})
-			if err != nil {
-				t.Errorf("Invalid Object: %+v", err)
+	return func(t TestingT, it vocab.Item) {
+		err := vocab.OnObject(it, func(ob *vocab.Object) error {
+			if uu := toNormalizedItemCol(ob.URL); !cmp.Equal(uu, ui) {
+				t.Errorf("%s", cmp.Diff(ui, uu))
 			}
+			return nil
 		})
+		if err != nil {
+			t.Errorf("Invalid Object: %+v", err)
+		}
 	}
 }
 
-func HasTag(u ...vocab.Item) itemCheckFn {
+func HasTag(u ...vocab.Item) ItemAssertFn {
 	ui := toNormalizedItemCol(vocab.ItemCollection(u))
-	return func(t *testing.T, it vocab.Item) {
-		t.Run("Tag", func(t *testing.T) {
-			err := vocab.OnObject(it, func(ob *vocab.Object) error {
-				if tag := toNormalizedItemCol(ob.Tag); !cmp.Equal(tag, ui) {
-					t.Errorf("%s", cmp.Diff(ui, tag))
-				}
-				return nil
-			})
-			if err != nil {
-				t.Errorf("Invalid Object: %+v", err)
+	return func(t TestingT, it vocab.Item) {
+		err := vocab.OnObject(it, func(ob *vocab.Object) error {
+			if tag := toNormalizedItemCol(ob.Tag); !cmp.Equal(tag, ui) {
+				t.Errorf("%s", cmp.Diff(ui, tag))
 			}
+			return nil
 		})
+		if err != nil {
+			t.Errorf("Invalid Object: %+v", err)
+		}
 	}
 }
 
-func HasProxyURL(iri vocab.IRI) itemCheckFn {
-	return func(t *testing.T, it vocab.Item) {
-		t.Run("ProxyURL", func(t *testing.T) {
-			err := vocab.OnActor(it, func(act *vocab.Actor) error {
-				if act.Endpoints == nil {
-					t.Errorf("Actor's Endpoints is nil")
-					return nil
-				}
-				if !cmp.Equal(iri, act.Endpoints.ProxyURL) {
-					t.Errorf("Received %s, expected %s", act.Endpoints.ProxyURL, iri)
-				}
+func HasProxyURL(iri vocab.IRI) ItemAssertFn {
+	return func(t TestingT, it vocab.Item) {
+		err := vocab.OnActor(it, func(act *vocab.Actor) error {
+			if act.Endpoints == nil {
+				t.Errorf("Actor's Endpoints is nil")
 				return nil
-			})
-			if err != nil {
-				t.Errorf("Invalid Actor: %+v", err)
 			}
+			if !cmp.Equal(iri, act.Endpoints.ProxyURL) {
+				t.Errorf("ProxyURL received %s, expected %s", act.Endpoints.ProxyURL, iri)
+			}
+			return nil
 		})
+		if err != nil {
+			t.Errorf("Invalid Actor: %+v", err)
+		}
 	}
 }
 
-func HasSharedInbox(iri vocab.Item) itemCheckFn {
-	return func(t *testing.T, it vocab.Item) {
-		t.Run("SharedInbox", func(t *testing.T) {
-			err := vocab.OnActor(it, func(act *vocab.Actor) error {
-				if act.Endpoints == nil {
-					t.Errorf("Actor's Endpoints is nil")
-					return nil
-				}
-				if !cmp.Equal(iri, act.Endpoints.SharedInbox) {
-					t.Errorf("Received %s, expected %s", act.Endpoints.SharedInbox, iri)
-				}
+func HasSharedInbox(iri vocab.Item) ItemAssertFn {
+	return func(t TestingT, it vocab.Item) {
+		err := vocab.OnActor(it, func(act *vocab.Actor) error {
+			if act.Endpoints == nil {
+				t.Errorf("Actor's Endpoints is nil")
 				return nil
-			})
-			if err != nil {
-				t.Errorf("Invalid Actor: %+v", err)
 			}
+			if !cmp.Equal(iri, act.Endpoints.SharedInbox) {
+				t.Errorf("SharedInbox received %s, expected %s", act.Endpoints.SharedInbox, iri)
+			}
+			return nil
 		})
+		if err != nil {
+			t.Errorf("Invalid Actor: %+v", err)
+		}
 	}
 }
 
-func HasPublicKey(pub vocab.PublicKey) itemCheckFn {
-	return func(t *testing.T, it vocab.Item) {
-		t.Run("PublicKey", func(t *testing.T) {
-			err := vocab.OnActor(it, func(act *vocab.Actor) error {
-				if !cmp.Equal(act.PublicKey, pub) {
-					t.Errorf("Received %s", cmp.Diff(pub, act.PublicKey))
-				}
-				return nil
-			})
-			if err != nil {
-				t.Errorf("Invalid Actor: %+v", err)
+func HasPublicKey(pub vocab.PublicKey) ItemAssertFn {
+	return func(t TestingT, it vocab.Item) {
+		err := vocab.OnActor(it, func(act *vocab.Actor) error {
+			if !cmp.Equal(act.PublicKey, pub) {
+				t.Errorf("PublicKey received %s", cmp.Diff(pub, act.PublicKey))
 			}
+			return nil
 		})
+		if err != nil {
+			t.Errorf("Invalid Actor: %+v", err)
+		}
 	}
 }
 
-func HasStreams(maybeItems ...any) itemCheckFn {
-	return func(t *testing.T, it vocab.Item) {
+func HasStreams(maybeItems ...any) ItemAssertFn {
+	return func(t TestingT, it vocab.Item) {
 		checks := itemCheckArgs(maybeItems...)
-		t.Run("Streams", func(t *testing.T) {
-			err := vocab.OnActor(it, func(act *vocab.Actor) error {
-				for _, check := range checks {
-					check(t, act.Streams)
-				}
-				return nil
-			})
-			if err != nil {
-				t.Errorf("Invalid Actor: %+v", err)
+		err := vocab.OnActor(it, func(act *vocab.Actor) error {
+			for _, check := range checks {
+				check(t, act.Streams)
 			}
+			return nil
 		})
+		if err != nil {
+			t.Errorf("Invalid Actor: %+v", err)
+		}
 	}
 }
 
-func HasEndpoints(e *vocab.Endpoints) itemCheckFn {
-	return func(t *testing.T, it vocab.Item) {
-		t.Run("Endpoints", func(t *testing.T) {
-			err := vocab.OnActor(it, func(act *vocab.Actor) error {
-				if !cmp.Equal(act.Endpoints, e) {
-					t.Errorf("%s", cmp.Diff(e, act.Endpoints))
-				}
-				return nil
-			})
-			if err != nil {
-				t.Errorf("Invalid Actor: %+v", err)
+func HasEndpoints(e *vocab.Endpoints) ItemAssertFn {
+	return func(t TestingT, it vocab.Item) {
+		err := vocab.OnActor(it, func(act *vocab.Actor) error {
+			if !cmp.Equal(act.Endpoints, e) {
+				t.Errorf("%s", cmp.Diff(e, act.Endpoints))
 			}
+			return nil
 		})
+		if err != nil {
+			t.Errorf("Invalid Actor: %+v", err)
+		}
 	}
 }
 
-func HasActor(maybeItems ...any) itemCheckFn {
-	return func(t *testing.T, it vocab.Item) {
+func HasActor(maybeItems ...any) ItemAssertFn {
+	return func(t TestingT, it vocab.Item) {
 		checks := itemCheckArgs(maybeItems...)
-		t.Run("Actor", func(t *testing.T) {
-			err := vocab.OnIntransitiveActivity(it, func(act *vocab.IntransitiveActivity) error {
-				for _, check := range checks {
-					check(t, act.Actor)
-				}
-				return nil
-			})
-			if err != nil {
-				t.Errorf("Invalid IntransitiveActivity: %+v", err)
+		err := vocab.OnIntransitiveActivity(it, func(act *vocab.IntransitiveActivity) error {
+			for _, check := range checks {
+				check(t, act.Actor)
 			}
+			return nil
 		})
+		if err != nil {
+			t.Errorf("Invalid IntransitiveActivity: %+v", err)
+		}
 	}
 }
 
-func itemCheckArgs(maybeItems ...any) []itemCheckFn {
-	items := make([]itemCheckFn, 0, len(maybeItems))
+func itemCheckArgs(maybeItems ...any) []ItemAssertFn {
+	items := make([]ItemAssertFn, 0, len(maybeItems))
 	for _, maybeItem := range maybeItems {
 		switch ii := maybeItem.(type) {
 		case []any:
@@ -845,17 +781,17 @@ func itemCheckArgs(maybeItems ...any) []itemCheckFn {
 			items = append(items, equalFlattened(ii()))
 		case func() vocab.IRIs:
 			items = append(items, equalFlattened(ii()))
-		case itemCheckFn:
+		case ItemAssertFn:
 			items = append(items, ii)
 		default:
-			panic(fmt.Errorf("%T argument can't be converted to an %T", maybeItem, itemCheckFn(nil)))
+			panic(fmt.Errorf("%T argument can't be converted to an %T", maybeItem, ItemAssertFn(nil)))
 		}
 	}
 	return items
 }
 
-func equalFlattened(w vocab.Item) itemCheckFn {
-	return func(t *testing.T, it vocab.Item) {
+func equalFlattened(w vocab.Item) ItemAssertFn {
+	return func(t TestingT, it vocab.Item) {
 		want := toNormalizedItemCol(w)
 		got := toNormalizedItemCol(it)
 		if !cmp.Equal(got, want) {
@@ -864,191 +800,171 @@ func equalFlattened(w vocab.Item) itemCheckFn {
 	}
 }
 
-func RequestObject(maybeItems ...any) itemCheckFn {
-	return func(t *testing.T, it vocab.Item) {
+func RequestObject(maybeItems ...any) ItemAssertFn {
+	return func(t TestingT, it vocab.Item) {
 		checks := itemCheckArgs(maybeItems...)
-		t.Run("Object", func(t *testing.T) {
-			err := vocab.OnActivity(it, func(act *vocab.Activity) error {
-				for _, check := range checks {
-					check(t, act.Object)
-				}
-				return nil
-			})
-			if err != nil {
-				t.Errorf("Invalid Activity: %+v", err)
+		err := vocab.OnActivity(it, func(act *vocab.Activity) error {
+			for _, check := range checks {
+				check(t, act.Object)
 			}
+			return nil
 		})
+		if err != nil {
+			t.Errorf("Invalid Activity: %+v", err)
+		}
 	}
 }
 
-func HasOrigin(maybeItems ...any) itemCheckFn {
-	return func(t *testing.T, it vocab.Item) {
+func HasOrigin(maybeItems ...any) ItemAssertFn {
+	return func(t TestingT, it vocab.Item) {
 		checks := itemCheckArgs(maybeItems...)
-		t.Run("Origin", func(t *testing.T) {
-			err := vocab.OnIntransitiveActivity(it, func(act *vocab.IntransitiveActivity) error {
-				for _, check := range checks {
-					check(t, act.Origin)
-				}
-				return nil
-			})
-			if err != nil {
-				t.Errorf("Invalid Activity: %+v", err)
+		err := vocab.OnIntransitiveActivity(it, func(act *vocab.IntransitiveActivity) error {
+			for _, check := range checks {
+				check(t, act.Origin)
 			}
+			return nil
 		})
+		if err != nil {
+			t.Errorf("Invalid Activity: %+v", err)
+		}
 	}
 }
 
-func HasTarget(maybeItems ...any) itemCheckFn {
-	return func(t *testing.T, it vocab.Item) {
+func HasTarget(maybeItems ...any) ItemAssertFn {
+	return func(t TestingT, it vocab.Item) {
 		checks := itemCheckArgs(maybeItems...)
-		t.Run("Target", func(t *testing.T) {
-			err := vocab.OnIntransitiveActivity(it, func(act *vocab.IntransitiveActivity) error {
-				for _, check := range checks {
-					check(t, act.Target)
-				}
-				return nil
-			})
-			if err != nil {
-				t.Errorf("Invalid Activity: %+v", err)
+		err := vocab.OnIntransitiveActivity(it, func(act *vocab.IntransitiveActivity) error {
+			for _, check := range checks {
+				check(t, act.Target)
 			}
+			return nil
 		})
+		if err != nil {
+			t.Errorf("Invalid Activity: %+v", err)
+		}
 	}
 }
 
-func HasAnyOf(maybeItems ...any) itemCheckFn {
-	return func(t *testing.T, it vocab.Item) {
+func HasAnyOf(maybeItems ...any) ItemAssertFn {
+	return func(t TestingT, it vocab.Item) {
 		checks := itemCheckArgs(maybeItems...)
-		t.Run("AnyOf", func(t *testing.T) {
-			err := vocab.OnQuestion(it, func(act *vocab.Question) error {
-				for _, check := range checks {
-					check(t, act.AnyOf)
-				}
-				return nil
-			})
-			if err != nil {
-				t.Errorf("Invalid Question: %+v", err)
+		err := vocab.OnQuestion(it, func(act *vocab.Question) error {
+			for _, check := range checks {
+				check(t, act.AnyOf)
 			}
+			return nil
 		})
+		if err != nil {
+			t.Errorf("Invalid Question: %+v", err)
+		}
 	}
 }
 
-func HasOneOf(maybeItems ...any) itemCheckFn {
-	return func(t *testing.T, it vocab.Item) {
+func HasOneOf(maybeItems ...any) ItemAssertFn {
+	return func(t TestingT, it vocab.Item) {
 		checks := itemCheckArgs(maybeItems...)
-		t.Run("OneOf", func(t *testing.T) {
-			err := vocab.OnQuestion(it, func(act *vocab.Question) error {
-				for _, check := range checks {
-					check(t, act.OneOf)
-				}
-				return nil
-			})
-			if err != nil {
-				t.Errorf("Invalid Question: %+v", err)
+		err := vocab.OnQuestion(it, func(act *vocab.Question) error {
+			for _, check := range checks {
+				check(t, act.OneOf)
 			}
+			return nil
 		})
+		if err != nil {
+			t.Errorf("Invalid Question: %+v", err)
+		}
 	}
 }
 
-func HasTotalItems(cnt int) itemCheckFn {
-	return func(t *testing.T, it vocab.Item) {
-		t.Run("TotalItems", func(t *testing.T) {
-			err := vocab.OnOrderedCollection(it, func(col *vocab.OrderedCollection) error {
-				if int(col.TotalItems) != cnt {
-					t.Errorf("Received %d, expected %d", col.TotalItems, cnt)
-				}
-				return nil
-			})
-			if err != nil {
-				t.Errorf("Invalid Collection: %+v", err)
+func HasTotalItems(cnt int) ItemAssertFn {
+	return func(t TestingT, it vocab.Item) {
+		err := vocab.OnOrderedCollection(it, func(col *vocab.OrderedCollection) error {
+			if int(col.TotalItems) != cnt {
+				t.Errorf("TotalItems received %d, expected %d", col.TotalItems, cnt)
 			}
+			return nil
 		})
+		if err != nil {
+			t.Errorf("Invalid Collection: %+v", err)
+		}
 	}
 }
 
-func DoesNotHaveItem(it vocab.Item) itemCheckFn {
-	return func(t *testing.T, got vocab.Item) {
-		t.Run("Does not contain: "+string(it.GetLink()), func(t *testing.T) {
-			err := vocab.OnOrderedCollection(got, func(col *vocab.OrderedCollection) error {
-				gotItems := col.OrderedItems
-				maybeFound, _ := filters.Checks{filters.SameID(it.GetID())}.Run(gotItems).(vocab.ItemCollection)
-				if maybeFound.Count() > 0 {
-					t.Errorf("Item does exist in the collection: %s", it.GetLink())
-				}
-				return nil
-			})
-			if err != nil {
-				t.Errorf("Invalid Collection: %+v", err)
+func DoesNotHaveItem(it vocab.Item) ItemAssertFn {
+	return func(t TestingT, got vocab.Item) {
+		err := vocab.OnOrderedCollection(got, func(col *vocab.OrderedCollection) error {
+			gotItems := col.OrderedItems
+			maybeFound, _ := filters.Checks{filters.SameID(it.GetID())}.Run(gotItems).(vocab.ItemCollection)
+			if maybeFound.Count() > 0 {
+				t.Errorf("Item does exist in the collection: %s", it.GetLink())
 			}
+			return nil
 		})
+		if err != nil {
+			t.Errorf("Invalid Collection: %+v", err)
+		}
 	}
 }
 
-func HasItem(it vocab.Item) itemCheckFn {
-	return func(t *testing.T, got vocab.Item) {
-		t.Run("Contains: "+string(it.GetLink()), func(t *testing.T) {
-			err := vocab.OnCollectionIntf(got, func(col vocab.CollectionInterface) error {
-				gotItems := col.Collection()
+func HasItem(it vocab.Item) ItemAssertFn {
+	return func(t TestingT, got vocab.Item) {
+		err := vocab.OnCollectionIntf(got, func(col vocab.CollectionInterface) error {
+			gotItems := col.Collection()
+			maybeFound, _ := filters.Checks{filters.SameID(it.GetID())}.Run(gotItems).(vocab.ItemCollection)
+			if maybeFound.Count() == 0 {
+				t.Errorf("Item does not exist in collection: %s", it.GetLink())
+				return nil
+			}
+			gotIt := maybeFound.First()
+			if !it.GetLink().Equal(gotIt.GetLink()) {
+				t.Errorf("Item differs: %s", cmp.Diff(it.GetLink(), gotIt.GetLink()))
+				return nil
+			}
+			return nil
+		})
+		if err != nil {
+			t.Errorf("Invalid Collection: %+v", err)
+		}
+	}
+}
+
+func HasExactItems(items ...vocab.Item) ItemAssertFn {
+	return func(t TestingT, got vocab.Item) {
+		err := vocab.OnOrderedCollection(got, func(col *vocab.OrderedCollection) error {
+			gotItems := col.OrderedItems
+			if len(gotItems) != len(items) {
+				t.Errorf("The amount of received items %d does not match the expected count: %d", len(gotItems), len(items))
+				return nil
+			}
+			for i, it := range items {
 				maybeFound, _ := filters.Checks{filters.SameID(it.GetID())}.Run(gotItems).(vocab.ItemCollection)
 				if maybeFound.Count() == 0 {
-					t.Errorf("Item does not exist in collection: %s", it.GetLink())
+					t.Errorf("Item at pos %d does not exist in collection: %s", i, it.GetLink())
 					return nil
 				}
 				gotIt := maybeFound.First()
 				if !it.GetLink().Equal(gotIt.GetLink()) {
-					t.Errorf("Item differs: %s", cmp.Diff(it.GetLink(), gotIt.GetLink()))
+					t.Errorf("Item at pos %d differs: %s", i, cmp.Diff(it.GetLink(), gotIt.GetLink()))
 					return nil
 				}
-				return nil
-			})
-			if err != nil {
-				t.Errorf("Invalid Collection: %+v", err)
 			}
+			return nil
 		})
+		if err != nil {
+			t.Errorf("Invalid Collection: %+v", err)
+		}
 	}
 }
 
-func HasExactItems(items ...vocab.Item) itemCheckFn {
-	return func(t *testing.T, got vocab.Item) {
-		t.Run("Items", func(t *testing.T) {
-			err := vocab.OnOrderedCollection(got, func(col *vocab.OrderedCollection) error {
-				gotItems := col.OrderedItems
-				if len(gotItems) != len(items) {
-					t.Errorf("The amount of received items %d does not match the expected count: %d", len(gotItems), len(items))
-					return nil
-				}
-				for i, it := range items {
-					maybeFound, _ := filters.Checks{filters.SameID(it.GetID())}.Run(gotItems).(vocab.ItemCollection)
-					if maybeFound.Count() == 0 {
-						t.Errorf("Item at pos %d does not exist in collection: %s", i, it.GetLink())
-						return nil
-					}
-					gotIt := maybeFound.First()
-					if !it.GetLink().Equal(gotIt.GetLink()) {
-						t.Errorf("Item at pos %d differs: %s", i, cmp.Diff(it.GetLink(), gotIt.GetLink()))
-						return nil
-					}
-				}
-				return nil
-			})
-			if err != nil {
-				t.Errorf("Invalid Collection: %+v", err)
-			}
-		})
-	}
-}
-
-func (l *LocalStorage) CheckObject(iri vocab.IRI, maybeItems ...any) itemCheckFn {
-	return func(t *testing.T, _ vocab.Item) {
+func (l *LocalStorage) CheckObject(iri vocab.IRI, maybeItems ...any) ItemAssertFn {
+	return func(t TestingT, _ vocab.Item) {
 		checks := itemCheckArgs(maybeItems...)
-		t.Run("StorageObject", func(t *testing.T) {
-			it, err := l.Load(iri)
-			if err != nil {
-				t.Errorf("received error trying to load local storage object: %v", err)
-				return
-			}
-			for _, check := range checks {
-				check(t, it)
-			}
-		})
+		it, err := l.Load(iri)
+		if err != nil {
+			t.Errorf("received error trying to load local storage object: %v", err)
+			return
+		}
+		for _, check := range checks {
+			check(t, it)
+		}
 	}
 }

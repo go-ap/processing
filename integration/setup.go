@@ -357,7 +357,28 @@ func ServeItemHandler(t TestingT, authMap AuthorizedMap, it vocab.Item) http.Han
 	})
 }
 
-func HandleReceivedActivityMatches(t TestingT, expected vocab.Item) http.HandlerFunc {
+func ReceivedActivityMatches(t TestingT, fns ...ItemAssertFn) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		raw, err := io.ReadAll(req.Body)
+		if err != nil {
+			errors.HandleError(err).ServeHTTP(w, req)
+			t.Errorf("unable to read request body: %v", err)
+			return
+		}
+		got, err := vocab.UnmarshalJSON(raw)
+		if err != nil {
+			errors.HandleError(err).ServeHTTP(w, req)
+			t.Errorf("unable to unmarshal activity from request %v", err)
+			return
+		}
+
+		for _, fn := range fns {
+			fn(t, got)
+		}
+	}
+}
+
+func ReceivedActivityIdenticalTo(t TestingT, expected vocab.Item) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		raw, err := io.ReadAll(req.Body)
 		if err != nil {
@@ -399,13 +420,13 @@ func (mr *MockRemote) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	delete(mr.assertions, iri)
 }
 
-type AssertFn map[vocab.IRI]http.Handler
+type HandlerMap map[vocab.IRI]http.Handler
 
-func Handler(iri vocab.IRI, fn http.Handler) AssertFn {
-	return AssertFn{iri: fn}
+func Handler(iri vocab.IRI, fn http.Handler) HandlerMap {
+	return HandlerMap{iri: fn}
 }
 
-func WithHandlers(assertFns ...AssertFn) RemoteInitFn {
+func WithHandlers(assertFns ...HandlerMap) RemoteInitFn {
 	return func(mr *MockRemote) {
 		for _, mapPairs := range assertFns {
 			for iri, hFn := range mapPairs {

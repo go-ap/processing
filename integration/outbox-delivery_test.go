@@ -87,7 +87,7 @@ func (o *deliveryOutboxTests) itGetsDeliveredToRemoteRecipients(ctx context.Cont
 	o.mr = Remote(
 		//WithRemoteMocks(RemoteAuthor),
 		WithHandlers(
-			Handler(vocab.Inbox.IRI(RemoteAuthorID), HandleReceivedActivityMatches(t, o.Activity)),
+			Handler(vocab.Inbox.IRI(RemoteAuthorID), ReceivedActivityIdenticalTo(t, o.Activity)),
 		),
 	)
 
@@ -145,11 +145,10 @@ func (o *deliveryOutboxTests) itGetsDeliveredToAllRecipients(ctx context.Context
 	t := godog.T(ctx)
 
 	o.mr = Remote(
-		//WithRemoteMocks(RemoteAuthor),
-		WithHandlers(Handler(vocab.Inbox.IRI(RemoteAuthorID), HandleReceivedActivityMatches(t, o.Activity))),
-		WithHandlers(Handler(vocab.Inbox.IRI(remoteActorCCID), HandleReceivedActivityMatches(t, o.Activity))),
-		WithHandlers(Handler(vocab.Inbox.IRI(remoteActorBtoID), HandleReceivedActivityMatches(t, o.Activity))),
-		WithHandlers(Handler(vocab.Inbox.IRI(remoteActorBCCID), HandleReceivedActivityMatches(t, o.Activity))),
+		WithHandlers(Handler(vocab.Inbox.IRI(RemoteAuthorID), ReceivedActivityIdenticalTo(t, o.Activity))),
+		WithHandlers(Handler(vocab.Inbox.IRI(remoteActorCCID), ReceivedActivityIdenticalTo(t, o.Activity))),
+		WithHandlers(Handler(vocab.Inbox.IRI(remoteActorBtoID), ReceivedActivityIdenticalTo(t, o.Activity))),
+		WithHandlers(Handler(vocab.Inbox.IRI(remoteActorBCCID), ReceivedActivityIdenticalTo(t, o.Activity))),
 	)
 
 	p := o.mp.InitP(processing.WithStorage(o.st), WithRemote(o.mr))
@@ -183,7 +182,7 @@ func (o *deliveryOutboxTests) itGetsDeliveredWithAnID(ctx context.Context) error
 
 	o.mr = Remote(
 		//WithRemoteMocks(RemoteAuthor),
-		WithHandlers(Handler(vocab.Inbox.IRI(RemoteAuthorID), HandleReceivedActivityMatches(t, o.Activity))),
+		WithHandlers(Handler(vocab.Inbox.IRI(RemoteAuthorID), ReceivedActivityIdenticalTo(t, o.Activity))),
 	)
 
 	p := o.mp.InitP(processing.WithStorage(o.st), WithRemote(o.mr))
