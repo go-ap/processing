@@ -39,8 +39,7 @@ func (p *P) saveQuestionAnswers(q *vocab.Question) func(vocab.Item) error {
 		// an Object Create on the answers to our Question activity.
 		_ = p.updateObjectForCreate(ans, q)
 
-		ans, err = p.s.Save(ans)
-		if err != nil {
+		if _, err = p.s.Save(ans); err != nil {
 			return err
 		}
 		return nil
