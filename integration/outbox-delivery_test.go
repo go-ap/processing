@@ -38,7 +38,7 @@ func (o *deliveryOutboxTests) initScenario(ctx *godog.ScenarioContext) {
 	ctx.Step(`^an Activity is received$`, o.anActivityIsReceived)
 	ctx.Step(`^it gets delivered to remote recipients$`, o.itGetsDeliveredToRemoteRecipients)
 
-	ctx.Step(`^an Activity is received with to, bto, cc and bcc recipients is received$`, o.anActivityIsReceivedWithToBtoCcAndBccRecipientsIsReceived)
+	ctx.Step(`^an Activity with to, bto, cc and bcc recipients is received$`, o.anActivityWithToBtoCcAndBccRecipientsIsReceived)
 	ctx.Step(`^it gets delivered to all recipients$`, o.itGetsDeliveredToAllRecipients)
 
 	ctx.Step(`^an Activity without an ID is received$`, o.anActivityWithoutAnIDIsReceived)
@@ -123,7 +123,7 @@ var (
 	remoteActorBCCID = vocab.IRI("http://example.com/actor-bcc")
 )
 
-func (o *deliveryOutboxTests) anActivityIsReceivedWithToBtoCcAndBccRecipientsIsReceived(ctx context.Context) error {
+func (o *deliveryOutboxTests) anActivityWithToBtoCcAndBccRecipientsIsReceived(ctx context.Context) error {
 	remoteActorCC := makePerson(remoteActorCCID, "Actor CC")
 	remoteActorBto := makePerson(remoteActorBtoID, "Actor Bto")
 	remoteActorBCC := makePerson(remoteActorBCCID, "Actor BCC")

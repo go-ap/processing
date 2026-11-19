@@ -1,5 +1,6 @@
 @conformance
-Feature: Client to server interactions: Actor object's outbox
+Feature: Client to server interactions: Actor's Outbox
+
   Scenario: Accepts Activity Objects (outbox:accepts-activities) MUST
     When an Activity is received
     Then it gets accepted

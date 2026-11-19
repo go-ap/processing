@@ -6,7 +6,7 @@ Feature: Client to server interactions: Activities Delivery
     Then it gets delivered to remote recipients
 
   Scenario: Utilizes to, bto, cc, and bcc to determine delivery recipients. (outbox:delivery:addressing) MUST
-    When an Activity is received with to, bto, cc and bcc recipients is received
+    When an Activity with to, bto, cc and bcc recipients is received
     Then it gets delivered to all recipients
 
   Scenario: Provides an id all Activities sent to other servers, unless the activity is intentionally transient (outbox:delivery:adds-id) MUST

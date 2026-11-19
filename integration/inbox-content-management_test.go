@@ -4,10 +4,80 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cucumber/godog"
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/activitypub/build"
 	"github.com/go-ap/processing"
 )
+
+type inboxContentManagementTests struct {
+	Activity   vocab.Item
+	Author     vocab.Actor
+	ReceivedIn vocab.IRI
+}
+
+func (i *inboxContentManagementTests) initScenario(ctx *godog.ScenarioContext) {
+	ctx.Step(`^nothing$`, nothing)
+	ctx.Step(`^Skip$`, skip)
+
+	ctx.Step(`^a Create activity is received$`, i.aCreateActivityIsReceived)
+	ctx.Step(`^a Delete activity is received$`, i.aDeleteActivityIsReceived)
+	ctx.Step(`^an Update activity is received$`, i.anUpdateActivityIsReceived)
+	ctx.Step(`^an Update activity is received from a server authority other than the original's object$`, i.anUpdateActivityIsReceivedFromAServerAuthorityOtherThanTheOriginalsObject)
+	ctx.Step(`^an Update activity with an actor that is not the author of the updated object is received$`, i.anUpdateActivityWithAnActorThatIsNotTheAuthorOfTheUpdatedObjectIsReceived)
+	ctx.Step(`^processing is successful$`, i.processingIsSuccessful)
+	ctx.Step(`^the object is fully replaced by the activity\'s object$`, i.theObjectIsFullyReplacedByTheActivitysObject)
+	ctx.Step(`^the object is replaced with a Tombstone$`, i.theObjectIsReplacedWithATombstone)
+	ctx.Step(`^there is a validation error$`, i.thereIsAValidationError)
+}
+
+func (i *inboxContentManagementTests) aCreateActivityIsReceived() error {
+	return godog.ErrPending
+}
+
+func (i *inboxContentManagementTests) aDeleteActivityIsReceived() error {
+	return godog.ErrPending
+}
+
+func (i *inboxContentManagementTests) anUpdateActivityIsReceived() error {
+	return godog.ErrPending
+}
+
+func (i *inboxContentManagementTests) anUpdateActivityIsReceivedFromAServerAuthorityOtherThanTheOriginalsObject() error {
+	return godog.ErrPending
+}
+
+func (i *inboxContentManagementTests) anUpdateActivityWithAnActorThatIsNotTheAuthorOfTheUpdatedObjectIsReceived() error {
+	return godog.ErrPending
+}
+
+func (i *inboxContentManagementTests) processingIsSuccessful() error {
+	return godog.ErrPending
+}
+
+func (i *inboxContentManagementTests) theObjectIsFullyReplacedByTheActivitysObject() error {
+	return godog.ErrPending
+}
+
+func (i *inboxContentManagementTests) theObjectIsReplacedWithATombstone() error {
+	return godog.ErrPending
+}
+
+func (i *inboxContentManagementTests) thereIsAValidationError() error {
+	return godog.ErrPending
+}
+
+func Test_Inbox_ContentManagement(t *testing.T) {
+	opts.TestingT = t
+	opts.Paths = []string{"inbox-content-management.feature"}
+
+	i := new(inboxContentManagementTests)
+	_ = godog.TestSuite{
+		Name:                "ActivityPub Inbox Content Management Activities",
+		ScenarioInitializer: i.initScenario,
+		Options:             &opts,
+	}.Run()
+}
 
 func Test_Inbox_Update(t *testing.T) {
 	mp := MockPlumbing{}
