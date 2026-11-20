@@ -150,8 +150,8 @@ func (p *P) UndoAppreciationActivity(like *vocab.Activity) (*vocab.Activity, err
 }
 
 func firstOrItem(it vocab.Item) vocab.Item {
-	if col, ok := it.(vocab.ItemCollection); ok && len(col) == 1 {
-		return col[0]
+	if col, err := vocab.ToItemCollection(it); err == nil {
+		return col.Normalize()
 	}
 	return it
 }

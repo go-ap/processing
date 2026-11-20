@@ -107,28 +107,28 @@ func (p P) ProcessServerActivity(it vocab.Item, author vocab.Actor, receivedIn v
 // It propagates the activity to all local actors, and if among them there are collections, they get
 // dereferenced and their members local *and* remote get forwarded a copy of the activity.
 func (p P) ProcessServerInboxDelivery(it vocab.Item, receivedIn vocab.IRI, firstDelivery bool) error {
-	recipients := make(vocab.ItemCollection, 0)
-	_ = recipients.Append(p.BuildInboxRecipientsList(it, receivedIn)...)
-
-	fromLocalCollections := make(vocab.ItemCollection, 0)
-	_ = fromLocalCollections.Append(p.BuildLocalCollectionsRecipients(it, receivedIn)...)
+	recipients := p.BuildInboxRecipientsList(it, receivedIn)
+	fromLocalCollections := p.BuildLocalCollectionsRecipients(it, receivedIn)
 
 	toForward := make(vocab.ItemCollection, 0, len(recipients))
-	for _, lr := range fromLocalCollections {
+	toSave := make(vocab.ItemCollection, 0, len(recipients))
+	for _, lr := range append(recipients, fromLocalCollections...) {
 		if p.IsLocal(lr.GetLink()) {
-			_ = recipients.Append(lr.GetLink())
+			_ = toSave.Append(lr.GetLink())
 		} else {
 			_ = toForward.Append(lr.GetLink())
 		}
 	}
 
 	sync := func() {
-		if err := p.AddToLocalCollections(it, recipients...); err != nil {
+		if err := p.AddToLocalCollections(it, toSave...); err != nil {
 			p.l.WithContext(lw.Ctx{"err": err}).Warnf("errors when disseminating to local actors")
 		}
 
-		if err := p.ForwardFromInbox(it, toForward, firstDelivery); err != nil {
-			p.l.WithContext(lw.Ctx{"err": err}).Warnf("errors when forwarding to remote actors")
+		if firstDelivery {
+			if err := p.ForwardFromInbox(it, toForward...); err != nil {
+				p.l.WithContext(lw.Ctx{"err": err}).Warnf("errors when forwarding to remote actors")
+			}
 		}
 	}
 
@@ -161,7 +161,7 @@ func (p P) ProcessServerInboxDelivery(it vocab.Item, receivedIn vocab.IRI, first
 // if and only if all of the following are true:
 //
 // * This is the first time the server has seen this Activity.
-// * The values of to, cc, and/or audience contain a Collection owned by the server: this is done in the
+// * The values of to, bto, cc, bcc, and/or audience contain a Collection owned by the server: this is done in the
 // ProcessServerInboxDelivery where we fetch the recipients corresponding to local collections
 // * The values of inReplyTo, object, target and/or tag are objects owned by the server: this is verified in ObjectShouldBeInboxForwarded
 // * The server SHOULD recurse through these values to look for linked objects owned by the server, and SHOULD set a
@@ -171,18 +171,15 @@ func (p P) ProcessServerInboxDelivery(it vocab.Item, receivedIn vocab.IRI, first
 // recursing through the linked objects (in case these addressees were purposefully amended by or via the client).
 //
 // The server MAY filter its delivery targets according to implementation-specific rules (for example, spam filtering).
-func (p P) ForwardFromInbox(it vocab.Item, remoteRecipients vocab.ItemCollection, firstDelivery bool) error {
+func (p P) ForwardFromInbox(it vocab.Item, remoteRecipients ...vocab.Item) error {
 	if len(remoteRecipients) == 0 {
 		return nil
 	}
 
-	if !firstDelivery {
-		return nil
-	}
 	if !p.ObjectShouldBeInboxForwarded(it, 3) {
 		return nil
 	}
-	return p.disseminateToRemoteCollections(it, remoteRecipients.IRIs()...)
+	return p.disseminateToRemoteCollections(it, vocab.ItemCollection(remoteRecipients).IRIs()...)
 }
 
 // ObjectShouldBeInboxForwarded checks if the last remaining rules for forwarding from an inbox are fulfilled.
@@ -227,7 +224,7 @@ func (p P) ObjectShouldBeInboxForwarded(it vocab.Item, maxDepth int) bool {
 			}
 			return nil
 		})
-	case vocab.IntransitiveActivityTypes.Match(typ):
+	case vocab.IntransitiveActivityTypes.Match(typ), vocab.QuestionType.Match(typ):
 		_ = vocab.OnIntransitiveActivity(it, func(act *vocab.IntransitiveActivity) error {
 			if shouldForward = p.IsLocal(act); shouldForward {
 				return nil
@@ -251,6 +248,8 @@ func (p P) ObjectShouldBeInboxForwarded(it vocab.Item, maxDepth int) bool {
 			return nil
 		})
 	default:
+	}
+	if !shouldForward {
 		_ = vocab.OnObject(it, func(ob *vocab.Object) error {
 			if shouldForward = p.IsLocal(ob); shouldForward {
 				return nil
@@ -259,6 +258,18 @@ func (p P) ObjectShouldBeInboxForwarded(it vocab.Item, maxDepth int) bool {
 				return nil
 			}
 			if shouldForward = p.ObjectShouldBeInboxForwarded(ob.Tag, maxDepth-1); shouldForward {
+				return nil
+			}
+			if shouldForward = p.ObjectShouldBeInboxForwarded(ob.To, maxDepth-1); shouldForward {
+				return nil
+			}
+			if shouldForward = p.ObjectShouldBeInboxForwarded(ob.CC, maxDepth-1); shouldForward {
+				return nil
+			}
+			if shouldForward = p.ObjectShouldBeInboxForwarded(ob.Bto, maxDepth-1); shouldForward {
+				return nil
+			}
+			if shouldForward = p.ObjectShouldBeInboxForwarded(ob.BCC, maxDepth-1); shouldForward {
 				return nil
 			}
 			return nil
@@ -364,14 +375,14 @@ func (p *P) BuildInboxRecipientsList(it vocab.Item, receivedIn vocab.IRI) vocab.
 			continue
 		}
 
-		lr, err := loader.Load(recIRI)
+		recipient, err := loader.Load(recIRI)
 		if err != nil {
 			continue
 		}
 
-		// NOTE(marius): at this stage we only want the actor recipients
-		if vocab.ActorTypes.Match(lr.GetType()) {
-			_ = allRecipients.Append(vocab.Inbox.IRI(lr))
+		// NOTE(marius): at this stage we only want the Actor recipients
+		if vocab.ActorTypes.Match(recipient.GetType()) {
+			_ = allRecipients.Append(vocab.Inbox.IRI(recipient))
 		}
 	}
 
@@ -478,6 +489,14 @@ func (p *P) BuildLocalCollectionsRecipients(it vocab.Item, receivedIn vocab.IRI)
 		recipient, err := loader.Load(recIRI)
 		if err != nil {
 			continue
+		}
+
+		// NOTE(marius): when the recipient is a local collection we check its members
+		if collectionObjectTypes.Match(recipient.GetType()) {
+			_ = vocab.OnCollectionIntf(recipient, func(col vocab.CollectionInterface) error {
+				recipient = col.Collection()
+				return nil
+			})
 		}
 
 		_ = vocab.OnItem(recipient, func(rec vocab.Item) error {

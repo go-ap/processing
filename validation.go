@@ -564,7 +564,7 @@ func (p P) ValidateIRI(i vocab.IRI) error {
 		return InvalidIRI("Public namespace is not a valid IRI")
 	}
 	if _, err := i.URL(); err != nil {
-		return errors.Annotatef(err, "underlying URL could not be parsed: %s", i)
+		return errors.Annotatef(err, "URL could not be parsed: %s", i)
 	}
 	return nil
 }
@@ -624,9 +624,15 @@ func (p P) ValidateServerObject(o vocab.Item) (vocab.Item, error) {
 		return o, InvalidActivityObject("is nil")
 	}
 	err := vocab.OnItem(o, func(it vocab.Item) error {
-		return p.ValidateIRI(it.GetLink())
+		if vocab.IsIRI(it) {
+			return p.ValidateIRI(it.GetID())
+		}
+		return nil
 	})
-	return firstOrItem(o), err
+	if err != nil {
+		return nil, errors.NewBadRequest(err, "invalid Object")
+	}
+	return firstOrItem(o), nil
 }
 
 func (p P) ValidateTarget(t vocab.Item) error {
