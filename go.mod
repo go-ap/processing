@@ -8,11 +8,11 @@ require (
 	github.com/carlmjohnson/requests v0.26.3
 	github.com/cucumber/godog v0.16.0
 	github.com/dadrus/httpsig v0.12.0
-	github.com/go-ap/activitypub v0.0.0-20261117194752-b4a120cb2bc7
+	github.com/go-ap/activitypub v0.0.0-20261117195929-f28d9e613601
 	github.com/go-ap/errors v0.0.0-20261107170344-5391268d9d2c
-	github.com/go-ap/filters v0.0.0-20261117194910-bc6cc5b6d82d
+	github.com/go-ap/filters v0.0.0-20261120081820-5ee59de928b0
 	github.com/go-ap/jsonld v0.0.0-20261107170435-a7bb5ba3f894
-	github.com/go-ap/storage-conformance-suite v0.0.0-20261117195745-20d379e0402b
+	github.com/go-ap/storage-conformance-suite v0.0.0-20261120082609-6a8c3ec95e2b
 	github.com/google/go-cmp v0.7.0
 	github.com/spf13/pflag v1.0.10
 )
@@ -21,7 +21,7 @@ require (
 	git.sr.ht/~mariusor/go-xsd-duration v0.0.0-20220703122237-02e73435a078 // indirect
 	github.com/RoaringBitmap/roaring v1.9.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
-	github.com/bits-and-blooms/bitset v1.29.0 // indirect
+	github.com/bits-and-blooms/bitset v1.30.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect
 	github.com/charmbracelet/lipgloss v1.1.0 // indirect
