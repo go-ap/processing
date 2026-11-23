@@ -27,6 +27,10 @@ type P struct {
 	// skipValidationOnInboundCollections determines if the validation functionality checks that the collection
 	// which received the activity actually exists.
 	skipValidationOnInboundCollections bool
+	// allowClientActivityID determines if a client activity that was passed containing an ID needs to be cleared.
+	// The ActivityPub specification requires set IDs to be cleared, so this should be done only in specific cases,
+	// like importing existing activities, without remote propagation.
+	allowClientActivityID bool
 
 	// localIRICheckFn is a function that can be passed from outside the module to determine if a [vocab.IRI] "is local".
 	// This usually means that the storage layer can dereference the IRI to an object that is stored locally.
@@ -39,6 +43,8 @@ type P struct {
 	// actorKeyGenFn is a function that can be used to generate the public and private key pairs for actors that get
 	// created during the processing of **client** activities.
 	actorKeyGenFn vocab.WithActorFn
+
+	objectAuthCheckFn ActorObjectAuthChecker
 
 	timeNowFn TimeNow
 }
@@ -60,13 +66,14 @@ var (
 
 func New(o ...OptionFn) *P {
 	p := P{
-		l:               nilLogger,
-		c:               nilClient,
-		retries:         DefaultRetryCount,
-		createIDFn:      emptyIDGenerator,
-		localIRICheckFn: defaultLocalIRICheck,
-		actorKeyGenFn:   defaultKeyGenerator,
-		timeNowFn:       defaultTimeNowFn,
+		l:                 nilLogger,
+		c:                 nilClient,
+		retries:           DefaultRetryCount,
+		createIDFn:        emptyIDGenerator,
+		localIRICheckFn:   defaultLocalIRICheck,
+		actorKeyGenFn:     defaultKeyGenerator,
+		timeNowFn:         defaultTimeNowFn,
+		objectAuthCheckFn: defaultObjectChangeAuthorizationCheck,
 	}
 	for _, fn := range o {
 		fn(&p)
@@ -86,6 +93,13 @@ func WithSynchronousProcessing(p *P) {
 // activity that's being processed has been received, actually exists.
 func WithInboundCollectionValidationSkip(p *P) {
 	p.skipValidationOnInboundCollections = true
+}
+
+// AllowClientActivityIDs configures the processor to not clear the IDs of processed client activities.
+// This behaviour is not compliant with the ActivityPub specification, so use with care.
+// The common use would be importing previously exported activities without disseminating to remote instances.
+func AllowClientActivityIDs(p *P) {
+	p.allowClientActivityID = true
 }
 
 // WithDisseminationRetryCount specifies the number of retries for failed remote activity dissemination.

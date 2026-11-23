@@ -21,6 +21,9 @@ type (
 	// IRIValidator designates the type for a function that can validate an IRI
 	// It's currently used as the type for var isLocalIRI
 	IRIValidator func(i vocab.IRI) bool
+	// ActorObjectAuthChecker is the function type used by the processor to validate
+	// if an actor is permitted to update, delete or undo an object/activity.
+	ActorObjectAuthChecker func(actor, object vocab.Item) error
 	// TimeNow designates the function we use for loading the current local time.
 	TimeNow func() time.Time
 )
@@ -69,6 +72,28 @@ func defaultIDGenerator(base vocab.IRI) IDGenerator {
 		})
 		return base.AddPath(timeIDFn(when)), nil
 	}
+}
+
+func defaultObjectChangeAuthorizationCheck(actor, ob vocab.Item) error {
+	actorIRI := actor.GetLink()
+	allowedIRIs := make(vocab.IRIs, 0)
+	_ = vocab.OnActivity(ob, func(act *vocab.Activity) error {
+		// NOTE(marius): actor is allowed to undo the activity
+		return allowedIRIs.Append(act.Actor.GetLink())
+	})
+	_ = vocab.OnObject(ob, func(ob *vocab.Object) error {
+		if attrTo := ob.AttributedTo; !vocab.IsNil(attrTo) {
+			// NOTE(marius): attributedTo matches the actor
+			allowedIRIs.Append(attrTo.GetLink())
+		}
+		// NOTE(marius): an actor is allowed to change itself
+		return allowedIRIs.Append(ob.ID)
+	})
+
+	if allowedIRIs.Contains(actorIRI) {
+		return nil
+	}
+	return errors.Unauthorizedf("actor does not own the object being updated")
 }
 
 func SetIDIfMissing(it vocab.Item, parentActivity vocab.Item, createIDFn IDGenerator) error {

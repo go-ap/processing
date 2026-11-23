@@ -394,6 +394,7 @@ func (o *deliveryOutboxTests) theRecipientsReceiveANonFlattenedTarget(ctx contex
 func (o *deliveryOutboxTests) anActivityWithDuplicateRecipientsIsReceived(ctx context.Context) error {
 	note := build.Note(
 		build.WithID("http://example.localdomain/note"),
+		build.WithAttributedTo(AuthorID),
 		build.WithContent("Lorem ipsum"),
 	)
 	o.st = Storage(WithLocalMocks(Author, note))

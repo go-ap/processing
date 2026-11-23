@@ -26,11 +26,11 @@ func (p P) ValidateClientNegatingActivity(act *vocab.Activity) error {
 		if vocab.IsNil(toUndo.Actor) {
 			return errors.BadRequestf("unable to Undo activity with nil Actor")
 		}
-		if !act.Actor.GetLink().Equal(toUndo.Actor.GetLink()) {
-			return errors.BadRequestf("the %s activity has a different actor than its object: %s, expected %s", act.Type, act.Actor.GetLink(), toUndo.Actor.GetLink())
-		}
 		if !ValidUndoActivityTypes.Match(toUndo.Type) {
 			return errors.BadRequestf("Object Activity has wrong type %s, expected one of %v", toUndo.Type, ValidUndoActivityTypes)
+		}
+		if err := p.objectAuthCheckFn(act.Actor, toUndo); err != nil {
+			return errors.BadRequestf("the %s activity has a different actor than its object: %s, expected %s", act.Type, act.Actor.GetLink(), toUndo.Actor.GetLink())
 		}
 		return nil
 	})
