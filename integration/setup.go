@@ -295,16 +295,16 @@ func (am AuthorizedMap) VerifySignature(req *http.Request) error {
 
 type TestingT interface {
 	Name() string
-	Log(args ...interface{})
-	Logf(format string, args ...interface{})
-	Error(args ...interface{})
-	Errorf(format string, args ...interface{})
+	Log(args ...any)
+	Logf(format string, args ...any)
+	Error(args ...any)
+	Errorf(format string, args ...any)
 	Fail()
 	FailNow()
-	Fatal(args ...interface{})
-	Fatalf(format string, args ...interface{})
-	Skip(args ...interface{})
-	Skipf(format string, args ...interface{})
+	Fatal(args ...any)
+	Fatalf(format string, args ...any)
+	Skip(args ...any)
+	Skipf(format string, args ...any)
 	SkipNow()
 	Skipped() bool
 }
@@ -422,10 +422,14 @@ func (mr *MockRemote) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		errors.HandleError(fmt.Errorf("no assertion for iri %s", iri)).ServeHTTP(w, req)
 		return
 	}
-	for _, currentAssert := range currentAsserts {
+	for i, currentAssert := range currentAsserts {
 		currentAssert.ServeHTTP(w, req)
+		currentAsserts = append(currentAsserts[:i], currentAsserts[i+1:]...)
+		break
 	}
-	delete(mr.assertions, iri)
+	if len(currentAsserts) == 0 {
+		delete(mr.assertions, iri)
+	}
 }
 
 type HandlerMap map[vocab.IRI]http.Handler

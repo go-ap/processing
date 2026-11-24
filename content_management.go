@@ -454,9 +454,8 @@ func (p *P) CreateCollectionsForObject(it vocab.Item) error {
 	return vocab.OnObject(it, createCollectionsForObjectFn)
 }
 
-func (p P) dereferenceIntransitiveActivityProperties(receivedIn vocab.IRI) func(act *vocab.IntransitiveActivity) error {
-	return func(act *vocab.IntransitiveActivity) error {
-		var err error
+func (p P) dereferenceIntransitiveActivityProperties(receivedIn vocab.IRI) vocab.WithIntransitiveActivityFn {
+	return func(act *vocab.IntransitiveActivity) (err error) {
 		if act.Actor, err = p.DereferenceItem(act.Actor); err != nil {
 			return err
 		}
@@ -467,9 +466,8 @@ func (p P) dereferenceIntransitiveActivityProperties(receivedIn vocab.IRI) func(
 	}
 }
 
-func (p P) dereferenceActivityProperties(receivedIn vocab.IRI) func(act *vocab.Activity) error {
-	return func(act *vocab.Activity) error {
-		var err error
+func (p P) dereferenceActivityProperties(receivedIn vocab.IRI) vocab.WithActivityFn {
+	return func(act *vocab.Activity) (err error) {
 		if act.Object, err = p.DereferenceItem(act.Object); err != nil {
 			return err
 		}

@@ -81,7 +81,7 @@ var errMissingActor = func(typ vocab.Typer) error {
 
 var validActivityTypes = append(vocab.ActivityTypes, vocab.IntransitiveActivityTypes...)
 
-func (p P) ValidateServerActivity(a vocab.Item, author vocab.Actor, inbox vocab.IRI) error {
+func (p *P) ValidateServerActivity(a vocab.Item, author vocab.Actor, inbox vocab.IRI) error {
 	if !IsInbox(inbox) {
 		return errors.BadRequestf("Trying to validate a non inbox IRI %s", inbox)
 	}
@@ -116,7 +116,7 @@ func (p P) ValidateServerActivity(a vocab.Item, author vocab.Actor, inbox vocab.
 		return errors.NotFoundf("")
 	}
 
-	return vocab.OnActivity(a, func(act *vocab.Activity) error {
+	err = vocab.OnIntransitiveActivity(a, func(act *vocab.IntransitiveActivity) error {
 		if len(act.ID) == 0 {
 			return InvalidActivity("empty activity id")
 		}
@@ -132,9 +132,6 @@ func (p P) ValidateServerActivity(a vocab.Item, author vocab.Actor, inbox vocab.
 				return err
 			}
 		}
-		if act.Object, err = p.ValidateServerObject(act.Object); err != nil {
-			return err
-		}
 		if act.Target != nil {
 			if act.Target, err = p.ValidateServerObject(act.Target); err != nil {
 				return err
@@ -142,6 +139,26 @@ func (p P) ValidateServerActivity(a vocab.Item, author vocab.Actor, inbox vocab.
 		}
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+
+	typ := a.GetType()
+	if vocab.ActivityTypes.Match(typ) {
+		err = vocab.OnActivity(a, func(act *vocab.Activity) error {
+			if act.Object, err = p.ValidateServerObject(act.Object); err != nil {
+				return err
+			}
+			if vocab.ContentManagementActivityTypes.Match(typ) && !vocab.RelationshipType.Match(act.Object.GetType()) {
+				return p.ValidateServerContentManagementActivity(act)
+			}
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func collectionMatchesIRI(i vocab.IRI, col vocab.CollectionPath) bool {
@@ -205,7 +222,7 @@ func name(a *vocab.Actor) vocab.Content {
 	return vocab.Content(filepath.Base(string(a.ID)))
 }
 
-func (p P) ValidateActivity(a vocab.Item, author vocab.Actor, receivedIn vocab.IRI) error {
+func (p *P) ValidateActivity(a vocab.Item, author vocab.Actor, receivedIn vocab.IRI) error {
 	if vocab.IsNil(a) {
 		return InvalidActivity("received nil activity")
 	}
@@ -219,7 +236,7 @@ func (p P) ValidateActivity(a vocab.Item, author vocab.Actor, receivedIn vocab.I
 	return errors.MethodNotAllowedf("unable to process activities at current IRI: %s", receivedIn)
 }
 
-func (p P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab.IRI) error {
+func (p *P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab.IRI) error {
 	if !IsOutbox(outbox) {
 		return errors.BadRequestf("trying to validate a non outbox IRI %s", outbox)
 	}
@@ -282,13 +299,6 @@ func (p P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab
 
 	typ := a.GetType()
 	switch {
-	case vocab.QuestionActivityTypes.Match(typ):
-		err = vocab.OnQuestion(a, func(q *vocab.Question) error {
-			return ValidateClientQuestionActivity(p.s, q)
-		})
-		if err != nil {
-			return err
-		}
 	case vocab.ActivityTypes.Match(typ):
 		err = vocab.OnActivity(a, func(act *vocab.Activity) error {
 			// TODO(marius): this needs to be extended by a ValidateActivityClientObject
@@ -301,26 +311,14 @@ func (p P) ValidateClientActivity(a vocab.Item, author vocab.Actor, outbox vocab
 			switch {
 			case vocab.ContentManagementActivityTypes.Match(typ) && !vocab.RelationshipType.Match(act.Object.GetType()):
 				err = p.ValidateClientContentManagementActivity(act)
-			case vocab.CollectionManagementActivityTypes.Match(typ):
-				err = p.ValidateClientCollectionManagementActivity(act)
 			case vocab.ReactionsActivityTypes.Match(typ):
 				err = p.ValidateClientReactionsActivity(act)
-			case vocab.EventRSVPActivityTypes.Match(typ):
-				err = ValidateClientEventRSVPActivity(p.s, act)
-			case vocab.GroupManagementActivityTypes.Match(typ):
-				err = ValidateClientGroupManagementActivity(p.s, act)
-			case vocab.ContentExperienceActivityTypes.Match(typ):
-				err = ValidateClientContentExperienceActivity(p.s, act)
-			case vocab.GeoSocialEventsActivityTypes.Match(typ):
-				err = ValidateClientGeoSocialEventsActivity(p.s, act)
 			case vocab.NotificationActivityTypes.Match(typ):
 				err = p.ValidateClientNotificationActivity(act)
 			case vocab.RelationshipManagementActivityTypes.Match(typ):
 				err = ValidateClientRelationshipManagementActivity(p.s, act)
 			case vocab.NegatingActivityTypes.Match(typ):
 				err = p.ValidateClientNegatingActivity(act)
-			case vocab.OffersActivityTypes.Match(typ):
-				err = ValidateClientOffersActivity(p.s, act)
 			}
 			return err
 		})
@@ -374,11 +372,6 @@ func (p *P) ValidateClientContentManagementActivity(act *vocab.Activity) error {
 	})
 }
 
-// ValidateClientCollectionManagementActivity
-func (p *P) ValidateClientCollectionManagementActivity(act *vocab.Activity) error {
-	return nil
-}
-
 // ValidateClientReactionsActivity
 func (p *P) ValidateClientReactionsActivity(act *vocab.Activity) error {
 	if act.Object != nil {
@@ -430,7 +423,7 @@ func validateFollowup(actor vocab.Item, wantedType vocab.ActivityVocabularyType)
 
 // ValidateClientAcceptActivity
 func (p *P) ValidateClientAcceptActivity(act *vocab.Activity) error {
-	if err := ValidateAcceptActivity(p.s, act); err != nil {
+	if err := p.ValidateAcceptActivity(act); err != nil {
 		return err
 	}
 	if vocab.IsIRI(act.Object) {
@@ -440,7 +433,7 @@ func (p *P) ValidateClientAcceptActivity(act *vocab.Activity) error {
 }
 
 // ValidateAcceptActivity
-func ValidateAcceptActivity(l ReadStore, act *vocab.Activity) error {
+func (p *P) ValidateAcceptActivity(act *vocab.Activity) error {
 	good := vocab.ActivityVocabularyTypes{vocab.AcceptType, vocab.TentativeAcceptType}
 	if !good.Match(act.Type) {
 		return errors.BadRequestf("Activity has wrong type %s, expected %v", act.Type, good)
@@ -466,31 +459,6 @@ func (p *P) ValidateRejectActivity(act *vocab.Activity) error {
 	return nil
 }
 
-// ValidateClientEventRSVPActivity
-func ValidateClientEventRSVPActivity(l ReadStore, act *vocab.Activity) error {
-	return nil
-}
-
-// ValidateClientGroupManagementActivity
-func ValidateClientGroupManagementActivity(l ReadStore, act *vocab.Activity) error {
-	return nil
-}
-
-// ValidateClientContentExperienceActivity
-func ValidateClientContentExperienceActivity(l ReadStore, act *vocab.Activity) error {
-	return nil
-}
-
-// ValidateClientGeoSocialEventsActivity
-func ValidateClientGeoSocialEventsActivity(l ReadStore, act *vocab.Activity) error {
-	return nil
-}
-
-// ValidateClientQuestionActivity
-func ValidateClientQuestionActivity(l ReadStore, act *vocab.Question) error {
-	return nil
-}
-
 // ValidateClientRelationshipManagementActivity
 func ValidateClientRelationshipManagementActivity(l ReadStore, act *vocab.Activity) error {
 	switch {
@@ -511,13 +479,8 @@ func ValidateClientRelationshipManagementActivity(l ReadStore, act *vocab.Activi
 	return nil
 }
 
-// ValidateClientOffersActivity
-func ValidateClientOffersActivity(l ReadStore, act *vocab.Activity) error {
-	return nil
-}
-
 // IsLocal shows if the received IRI belongs to the current instance
-func (p P) IsLocal(i vocab.Item) bool {
+func (p *P) IsLocal(i vocab.Item) bool {
 	result := false
 	_ = vocab.OnItem(i, func(i vocab.Item) error {
 		result = p.validateLocalIRI(i.GetLink()) == nil || p.localIRICheckFn(i.GetLink())
@@ -527,11 +490,11 @@ func (p P) IsLocal(i vocab.Item) bool {
 }
 
 // IsLocalIRI shows if the received IRI belongs to the current instance
-func (p P) IsLocalIRI(i vocab.IRI) bool {
+func (p *P) IsLocalIRI(i vocab.IRI) bool {
 	return p.validateLocalIRI(i) == nil || p.localIRICheckFn(i)
 }
 
-func (p P) ValidateClientActor(a vocab.Item, expected vocab.Actor) (vocab.Item, error) {
+func (p *P) ValidateClientActor(a vocab.Item, expected vocab.Actor) (vocab.Item, error) {
 	if vocab.IsNil(a) {
 		return a, InvalidActivityActor("is nil")
 	}
@@ -550,7 +513,7 @@ func (p P) ValidateClientActor(a vocab.Item, expected vocab.Actor) (vocab.Item, 
 	return p.ValidateActor(a, expected)
 }
 
-func (p P) ValidateIRI(i vocab.IRI) error {
+func (p *P) ValidateIRI(i vocab.IRI) error {
 	if i == "" {
 		return InvalidIRI("empty")
 	}
@@ -563,11 +526,11 @@ func (p P) ValidateIRI(i vocab.IRI) error {
 	return nil
 }
 
-func (p P) ValidateServerActor(a vocab.Item, expected vocab.Actor) (vocab.Item, error) {
+func (p *P) ValidateServerActor(a vocab.Item, expected vocab.Actor) (vocab.Item, error) {
 	return p.ValidateActor(a, expected)
 }
 
-func (p P) ValidateActor(a vocab.Item, expected vocab.Actor) (vocab.Item, error) {
+func (p *P) ValidateActor(a vocab.Item, expected vocab.Actor) (vocab.Item, error) {
 	if vocab.IsNil(a) {
 		return a, InvalidActivityActor("is nil")
 	}
@@ -595,7 +558,7 @@ func (p P) ValidateActor(a vocab.Item, expected vocab.Actor) (vocab.Item, error)
 	return a, err
 }
 
-func (p P) ValidateClientObject(o vocab.Item) (vocab.Item, error) {
+func (p *P) ValidateClientObject(o vocab.Item) (vocab.Item, error) {
 	objects := make(vocab.ItemCollection, 0, 2)
 	err := vocab.OnItem(o, func(it vocab.Item) error {
 		if vocab.IsNil(it) {
@@ -613,7 +576,7 @@ func (p P) ValidateClientObject(o vocab.Item) (vocab.Item, error) {
 	return objects.Normalize(), err
 }
 
-func (p P) ValidateServerObject(o vocab.Item) (vocab.Item, error) {
+func (p *P) ValidateServerObject(o vocab.Item) (vocab.Item, error) {
 	if vocab.IsNil(o) {
 		return o, InvalidActivityObject("is nil")
 	}
@@ -629,7 +592,7 @@ func (p P) ValidateServerObject(o vocab.Item) (vocab.Item, error) {
 	return firstOrItem(o), nil
 }
 
-func (p P) ValidateTarget(t vocab.Item) error {
+func (p *P) ValidateTarget(t vocab.Item) error {
 	if vocab.IsNil(t) {
 		return InvalidActivityObject("is nil")
 	}
@@ -639,7 +602,7 @@ func (p P) ValidateTarget(t vocab.Item) error {
 	return nil
 }
 
-func (p P) ValidateAudienceForRemoteActivity(audience ...vocab.ItemCollection) error {
+func (p *P) ValidateAudienceForRemoteActivity(audience ...vocab.ItemCollection) error {
 	for _, elem := range audience {
 		for _, iri := range elem {
 			if p.IsLocal(iri.GetLink()) || iri.GetLink().Equal(vocab.PublicNS) {
@@ -660,4 +623,40 @@ func (p *P) validateLocalIRI(i vocab.IRI) error {
 		return errors.Newf("%s is not a local IRI", i)
 	}
 	return errors.Newf("%s is not a local IRI", i)
+}
+
+func (p *P) ValidateServerContentManagementActivity(act *vocab.Activity) error {
+	if vocab.IsNil(act.Object) {
+		return errors.BadRequestf("nil object for %v activity", act.Type)
+	}
+
+	if !(vocab.UpdateType.Match(act.Type) || vocab.DeleteType.Match(act.Type)) {
+		return nil
+	}
+
+	return vocab.OnItem(act.Object, func(ob vocab.Item) error {
+		if vocab.ActivityTypes.Match(ob.GetType()) {
+			return errors.BadRequestf("trying to modify an immutable activity")
+		}
+
+		// NOTE(marius): Update activities should always have an embedded replacement copy
+		if vocab.IsIRI(ob) && vocab.UpdateType.Match(act.Type) {
+			return errors.BadRequestf("unable to process IRI object for %v activity", act.Type)
+		}
+
+		if len(ob.GetLink()) == 0 {
+			return errors.BadRequestf("empty object id for %v activity", act.Type)
+		}
+
+		found, err := p.DereferenceItem(ob.GetLink())
+		if err != nil || vocab.IsNil(found) || vocab.IsIRI(found) {
+			return errors.Annotatef(err, "failed to dereference object")
+		}
+		// NOTE(marius): check if found object is modifiable for the current activity actor.
+		if err = p.objectAuthCheckFn(act.Actor, found); err != nil {
+			return err
+		}
+		ob = found
+		return nil
+	})
 }

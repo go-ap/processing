@@ -148,6 +148,14 @@ var EquateWeakErrors = cmp.FilterValues(areErrors, cmp.Comparer(compareErrors))
 
 type ItemAssertFn func(TestingT, vocab.Item)
 
+type ItemAssertFns []ItemAssertFn
+
+func (icFn ItemAssertFns) Run(t TestingT, it vocab.Item) {
+	for _, fn := range icFn {
+		fn(t, it)
+	}
+}
+
 func (icFn ItemAssertFn) Run(t TestingT, it vocab.Item, err error) {
 	if err != nil {
 		t.Fatalf("no error expected, received: '%+v'", err)
@@ -560,11 +568,8 @@ func HasInReplyTo(u ...vocab.Item) ItemAssertFn {
 
 func HasAttributedTo(maybeItems ...any) ItemAssertFn {
 	return func(t TestingT, it vocab.Item) {
-		checks := itemCheckArgs(maybeItems...)
 		err := vocab.OnObject(it, func(ob *vocab.Object) error {
-			for _, fn := range checks {
-				fn(t, ob.AttributedTo)
-			}
+			BuildAssertions(maybeItems...).Run(t, ob.AttributedTo)
 			return nil
 		})
 		if err != nil {
@@ -670,11 +675,8 @@ func HasPublicKey(pub vocab.PublicKey) ItemAssertFn {
 
 func HasStreams(maybeItems ...any) ItemAssertFn {
 	return func(t TestingT, it vocab.Item) {
-		checks := itemCheckArgs(maybeItems...)
 		err := vocab.OnActor(it, func(act *vocab.Actor) error {
-			for _, check := range checks {
-				check(t, act.Streams)
-			}
+			BuildAssertions(maybeItems...).Run(t, act.Streams)
 			return nil
 		})
 		if err != nil {
@@ -699,11 +701,8 @@ func HasEndpoints(e *vocab.Endpoints) ItemAssertFn {
 
 func HasActor(maybeItems ...any) ItemAssertFn {
 	return func(t TestingT, it vocab.Item) {
-		checks := itemCheckArgs(maybeItems...)
 		err := vocab.OnIntransitiveActivity(it, func(act *vocab.IntransitiveActivity) error {
-			for _, check := range checks {
-				check(t, act.Actor)
-			}
+			BuildAssertions(maybeItems...).Run(t, act.Actor)
 			return nil
 		})
 		if err != nil {
@@ -712,12 +711,12 @@ func HasActor(maybeItems ...any) ItemAssertFn {
 	}
 }
 
-func itemCheckArgs(maybeItems ...any) []ItemAssertFn {
+func BuildAssertions(maybeItems ...any) ItemAssertFns {
 	items := make([]ItemAssertFn, 0, len(maybeItems))
 	for _, maybeItem := range maybeItems {
 		switch ii := maybeItem.(type) {
 		case []any:
-			items = append(items, itemCheckArgs(ii...)...)
+			items = append(items, BuildAssertions(ii...)...)
 		case vocab.IRIs:
 			items = append(items, equalFlattened(ii))
 		case vocab.IRI:
@@ -755,11 +754,8 @@ func equalFlattened(w vocab.Item) ItemAssertFn {
 
 func RequestObject(maybeItems ...any) ItemAssertFn {
 	return func(t TestingT, it vocab.Item) {
-		checks := itemCheckArgs(maybeItems...)
 		err := vocab.OnActivity(it, func(act *vocab.Activity) error {
-			for _, check := range checks {
-				check(t, act.Object)
-			}
+			BuildAssertions(maybeItems...).Run(t, act.Object)
 			return nil
 		})
 		if err != nil {
@@ -770,11 +766,8 @@ func RequestObject(maybeItems ...any) ItemAssertFn {
 
 func HasOrigin(maybeItems ...any) ItemAssertFn {
 	return func(t TestingT, it vocab.Item) {
-		checks := itemCheckArgs(maybeItems...)
 		err := vocab.OnIntransitiveActivity(it, func(act *vocab.IntransitiveActivity) error {
-			for _, check := range checks {
-				check(t, act.Origin)
-			}
+			BuildAssertions(maybeItems...).Run(t, act.Origin)
 			return nil
 		})
 		if err != nil {
@@ -785,11 +778,8 @@ func HasOrigin(maybeItems ...any) ItemAssertFn {
 
 func HasTarget(maybeItems ...any) ItemAssertFn {
 	return func(t TestingT, it vocab.Item) {
-		checks := itemCheckArgs(maybeItems...)
 		err := vocab.OnIntransitiveActivity(it, func(act *vocab.IntransitiveActivity) error {
-			for _, check := range checks {
-				check(t, act.Target)
-			}
+			BuildAssertions(maybeItems...).Run(t, act.Target)
 			return nil
 		})
 		if err != nil {
@@ -800,11 +790,8 @@ func HasTarget(maybeItems ...any) ItemAssertFn {
 
 func HasAnyOf(maybeItems ...any) ItemAssertFn {
 	return func(t TestingT, it vocab.Item) {
-		checks := itemCheckArgs(maybeItems...)
 		err := vocab.OnQuestion(it, func(act *vocab.Question) error {
-			for _, check := range checks {
-				check(t, act.AnyOf)
-			}
+			BuildAssertions(maybeItems...).Run(t, act.AnyOf)
 			return nil
 		})
 		if err != nil {
@@ -815,11 +802,8 @@ func HasAnyOf(maybeItems ...any) ItemAssertFn {
 
 func HasOneOf(maybeItems ...any) ItemAssertFn {
 	return func(t TestingT, it vocab.Item) {
-		checks := itemCheckArgs(maybeItems...)
 		err := vocab.OnQuestion(it, func(act *vocab.Question) error {
-			for _, check := range checks {
-				check(t, act.OneOf)
-			}
+			BuildAssertions(maybeItems...).Run(t, act.OneOf)
 			return nil
 		})
 		if err != nil {
@@ -910,14 +894,11 @@ func HasExactItems(items ...vocab.Item) ItemAssertFn {
 
 func (l *LocalStorage) CheckObject(iri vocab.IRI, maybeItems ...any) ItemAssertFn {
 	return func(t TestingT, _ vocab.Item) {
-		checks := itemCheckArgs(maybeItems...)
 		it, err := l.Load(iri)
 		if err != nil {
 			t.Errorf("received error trying to load local storage object: %v", err)
 			return
 		}
-		for _, check := range checks {
-			check(t, it)
-		}
+		BuildAssertions(maybeItems...).Run(t, it)
 	}
 }

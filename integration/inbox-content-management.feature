@@ -4,7 +4,7 @@ Feature: Server to server interactions: Content Management
   # Create
   Scenario: Supports receiving a Create object in an actor's inbox (inbox:accept:create) NON-NORMATIVE
     When a Create activity is received
-    Then processing is successful
+    Then processing is successful and object matches
 
   # Update
   Scenario: Take care to be sure that the Update is authorized to modify its object (inbox:accept:update:is-authorized) MUST

@@ -159,7 +159,7 @@ func (c *generalOutboxTests) thereIsAValidationError(ctx context.Context) error 
 	if cmp.Equal(err, expectedErr, EquateWeakErrors) {
 		return nil
 	}
-	return fmt.Errorf("unexpected error received: %w", err)
+	return fmt.Errorf("expected error and none received: %w", err)
 }
 
 func (c *generalOutboxTests) initScenario(ctx *godog.ScenarioContext) {
