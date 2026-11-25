@@ -174,7 +174,7 @@ func (p *P) processClientActivity(act *vocab.Activity, receivedIn vocab.IRI) (vo
 	case vocab.ContentManagementActivityTypes.Match(typ) && !vocab.RelationshipType.Match(act.Object.GetType()):
 		act, err = ContentManagementActivityFromClient(p, act)
 	case vocab.CollectionManagementActivityTypes.Match(typ):
-		act, err = p.CollectionManagementActivity(act)
+		act, err = p.CollectionManagementActivity(act, receivedIn)
 	case vocab.ReactionsActivityTypes.Match(typ):
 		act, err = p.ReactionsActivity(act, receivedIn)
 	case vocab.EventRSVPActivityTypes.Match(typ):

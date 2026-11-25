@@ -11,7 +11,7 @@ import (
 // AddActivity indicates that the actor has added the object to the target.
 // If the target property is not explicitly specified, the target would need to be determined implicitly by context.
 // The origin can be used to identify the context from which the object originated.
-func (p *P) AddActivity(add *vocab.Add) (*vocab.Activity, error) {
+func (p *P) AddActivity(add *vocab.Add, _ vocab.IRI) (*vocab.Activity, error) {
 	if vocab.IsNil(add) {
 		return nil, InvalidActivity("nil Add activity")
 	}
@@ -51,15 +51,15 @@ func (p *P) AddActivity(add *vocab.Add) (*vocab.Activity, error) {
 
 // RemoveActivity indicates that the actor is removing the object from the origin.
 // If specified, the origin indicates the context from which the object is being removed.
-func (p *P) RemoveActivity(remove *vocab.Remove) (*vocab.Activity, error) {
+func (p *P) RemoveActivity(remove *vocab.Remove, _ vocab.IRI) (*vocab.Activity, error) {
 	if vocab.IsNil(remove) {
 		return nil, InvalidActivity("nil Remove activity")
 	}
 	if vocab.IsNil(remove.Object) {
 		return nil, InvalidActivityObject("unable to Remove nil object")
 	}
-	if vocab.IsNil(remove.Origin) {
-		return nil, InvalidActivityObject("unable to Remove from nil origin")
+	if vocab.IsNil(remove.Target) {
+		return nil, InvalidActivityObject("unable to Remove from nil target")
 	}
 
 	origins := make(vocab.IRIs, 0)
@@ -67,7 +67,7 @@ func (p *P) RemoveActivity(remove *vocab.Remove) (*vocab.Activity, error) {
 
 	// NOTE(marius): we use OnItem here to handle both the cases when the target or the object
 	//  are composed of multiple items.
-	_ = vocab.OnItem(remove.Origin, func(it vocab.Item) error {
+	_ = vocab.OnItem(remove.Target, func(it vocab.Item) error {
 		// NOTE(marius): this behaviour has no atomicity, as we exit at first failure
 		//  and we don't undo any of the previous removals if origin was composed of multiple collections.
 		return origins.Append(it.GetLink())
@@ -91,7 +91,7 @@ func (p *P) RemoveActivity(remove *vocab.Remove) (*vocab.Activity, error) {
 
 // MoveActivity Indicates that the actor has moved object from origin to target.
 // If the origin or target are not specified, either can be determined by context.
-func (p *P) MoveActivity(move *vocab.Activity) (*vocab.Activity, error) {
+func (p *P) MoveActivity(move *vocab.Activity, _ vocab.IRI) (*vocab.Activity, error) {
 	if vocab.IsNil(move) {
 		return nil, InvalidActivity("nil Move activity")
 	}

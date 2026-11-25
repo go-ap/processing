@@ -74,7 +74,7 @@ func defaultIDGenerator(base vocab.IRI) IDGenerator {
 	}
 }
 
-func defaultObjectChangeAuthorizationCheck(actor, ob vocab.Item) error {
+func authorAuthorizationCheck(actor, ob vocab.Item) error {
 	actorIRI := actor.GetLink()
 	allowedIRIs := make(vocab.IRIs, 0)
 	_ = vocab.OnActivity(ob, func(act *vocab.Activity) error {
@@ -94,6 +94,10 @@ func defaultObjectChangeAuthorizationCheck(actor, ob vocab.Item) error {
 		return nil
 	}
 	return errors.Unauthorizedf("actor does not own the object being updated")
+}
+
+func emptyAuthorizationCheck(_, _ vocab.Item) error {
+	return nil
 }
 
 func SetIDIfMissing(it vocab.Item, parentActivity vocab.Item, createIDFn IDGenerator) error {
@@ -457,9 +461,6 @@ func (p *P) CreateCollectionsForObject(it vocab.Item) error {
 func (p P) dereferenceIntransitiveActivityProperties(receivedIn vocab.IRI) vocab.WithIntransitiveActivityFn {
 	return func(act *vocab.IntransitiveActivity) (err error) {
 		if act.Actor, err = p.DereferenceItem(act.Actor); err != nil {
-			return err
-		}
-		if act.Target, err = p.DereferenceItem(act.Target); err != nil {
 			return err
 		}
 		return nil

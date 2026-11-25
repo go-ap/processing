@@ -73,7 +73,7 @@ func New(o ...OptionFn) *P {
 		localIRICheckFn:   defaultLocalIRICheck,
 		actorKeyGenFn:     defaultKeyGenerator,
 		timeNowFn:         defaultTimeNowFn,
-		objectAuthCheckFn: defaultObjectChangeAuthorizationCheck,
+		objectAuthCheckFn: authorAuthorizationCheck,
 	}
 	for _, fn := range o {
 		fn(&p)
@@ -178,6 +178,16 @@ func WithTimeFn(timeNowFn TimeNow) OptionFn {
 	return func(p *P) {
 		if timeNowFn != nil {
 			p.timeNowFn = timeNowFn
+		}
+	}
+}
+
+// WithAuthorizationCheckFn configures an external function that is used to check if an actor is
+// permitted to operate on an object.
+func WithAuthorizationCheckFn(fn ActorObjectAuthChecker) OptionFn {
+	return func(p *P) {
+		if fn != nil {
+			p.objectAuthCheckFn = fn
 		}
 	}
 }
@@ -307,17 +317,17 @@ func (p *P) BuildReplyToCollections(it vocab.Item) vocab.ItemCollection {
 // Examples of collections include things like folders, albums, friend lists, etc.
 // This includes, for instance, activities such as "Sally added a file to Folder A",
 // "John moved the file from Folder A to Folder B", etc.
-func (p *P) CollectionManagementActivity(act *vocab.Activity) (*vocab.Activity, error) {
+func (p *P) CollectionManagementActivity(act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activity, error) {
 	if vocab.IsNil(act.Object) {
 		return act, InvalidActivityObject("is nil for %T[%s]", act, act.GetType())
 	}
 	switch {
 	case vocab.AddType.Match(act.Type):
-		return p.AddActivity(act)
+		return p.AddActivity(act, receivedIn)
 	case vocab.MoveType.Match(act.Type):
-		return p.MoveActivity(act)
+		return p.MoveActivity(act, receivedIn)
 	case vocab.RemoveType.Match(act.Type):
-		return p.RemoveActivity(act)
+		return p.RemoveActivity(act, receivedIn)
 	default:
 	}
 	return act, errors.BadRequestf("Invalid type %v", act.GetType())

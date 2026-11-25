@@ -18,16 +18,12 @@ type ClientActivityValidator interface {
 	ValidateClientActivity(vocab.Item, vocab.IRI) error
 	ValidateClientObject(vocab.Item) error
 	ValidateClientActor(vocab.Item) error
-	//ValidateClientTarget(vocab.Item) error
-	//ValidateClientAudience(...vocab.ItemCollection) error
 }
 
 type ServerActivityValidator interface {
 	ValidateServerActivity(vocab.Item, vocab.IRI) error
 	ValidateServerObject(vocab.Item) error
 	ValidateServerActor(vocab.Item) error
-	//ValidateServerTarget(vocab.Item) error
-	//ValidateServerAudience(...vocab.ItemCollection) error
 }
 
 // ActivityValidator is an interface used for validating activity objects.
@@ -49,13 +45,6 @@ type ObjectValidator interface {
 type ActorValidator interface {
 	ValidActor(vocab.Item) error
 }
-
-// TargetValidator is an interface used for validating an object that is an activity's target
-// TODO(marius): this seems to have a different semantic than the previous ones.
-//  Ie, any object can be a target, but in the previous cases, the main validation mechanism is based on the Type.
-//type TargetValidator interface {
-//	ValidTarget(vocab.Item) error
-//}
 
 var ValidationError = errors.BadRequestf
 
@@ -132,11 +121,6 @@ func (p *P) ValidateServerActivity(a vocab.Item, author vocab.Actor, inbox vocab
 				return err
 			}
 		}
-		if act.Target != nil {
-			if act.Target, err = p.ValidateServerObject(act.Target); err != nil {
-				return err
-			}
-		}
 		return nil
 	})
 	if err != nil {
@@ -149,8 +133,11 @@ func (p *P) ValidateServerActivity(a vocab.Item, author vocab.Actor, inbox vocab
 			if act.Object, err = p.ValidateServerObject(act.Object); err != nil {
 				return err
 			}
-			if vocab.ContentManagementActivityTypes.Match(typ) && !vocab.RelationshipType.Match(act.Object.GetType()) {
+			switch {
+			case vocab.ContentManagementActivityTypes.Match(typ) && !vocab.RelationshipType.Match(act.Object.GetType()):
 				return p.ValidateServerContentManagementActivity(act)
+			case vocab.CollectionManagementActivityTypes.Match(typ):
+				return p.ValidateServerCollectionManagementActivity(act)
 			}
 			return nil
 		})
@@ -592,16 +579,6 @@ func (p *P) ValidateServerObject(o vocab.Item) (vocab.Item, error) {
 	return firstOrItem(o), nil
 }
 
-func (p *P) ValidateTarget(t vocab.Item) error {
-	if vocab.IsNil(t) {
-		return InvalidActivityObject("is nil")
-	}
-	if vocab.IsIRI(t) {
-		return p.ValidateIRI(t.GetLink())
-	}
-	return nil
-}
-
 func (p *P) ValidateAudienceForRemoteActivity(audience ...vocab.ItemCollection) error {
 	for _, elem := range audience {
 		for _, iri := range elem {
@@ -659,4 +636,57 @@ func (p *P) ValidateServerContentManagementActivity(act *vocab.Activity) error {
 		ob = found
 		return nil
 	})
+}
+
+func (p *P) ValidateServerCollectionManagementActivity(act *vocab.Activity) (err error) {
+	if !vocab.IsNil(act.Target) {
+		// NOTE(marius): the target is either a local object, and we need to
+		// make sure the actor is allowed to operate on it, or is a remote object
+		// and we don't need to do any local processing.
+		target, err := p.ValidateClientObject(act.Target)
+		if err != nil {
+			if target, err = p.ValidateServerObject(act.Target); err != nil {
+				return err
+			}
+		}
+		act.Target = target
+	}
+	if !vocab.IsNil(act.Origin) {
+		if act.Origin, err = p.ValidateServerObject(act.Origin); err != nil {
+			return err
+		}
+	}
+
+	checkForActorPermissions := func(ob vocab.Item) error {
+		if len(ob.GetLink()) == 0 {
+			return errors.BadRequestf("empty object id for %v activity", act.Type)
+		}
+
+		found, err := p.DereferenceItem(ob.GetLink())
+		if err != nil || vocab.IsNil(found) || vocab.IsIRI(found) {
+			return errors.Annotatef(err, "failed to dereference object")
+		}
+		// NOTE(marius): check if found object is modifiable for the current activity actor.
+		if err = p.objectAuthCheckFn(act.Actor, found); err != nil {
+			return err
+		}
+		ob = found
+		return nil
+	}
+
+	typ := act.Type
+	switch {
+	case vocab.AddType.Match(typ):
+		return vocab.OnItem(act.Target, checkForActorPermissions)
+	case vocab.RemoveType.Match(typ):
+		return vocab.OnItem(act.Target, checkForActorPermissions)
+	case vocab.MoveType.Match(typ):
+		if err = vocab.OnItem(act.Target, checkForActorPermissions); err != nil {
+			return err
+		}
+		if err = vocab.OnItem(act.Origin, checkForActorPermissions); err != nil {
+			return err
+		}
+	}
+	return nil
 }

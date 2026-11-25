@@ -7,7 +7,7 @@ import (
 )
 
 type S2SProcessor interface {
-	ProcessServerActivity(vocab.Item, vocab.IRI) (vocab.Item, error)
+	ProcessServerActivity(activity vocab.Item, author vocab.Actor, receivedIn vocab.IRI) (vocab.Item, error)
 }
 
 // ProcessServerActivity processes an Activity received in a server to server request
@@ -345,6 +345,8 @@ func (p *P) processServerActivity(act *vocab.Activity, receivedIn vocab.IRI) (vo
 		act, err = p.DeleteActivity(act)
 	case vocab.ReactionsActivityTypes.Match(typ):
 		act, err = p.ReactionsActivity(act, receivedIn)
+	case vocab.CollectionManagementActivityTypes.Match(typ):
+		act, err = p.CollectionManagementActivity(act, receivedIn)
 	}
 	return act, err
 }

@@ -102,21 +102,21 @@ func (o *outboxCollectionManagementTests) anActivityWithAnObjectAndAnOriginColle
 		build.WithTo(vocab.ItemCollection{vocab.PublicNS}),
 	)
 
-	originID := RootID.AddPath("origin")
-	origin := build.OrderedCollection(
+	originID := RootID.AddPath("target")
+	target := build.OrderedCollection(
 		build.WithID(originID),
 		build.WithTotalItems(1),
 		build.WithItems(toRemove),
 	)
 
-	o.st = Storage(WithLocalMocks(Author, origin, toRemove))
+	o.st = Storage(WithLocalMocks(Author, target, toRemove))
 
 	o.Author = *Author
 	o.ReceivedIn = vocab.Outbox.IRI(Author)
 	o.Activity = build.Remove(
 		build.WithActor(Author.ID),
 		build.WithObject(noteID),
-		build.WithOrigin(originID),
+		build.WithTarget(originID),
 	)
 
 	return nil
@@ -129,24 +129,24 @@ func (o *outboxCollectionManagementTests) theObjectWillNotExistInTheOrigin(ctx c
 		return fmt.Errorf("received error: %w", err)
 	}
 
-	originID := RootID.AddPath("origin")
+	targetID := RootID.AddPath("target")
 	noteID := RootID.AddPath("to-move")
 
-	targetCol, err := o.st.Load(originID)
+	targetCol, err := o.st.Load(targetID)
 	if err != nil {
-		return fmt.Errorf("unable to load collection %s: %w", originID, err)
+		return fmt.Errorf("unable to load collection %s: %w", targetID, err)
 	}
 	err = vocab.OnOrderedCollection(targetCol, func(collection *vocab.OrderedCollection) error {
 		if collection.TotalItems != 0 {
-			return fmt.Errorf("total items for collection %s should have been %d, received %d", originID, 0, collection.TotalItems)
+			return fmt.Errorf("total items for collection %s should have been %d, received %d", targetID, 0, collection.TotalItems)
 		}
 		if collection.OrderedItems.IRIs().Contains(noteID) {
-			return fmt.Errorf("note %s still exists in collection %s", noteID, originID)
+			return fmt.Errorf("note %s still exists in collection %s", noteID, targetID)
 		}
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("origin %s wasn't a collection %w", originID, err)
+		return fmt.Errorf("target %s wasn't a collection %w", targetID, err)
 	}
 	return nil
 }

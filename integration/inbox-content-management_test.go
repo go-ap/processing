@@ -299,10 +299,8 @@ func (i *inboxContentManagementTests) theObjectIsReplacedWithATombstone(ctx cont
 		),
 	)
 
-	return vocab.OnActivity(act, func(act *vocab.Activity) error {
-		checks.Run(t, act)
-		return nil
-	})
+	checks.Run(t, act)
+	return nil
 }
 
 func (i *inboxContentManagementTests) processingIsSuccessful(ctx context.Context) error {

@@ -13,7 +13,7 @@ import (
 func emptyCol(id vocab.IRI) *vocab.OrderedCollection {
 	return build.OrderedCollection(
 		build.WithID(id),
-		build.WithOrderedItems(make(vocab.ItemCollection, 0)),
+		build.WithOrderedItems(),
 	)
 }
 
@@ -39,21 +39,26 @@ func mockClient() ActivityPubClient {
 func mockProcessor(t *testing.T, base vocab.IRI) *P {
 	l := lw.Dev(lw.SetOutput(t.Output()))
 	return &P{
-		baseIRI:         vocab.IRIs{base},
-		c:               mockClient(),
-		s:               mockStorage(t, l),
-		l:               l,
-		localIRICheckFn: defaultLocalIRICheck,
-		createIDFn:      defaultIDGenerator(base),
-		actorKeyGenFn:   defaultKeyGenerator,
+		baseIRI:           vocab.IRIs{base},
+		c:                 mockClient(),
+		s:                 mockStorage(t, l),
+		l:                 l,
+		localIRICheckFn:   defaultLocalIRICheck,
+		createIDFn:        defaultIDGenerator(base),
+		actorKeyGenFn:     defaultKeyGenerator,
+		objectAuthCheckFn: emptyAuthorizationCheck,
 	}
 }
 
 func TestP_AddActivity(t *testing.T) {
+	type args struct {
+		add *vocab.Activity
+		in  vocab.IRI
+	}
 	tests := []struct {
 		name    string
 		base    vocab.IRI
-		add     *vocab.Activity
+		args    args
 		want    *vocab.Activity
 		wantErr error
 	}{
@@ -65,9 +70,11 @@ func TestP_AddActivity(t *testing.T) {
 		{
 			name: "add jdoe to his own followers",
 			base: "https://jdoe.example.local",
-			add: &vocab.Activity{
-				Target: vocab.IRI("https://jdoe.example.com/followers"),
-				Object: &vocab.Actor{ID: "https://jdoe.example.com"},
+			args: args{
+				add: &vocab.Activity{
+					Target: vocab.IRI("https://jdoe.example.com/followers"),
+					Object: &vocab.Actor{ID: "https://jdoe.example.com"},
+				},
 			},
 			want: &vocab.Activity{
 				Target: vocab.IRI("https://jdoe.example.com/followers"),
@@ -77,9 +84,11 @@ func TestP_AddActivity(t *testing.T) {
 		{
 			name: "add jdoe to his own followers and following",
 			base: "https://jdoe.example.local",
-			add: &vocab.Activity{
-				Target: vocab.IRIs{"https://jdoe.example.com/followers", "https://jdoe.example.com/following"},
-				Object: &vocab.Actor{ID: "https://jdoe.example.com"},
+			args: args{
+				add: &vocab.Activity{
+					Target: vocab.IRIs{"https://jdoe.example.com/followers", "https://jdoe.example.com/following"},
+					Object: &vocab.Actor{ID: "https://jdoe.example.com"},
+				},
 			},
 			want: &vocab.Activity{
 				Target: vocab.IRIs{"https://jdoe.example.com/followers", "https://jdoe.example.com/following"},
@@ -89,9 +98,11 @@ func TestP_AddActivity(t *testing.T) {
 		{
 			name: "add random object to inbox",
 			base: "https://jdoe.example.local",
-			add: &vocab.Activity{
-				Target: vocab.IRI("https://jdoe.example.com/inbox"),
-				Object: &vocab.Object{ID: "https://example.com", Type: vocab.ProfileType, Content: vocab.LangValues(vocab.DefaultLangRef("test"))},
+			args: args{
+				add: &vocab.Activity{
+					Target: vocab.IRI("https://jdoe.example.com/inbox"),
+					Object: &vocab.Object{ID: "https://example.com", Type: vocab.ProfileType, Content: vocab.LangValues(vocab.DefaultLangRef("test"))},
+				},
 			},
 			want: &vocab.Activity{
 				Target: vocab.IRI("https://jdoe.example.com/inbox"),
@@ -101,9 +112,11 @@ func TestP_AddActivity(t *testing.T) {
 		{
 			name: "add IRI to outbox",
 			base: "https://jdoe.example.local",
-			add: &vocab.Activity{
-				Target: vocab.IRI("https://jdoe.example.com/outbox"),
-				Object: vocab.IRI("https://example.com"),
+			args: args{
+				add: &vocab.Activity{
+					Target: vocab.IRI("https://jdoe.example.com/outbox"),
+					Object: vocab.IRI("https://example.com"),
+				},
 			},
 			want: &vocab.Activity{
 				Target: vocab.IRI("https://jdoe.example.com/outbox"),
@@ -113,9 +126,11 @@ func TestP_AddActivity(t *testing.T) {
 		{
 			name: "add multiple IRIs to outbox",
 			base: "https://jdoe.example.local",
-			add: &vocab.Activity{
-				Target: vocab.IRI("https://jdoe.example.com/outbox"),
-				Object: vocab.IRIs{"https://example.com", "https://jdoe.example.com"},
+			args: args{
+				add: &vocab.Activity{
+					Target: vocab.IRI("https://jdoe.example.com/outbox"),
+					Object: vocab.IRIs{"https://example.com", "https://jdoe.example.com"},
+				},
 			},
 			want: &vocab.Activity{
 				Target: vocab.IRI("https://jdoe.example.com/outbox"),
@@ -126,7 +141,7 @@ func TestP_AddActivity(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			p := mockProcessor(t, tt.base)
-			got, err := p.AddActivity(tt.add)
+			got, err := p.AddActivity(tt.args.add, tt.args.in)
 			if !cmp.Equal(tt.wantErr, err, EquateWeakErrors) {
 				t.Errorf("AddActivity() error = %s", cmp.Diff(tt.wantErr, err))
 				return
@@ -160,10 +175,14 @@ func TestP_AddActivity(t *testing.T) {
 }
 
 func TestP_RemoveActivity(t *testing.T) {
+	type args struct {
+		remove *vocab.Activity
+		in     vocab.IRI
+	}
 	tests := []struct {
 		name    string
 		base    vocab.IRI
-		remove  *vocab.Activity
+		args    args
 		items   vocab.ItemCollection
 		want    *vocab.Activity
 		wantErr error
@@ -177,12 +196,14 @@ func TestP_RemoveActivity(t *testing.T) {
 			name:  "remove jdoe from his own followers",
 			base:  "https://jdoe.example.local",
 			items: vocab.ItemCollection{&vocab.Actor{ID: "https://jdoe.example.com"}},
-			remove: &vocab.Activity{
-				Origin: vocab.IRI("https://jdoe.example.com/followers"),
-				Object: vocab.IRI("https://jdoe.example.com"),
+			args: args{
+				remove: &vocab.Activity{
+					Target: vocab.IRI("https://jdoe.example.com/followers"),
+					Object: vocab.IRI("https://jdoe.example.com"),
+				},
 			},
 			want: &vocab.Activity{
-				Origin: vocab.IRI("https://jdoe.example.com/followers"),
+				Target: vocab.IRI("https://jdoe.example.com/followers"),
 				Object: vocab.IRI("https://jdoe.example.com"),
 			},
 		},
@@ -190,12 +211,14 @@ func TestP_RemoveActivity(t *testing.T) {
 			name:  "remove random object from inbox",
 			base:  "https://jdoe.example.local",
 			items: vocab.ItemCollection{&vocab.Object{ID: "https://example.com", Type: vocab.ProfileType, Content: vocab.LangValues(vocab.DefaultLangRef("test"))}},
-			remove: &vocab.Activity{
-				Origin: vocab.IRI("https://jdoe.example.com/inbox"),
-				Object: vocab.IRI("https://example.com"),
+			args: args{
+				remove: &vocab.Activity{
+					Target: vocab.IRI("https://jdoe.example.com/inbox"),
+					Object: vocab.IRI("https://example.com"),
+				},
 			},
 			want: &vocab.Activity{
-				Origin: vocab.IRI("https://jdoe.example.com/inbox"),
+				Target: vocab.IRI("https://jdoe.example.com/inbox"),
 				Object: vocab.IRI("https://example.com"),
 			},
 		},
@@ -203,12 +226,14 @@ func TestP_RemoveActivity(t *testing.T) {
 			name:  "try to remove inexistent object from outbox",
 			base:  "https://jdoe.example.local",
 			items: vocab.ItemCollection{},
-			remove: &vocab.Activity{
-				Origin: vocab.IRI("https://jdoe.example.com/inbox"),
-				Object: vocab.IRI("https://example.com"),
+			args: args{
+				remove: &vocab.Activity{
+					Target: vocab.IRI("https://jdoe.example.com/inbox"),
+					Object: vocab.IRI("https://example.com"),
+				},
 			},
 			want: &vocab.Activity{
-				Origin: vocab.IRI("https://jdoe.example.com/inbox"),
+				Target: vocab.IRI("https://jdoe.example.com/inbox"),
 				Object: vocab.IRI("https://example.com"),
 			},
 		},
@@ -217,11 +242,11 @@ func TestP_RemoveActivity(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			p := mockProcessor(t, tt.base)
 			// NOTE(marius): add items to collection
-			for _, it := range tt.items {
-				_ = p.s.AddTo(tt.remove.Origin.GetLink(), it)
+			if len(tt.items) > 0 {
+				_ = p.s.AddTo(tt.args.remove.Target.GetLink(), tt.items...)
 			}
 
-			got, err := p.RemoveActivity(tt.remove)
+			got, err := p.RemoveActivity(tt.args.remove, tt.args.in)
 			if !cmp.Equal(tt.wantErr, err, EquateWeakErrors) {
 				t.Errorf("RemoveActivity() error = %s", cmp.Diff(tt.wantErr, err))
 				return
@@ -240,12 +265,12 @@ func TestP_RemoveActivity(t *testing.T) {
 				}
 				target, ok := col.(vocab.CollectionInterface)
 				if !ok {
-					t.Errorf("RemoveActivity() got Activity %T target %T is not %T", got, tgt, vocab.CollectionInterface(nil))
+					t.Errorf("RemoveActivity() got %T target %T is not %T", got, tgt, vocab.CollectionInterface(nil))
 					return nil
 				}
 				return vocab.OnItem(got.Object, func(item vocab.Item) error {
-					if !target.Contains(item) {
-						t.Errorf("RemoveActivity() got Activity %T object %s can't be found in %#v", got, item.GetLink(), tgt)
+					if target.Contains(item) {
+						t.Errorf("RemoveActivity() got %T object %s can still be found in %#v", got, item.GetLink(), tgt)
 					}
 					return nil
 				})
@@ -255,10 +280,14 @@ func TestP_RemoveActivity(t *testing.T) {
 }
 
 func TestP_MoveActivity(t *testing.T) {
+	type args struct {
+		move *vocab.Activity
+		in   vocab.IRI
+	}
 	tests := []struct {
 		name    string
 		base    vocab.IRI
-		remove  *vocab.Activity
+		args    args
 		items   vocab.ItemCollection
 		want    *vocab.Activity
 		wantErr error
@@ -272,10 +301,12 @@ func TestP_MoveActivity(t *testing.T) {
 			name:  "move jdoe from followers to following",
 			base:  "https://jdoe.example.local",
 			items: vocab.ItemCollection{&vocab.Actor{ID: "https://jdoe.example.com"}},
-			remove: &vocab.Activity{
-				Origin: vocab.IRI("https://jdoe.example.com/followers"),
-				Target: vocab.IRI("https://jdoe.example.com/following"),
-				Object: vocab.IRI("https://jdoe.example.com"),
+			args: args{
+				move: &vocab.Activity{
+					Origin: vocab.IRI("https://jdoe.example.com/followers"),
+					Target: vocab.IRI("https://jdoe.example.com/following"),
+					Object: vocab.IRI("https://jdoe.example.com"),
+				},
 			},
 			want: &vocab.Activity{
 				Origin: vocab.IRI("https://jdoe.example.com/followers"),
@@ -289,10 +320,12 @@ func TestP_MoveActivity(t *testing.T) {
 			items: vocab.ItemCollection{
 				&vocab.Object{ID: "https://example.com", Type: vocab.ProfileType, Content: vocab.LangValues(vocab.DefaultLangRef("test"))},
 			},
-			remove: &vocab.Activity{
-				Origin: vocab.IRI("https://jdoe.example.com/inbox"),
-				Target: vocab.IRI("https://jdoe.example.com/outbox"),
-				Object: vocab.IRI("https://example.com"),
+			args: args{
+				move: &vocab.Activity{
+					Origin: vocab.IRI("https://jdoe.example.com/inbox"),
+					Target: vocab.IRI("https://jdoe.example.com/outbox"),
+					Object: vocab.IRI("https://example.com"),
+				},
 			},
 			want: &vocab.Activity{
 				Origin: vocab.IRI("https://jdoe.example.com/inbox"),
@@ -304,10 +337,12 @@ func TestP_MoveActivity(t *testing.T) {
 			name:  "try to move inexistent object from inbox to outbox",
 			base:  "https://jdoe.example.local",
 			items: vocab.ItemCollection{},
-			remove: &vocab.Activity{
-				Origin: vocab.IRI("https://jdoe.example.com/inbox"),
-				Target: vocab.IRI("https://jdoe.example.com/outbox"),
-				Object: vocab.IRI("https://example.com"),
+			args: args{
+				move: &vocab.Activity{
+					Origin: vocab.IRI("https://jdoe.example.com/inbox"),
+					Target: vocab.IRI("https://jdoe.example.com/outbox"),
+					Object: vocab.IRI("https://example.com"),
+				},
 			},
 			want: &vocab.Activity{
 				Origin: vocab.IRI("https://jdoe.example.com/inbox"),
@@ -321,10 +356,10 @@ func TestP_MoveActivity(t *testing.T) {
 			p := mockProcessor(t, tt.base)
 			// NOTE(marius): add items to origin collection
 			for _, it := range tt.items {
-				_ = p.s.AddTo(tt.remove.Origin.GetLink(), it)
+				_ = p.s.AddTo(tt.args.move.Origin.GetLink(), it)
 			}
 
-			got, err := p.MoveActivity(tt.remove)
+			got, err := p.MoveActivity(tt.args.move, tt.args.in)
 			if !cmp.Equal(tt.wantErr, err, EquateWeakErrors) {
 				t.Errorf("MoveActivity() error = %s", cmp.Diff(tt.wantErr, err, EquateWeakErrors))
 				return
