@@ -187,7 +187,7 @@ func (p *P) processClientActivity(act *vocab.Activity, receivedIn vocab.IRI) (vo
 		// NOTE(marius): this is most likely wrong, as Arrive and Travel are Intransitive Activities
 		act, err = GeoSocialEventsActivity(p.s, act)
 	case vocab.NotificationActivityTypes.Match(typ):
-		act, err = p.NotificationActivity(act)
+		act, err = p.NotificationActivity(act, receivedIn)
 	case vocab.RelationshipManagementActivityTypes.Match(typ):
 		act, err = p.RelationshipManagementActivity(act, receivedIn)
 	case vocab.NegatingActivityTypes.Match(typ):

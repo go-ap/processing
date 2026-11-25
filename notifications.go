@@ -32,7 +32,7 @@ func (p P) ValidateClientNotificationActivity(act *vocab.Activity) error {
 // networks.
 //
 // https://www.w3.org/TR/activitypub/#announce-activity-inbox
-func (p P) NotificationActivity(act *vocab.Activity) (*vocab.Activity, error) {
+func (p P) NotificationActivity(act *vocab.Activity, _ vocab.IRI) (*vocab.Activity, error) {
 	if vocab.IsNil(act.Object) {
 		return act, InvalidActivityObject("is nil for %T[%s]", act, act.GetType())
 	}
