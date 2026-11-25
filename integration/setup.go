@@ -253,7 +253,9 @@ func (am AuthorizedMap) ResolveKey(ctx context.Context, info rfc.SignatureInfo) 
 	switch pk := prv.(type) {
 	case *rsa.PrivateKey:
 		switch pk.Size() {
-		case 256, 384:
+		case 256:
+			key.Key.Algorithm = rfc.RsaPkcs1v15Sha256
+		case 384:
 			key.Key.Algorithm = rfc.RsaPkcs1v15Sha384
 		case 512:
 			key.Key.Algorithm = rfc.RsaPkcs1v15Sha512

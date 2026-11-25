@@ -1,10 +1,13 @@
 package integration
 
 import (
+	"context"
 	"testing"
 
 	"github.com/cucumber/godog"
 	vocab "github.com/go-ap/activitypub"
+	"github.com/go-ap/activitypub/build"
+	"github.com/go-ap/processing"
 )
 
 type inboxNegateTests struct {
@@ -22,11 +25,49 @@ func (i *inboxNegateTests) initScenario(ctx *godog.ScenarioContext) {
 }
 
 func (i *inboxNegateTests) anUndoActivityIsReceived() error {
-	return godog.ErrPending
+	i.Activity = build.Undo(
+		build.WithID(RemoteAuthorID.AddPath("undo-create")),
+		build.WithObject(RemoteAuthorID.AddPath("create")),
+		build.WithActor(RemoteAuthorID),
+	)
+	i.Author = *RemoteAuthor
+	i.ReceivedIn = vocab.Inbox.IRI(Author)
+	return nil
 }
 
-func (i *inboxNegateTests) processingIsSuccessful() error {
-	return godog.ErrPending
+func (i *inboxNegateTests) processingIsSuccessful(ctx context.Context) error {
+	t := godog.T(ctx)
+
+	createID := RemoteAuthorID.AddPath("create")
+	create := build.Create(
+		build.WithID(createID),
+		build.WithActor(RemoteAuthorID),
+		build.WithTo(AuthorID),
+		build.WithObject(build.Link(
+			build.WithID(RemoteAuthorID.AddPath("link")),
+			build.WithHref("http://example.com"),
+		)),
+	)
+	st := Storage(WithLocalMocks(Author))
+	ms := Remote(
+		WithClientActorKey(RemoteAuthor, rsaKey),
+		WithHandlers(
+			Handler(RemoteAuthorID, ServeItemHandler(t, nil, RemoteAuthor)),
+			Handler(createID, ServeItemHandler(t, Auth(RemoteAuthor, rsaKey), create)),
+		),
+	)
+
+	allowAllActors := func(actor, object vocab.Item) error {
+		return nil
+	}
+	mp := MockPlumbing{}
+	p := mp.InitP(processing.WithStorage(st), WithRemote(ms), processing.WithAuthorizationCheckFn(allowAllActors))
+	_, err := p.ProcessActivity(i.Activity, i.Author, i.ReceivedIn)
+	if err != nil {
+		t.Errorf("Unexpected error received: %v", err)
+	}
+
+	return ms.Success(t)
 }
 
 func Test_Inbox_Negate(t *testing.T) {
