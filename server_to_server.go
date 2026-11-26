@@ -349,6 +349,8 @@ func (p *P) processServerActivity(act *vocab.Activity, receivedIn vocab.IRI) (vo
 		act, err = p.NotificationActivity(act, receivedIn)
 	case vocab.CollectionManagementActivityTypes.Match(typ):
 		act, err = p.CollectionManagementActivity(act, receivedIn)
+	case vocab.RelationshipManagementActivityTypes.Match(typ):
+		act, err = p.RelationshipManagementActivity(act, receivedIn)
 	}
 	return act, err
 }

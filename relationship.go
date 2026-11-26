@@ -22,7 +22,7 @@ func (p *P) RelationshipManagementActivity(act *vocab.Activity, receivedIn vocab
 	}
 	switch {
 	case vocab.FollowType.Match(act.Type):
-		return FollowActivity(p, act, receivedIn)
+		return p.FollowActivity(act, receivedIn)
 	case vocab.RejectType.Match(act.Type):
 		fallthrough
 	case vocab.TentativeRejectType.Match(act.Type):
@@ -76,21 +76,27 @@ func (p *P) RelationshipManagementActivity(act *vocab.Activity, receivedIn vocab
 // an actor for perhaps six months while the follower remains unreachable, it is reasonable that the delivering
 // server remove the subscriber from the followers list. Timeframes and behavior for dealing with unreachable
 // actors are left to the discretion of the delivering server.
-func FollowActivity(_ *P, act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activity, error) {
-	if !vocab.IsNil(act.Object) {
-		validForRecipient := func(i vocab.IRI) bool {
-			return len(i) > 0 && !i.Equal(vocab.PublicNS)
-		}
-
-		// TODO(marius): add check if IRI represents an actor (or rely on the collection saver to break if not).
-		//   This should be moved to the validation logic
-		_ = vocab.OnItem(act.Object, func(object vocab.Item) error {
-			if obIRI := object.GetLink(); validForRecipient(obIRI) {
-				_ = act.To.Append(obIRI)
-			}
-			return nil
-		})
+func (p *P) FollowActivity(act *vocab.Activity, receivedIn vocab.IRI) (*vocab.Activity, error) {
+	if vocab.IsNil(act.Object) {
+		return act, nil
 	}
+	validForRecipient := func(i vocab.IRI) bool {
+		return len(i) > 0 && !i.Equal(vocab.PublicNS)
+	}
+
+	// TODO(marius): add check if IRI represents an actor (or rely on the collection saver to break if not).
+	//   This should be moved to the validation logic
+	_ = vocab.OnItem(act.Object, func(ob vocab.Item) error {
+		if obIRI := ob.GetLink(); validForRecipient(obIRI) {
+			_ = act.To.Append(obIRI)
+		}
+		if vocab.PersonType.Match(ob.GetType()) {
+			// NOTE(marius): for actors that are of Person type we wait for the actor
+			// to respond with an Accept activity for finalizing the follow process.
+			return nil
+		}
+		return dispatchFollowSideEffectToLocalCollections(p, act)
+	})
 	return act, nil
 }
 
